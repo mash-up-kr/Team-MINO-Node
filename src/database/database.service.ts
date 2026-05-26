@@ -11,7 +11,7 @@ export class DatabaseService implements OnModuleDestroy {
 
   constructor(configService: ConfigService) {
     const databaseUrl = configService.getOrThrow<string>("DATABASE_URL");
-    const max = Number(configService.getOrThrow<string>("DB_POOL_SIZE"));
+    const max = Number(configService.get<string>("DB_POOL_SIZE", "10"));
 
     this.client = postgres(databaseUrl, {
       max,

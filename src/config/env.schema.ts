@@ -6,7 +6,7 @@ const envSchema = v.object({
     "development",
   ),
   PORT: v.optional(v.pipe(v.string(), v.regex(/^\d+$/)), "3000"),
-  DATABASE_URL: v.pipe(v.string(), v.minLength(1)),
+  DATABASE_URL: v.pipe(v.string(), v.minLength(1), v.url()),
   DB_POOL_SIZE: v.optional(v.pipe(v.string(), v.regex(/^\d+$/)), "10"),
 });
 

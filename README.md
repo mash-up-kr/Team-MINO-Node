@@ -15,13 +15,6 @@ NestJS 기반 Team MINO 백엔드 API 서버입니다.
 bun install
 ```
 
-Bun 명령어를 찾을 수 없다면 PATH를 먼저 확인합니다.
-
-```bash
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
-```
-
 ### 2. Configure Environment
 
 ```bash
