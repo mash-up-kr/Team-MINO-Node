@@ -5,14 +5,23 @@ import {
   HttpException,
   HttpStatus,
 } from "@nestjs/common";
-import type { Request, Response } from "express";
+import type { Response } from "express";
+
+const DEFAULT_ERROR_CODES: Partial<Record<number, string>> = {
+  400: "BAD_REQUEST",
+  401: "UNAUTHORIZED",
+  403: "FORBIDDEN",
+  404: "NOT_FOUND",
+  409: "CONFLICT",
+  422: "UNPROCESSABLE_ENTITY",
+  500: "INTERNAL_SERVER_ERROR",
+};
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
 
     const status =
       exception instanceof HttpException
@@ -31,18 +40,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
           ? (exceptionResponse as { message: string | string[] }).message
           : "Internal server error";
 
-    const error =
+    const errorCode =
       typeof exceptionResponse === "object" &&
       exceptionResponse !== null &&
-      "error" in exceptionResponse
-        ? (exceptionResponse as { error: string }).error
-        : HttpStatus[status];
+      "errorCode" in exceptionResponse
+        ? (exceptionResponse as { errorCode: string }).errorCode
+        : (DEFAULT_ERROR_CODES[status] ?? "INTERNAL_SERVER_ERROR");
 
-    response.status(status).json({
-      statusCode: status,
-      message,
-      error,
-      path: request.url,
-    });
+    response.status(status).json({ errorCode, message });
   }
 }
