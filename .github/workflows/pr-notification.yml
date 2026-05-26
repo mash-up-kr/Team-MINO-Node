@@ -32,6 +32,7 @@ jobs:
 
       - name: Send to Discord
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           PR_COUNT=$(gh pr list --repo ${{ github.repository }} --json number --jq 'length')
@@ -52,6 +53,3 @@ jobs:
           curl -s -X POST "$DISCORD_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
