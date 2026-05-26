@@ -1,0 +1,55 @@
+name: PR Notification
+
+on:
+  schedule:
+    - cron: "0 12 * * *" # 매일 오후 9시 KST (12:00 UTC)
+  workflow_dispatch: # 수동 트리거
+
+jobs:
+  notify:
+    name: Send PR Status to Discord
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch open PRs
+        id: prs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_LIST=$(gh pr list \
+            --repo ${{ github.repository }} \
+            --json number,title,author,headRefName,url \
+            --jq '.[] | "- [#\(.number) \(.title)](\(.url)) — @\(.author.login)"' \
+          )
+
+          if [ -z "$PR_LIST" ]; then
+            PR_LIST="현재 오픈된 PR이 없습니다."
+          fi
+
+          echo "pr_list<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_LIST" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Send to Discord
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          PR_COUNT=$(gh pr list --repo ${{ github.repository }} --json number --jq 'length')
+
+          PAYLOAD=$(jq -n \
+            --arg count "$PR_COUNT" \
+            --arg prs "${{ steps.prs.outputs.pr_list }}" \
+            '{
+              "embeds": [{
+                "title": "📋 오픈 PR 현황",
+                "description": $prs,
+                "color": 5814783,
+                "footer": { "text": "Team MINO • 오픈 PR \($count)개" }
+              }]
+            }'
+          )
+
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"
