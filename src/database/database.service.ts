@@ -1,5 +1,4 @@
 import { Injectable, type OnModuleDestroy } from "@nestjs/common";
-// biome-ignore lint/style/useImportType: NestJS DI needs runtime constructor metadata.
 import { ConfigService } from "@nestjs/config";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
