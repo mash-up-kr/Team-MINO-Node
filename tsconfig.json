@@ -15,5 +15,6 @@
     "baseUrl": "./",
     "skipLibCheck": true,
     "incremental": true
-  }
+  },
+  "include": ["src", "scripts"]
 }
