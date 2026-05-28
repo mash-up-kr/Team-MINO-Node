@@ -6,6 +6,9 @@ export function DataResponse<T>(type: Type<T>) {
     @ApiProperty({ type })
     data!: T;
   }
+  Object.defineProperty(DataResponseClass, "name", {
+    value: `DataResponse${type.name}`,
+  });
   return DataResponseClass;
 }
 
@@ -14,5 +17,8 @@ export function DataArrayResponse<T>(type: Type<T>) {
     @ApiProperty({ type, isArray: true })
     data!: T[];
   }
+  Object.defineProperty(DataArrayResponseClass, "name", {
+    value: `DataArrayResponse${type.name}`,
+  });
   return DataArrayResponseClass;
 }
