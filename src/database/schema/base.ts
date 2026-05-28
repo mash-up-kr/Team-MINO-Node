@@ -4,4 +4,5 @@ export const baseColumns = {
   id: serial("id").primaryKey(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdateFn(() => new Date()),
+  deletedAt: timestamp("deleted_at"),
 };
