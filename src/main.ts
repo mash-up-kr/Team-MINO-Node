@@ -6,6 +6,7 @@ import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.enableShutdownHooks();
   const configService = app.get(ConfigService);
   const port = Number(configService.get("PORT", "3000"));
   const swaggerConfig = new DocumentBuilder()

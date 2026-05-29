@@ -7,15 +7,15 @@ import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
 
 @Module({
-	imports: [
-		ConfigModule.forRoot({
-			isGlobal: true,
-			validate: validateEnv,
-		}),
-		DatabaseModule,
-		TerminusModule,
-	],
-	controllers: [HealthController],
-	providers: [DrizzleHealthIndicator],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv,
+    }),
+    DatabaseModule,
+    TerminusModule,
+  ],
+  controllers: [HealthController],
+  providers: [DrizzleHealthIndicator],
 })
 export class AppModule {}
