@@ -15,7 +15,9 @@
     "start:dev": "nest start --watch",
     "start:prod": "bun dist/src/main.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsgo --noEmit",
+    "typecheck:tsc": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -39,8 +41,9 @@
     "@nestjs/cli": "^11.0.21",
     "@nestjs/schematics": "^11.1.0",
     "@types/node": "^25.9.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260421.2",
     "drizzle-kit": "^0.31.10",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.0",
     "vitest": "^4.1.7"
   }
 }
