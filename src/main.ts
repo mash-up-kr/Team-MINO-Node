@@ -1,9 +1,10 @@
 import { NestFactory } from '@nestjs/core';
-import type { NestExpressApplication } from '@nestjs/platform-express';
+import { BunHonoAdapter } from './adapters/bun-hono.adapter';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  await app.listen(process.env.PORT || 3000);
+  const app = await NestFactory.create(AppModule, new BunHonoAdapter());
+  app.enableShutdownHooks();
+  await app.listen(Number(process.env.PORT) || 3000);
 }
 bootstrap();
