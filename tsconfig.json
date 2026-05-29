@@ -15,6 +15,7 @@
     "outDir": "./dist",
     "rootDir": "./",
     "paths": { "*": ["./*"] },
+    "types": ["bun-types"],
     "skipLibCheck": true,
     "incremental": true
   }

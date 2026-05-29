@@ -5,9 +5,9 @@ const envSchema = v.object({
     v.picklist(["development", "test", "production"]),
     "development",
   ),
-  PORT: v.optional(v.pipe(v.string(), v.regex(/^\d+$/), v.transform(Number)), "3000"),
+  PORT: v.optional(v.pipe(v.string(), v.regex(/^\d+$/), v.transform(Number), v.minValue(1), v.maxValue(65535)), "3000"),
   DATABASE_URL: v.pipe(v.string(), v.minLength(1), v.url()),
-  DB_POOL_SIZE: v.optional(v.pipe(v.string(), v.regex(/^\d+$/), v.transform(Number)), "10"),
+  DB_POOL_SIZE: v.optional(v.pipe(v.string(), v.regex(/^\d+$/), v.transform(Number), v.minValue(1)), "10"),
 });
 
 export type Env = v.InferOutput<typeof envSchema>;
