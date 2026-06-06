@@ -1,13 +1,19 @@
 import { NestFactory } from "@nestjs/core";
-import type { NestExpressApplication } from "@nestjs/platform-express";
 import { Logger } from "nestjs-pino";
+import { BunHonoAdapter } from "./adapters/bun-hono.adapter";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+  const adapter = new BunHonoAdapter();
+  const app = await NestFactory.create(AppModule, adapter, {
     bufferLogs: true,
   });
-  app.useLogger(app.get(Logger));
-  await app.listen(process.env.PORT ?? 3000);
+  const logger = app.get(Logger);
+  app.useLogger(logger);
+  adapter.useRequestLogger(({ method, path, status, durationMs }) => {
+    logger.log(`${method} ${path} ${status} ${durationMs}ms`);
+  });
+  app.enableShutdownHooks();
+  await app.listen(Number(process.env.PORT) || 3000);
 }
 bootstrap();
