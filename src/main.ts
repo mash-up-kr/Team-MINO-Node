@@ -2,6 +2,8 @@ import { NestFactory } from "@nestjs/core";
 import { Logger } from "nestjs-pino";
 import { BunHonoAdapter } from "./adapters/bun-hono.adapter";
 import { AppModule } from "./app.module";
+import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
+import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 
 async function bootstrap() {
   const adapter = new BunHonoAdapter();
@@ -13,6 +15,8 @@ async function bootstrap() {
   adapter.useRequestLogger(({ method, path, status, durationMs }) => {
     logger.log(`${method} ${path} ${status} ${durationMs}ms`);
   });
+  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalInterceptors(new ResponseInterceptor());
   app.enableShutdownHooks();
   await app.listen(Number(process.env.PORT) || 3000);
 }
