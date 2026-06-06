@@ -1,7 +1,7 @@
 import * as gcp from "@pulumi/gcp";
 import * as pulumi from "@pulumi/pulumi";
-import { enabledServices } from "@/resources/apis";
 import { prefix, project } from "@/config";
+import { enabledServices } from "@/resources/apis";
 
 // GitHub Actions authenticates via OIDC
 const githubRepository = "mash-up-kr/Team-MINO-Node";

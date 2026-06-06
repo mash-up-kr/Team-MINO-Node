@@ -1,6 +1,6 @@
-import type { Server as BunServer } from "bun";
-import type { NestApplicationOptions } from "@nestjs/common";
 import { HonoAdapter } from "@kiyasov/platform-hono/adapters";
+import type { NestApplicationOptions } from "@nestjs/common";
+import type { Server as BunServer } from "bun";
 import { BunHttpServerStub } from "./bun-http-server-stub";
 
 type RequestLog = {

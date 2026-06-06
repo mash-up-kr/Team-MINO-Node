@@ -10,7 +10,9 @@ export class DatabaseService implements OnModuleDestroy {
   readonly db: ReturnType<typeof drizzle>;
 
   constructor(configService: ConfigService<Env>) {
-    const databaseUrl = configService.getOrThrow("DATABASE_URL", { infer: true });
+    const databaseUrl = configService.getOrThrow("DATABASE_URL", {
+      infer: true,
+    });
     const max = configService.get("DB_POOL_SIZE", 10, { infer: true });
 
     this.client = postgres(databaseUrl, {

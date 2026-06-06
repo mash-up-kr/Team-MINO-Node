@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { beforeEach, describe, expect, it, jest } from "bun:test";
-import { Test } from "@nestjs/testing";
 import { HealthIndicatorService } from "@nestjs/terminus";
+import { Test } from "@nestjs/testing";
 import { DatabaseService } from "../database/database.service";
 import { DrizzleHealthIndicator } from "./drizzle.health-indicator";
 
@@ -31,7 +31,7 @@ describe("DrizzleHealthIndicator", () => {
 
   it("DB 정상일 때 status: up 반환", async () => {
     const result = await indicator.pingCheck("database");
-    expect(result["database"].status).toBe("up");
+    expect(result.database.status).toBe("up");
   });
 
   it("DB 실패할 때 status: down 반환", async () => {
@@ -42,7 +42,11 @@ describe("DrizzleHealthIndicator", () => {
         {
           provide: DatabaseService,
           useValue: {
-            db: { execute: jest.fn().mockRejectedValue(new Error("connection refused")) },
+            db: {
+              execute: jest
+                .fn()
+                .mockRejectedValue(new Error("connection refused")),
+            },
           },
         },
       ],
@@ -50,6 +54,6 @@ describe("DrizzleHealthIndicator", () => {
 
     const failIndicator = module.get(DrizzleHealthIndicator);
     const result = await failIndicator.pingCheck("database");
-    expect(result["database"].status).toBe("down");
+    expect(result.database.status).toBe("down");
   });
 });

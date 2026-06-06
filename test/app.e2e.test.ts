@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { Logger } from "nestjs-pino";
 import { BunHonoAdapter } from "../src/adapters/bun-hono.adapter";
 import { AppModule } from "../src/app.module";
-import type { INestApplication } from "@nestjs/common";
 
 let app: INestApplication;
 let baseUrl: string;

@@ -1,6 +1,6 @@
 import * as gcp from "@pulumi/gcp";
-import { enabledServices } from "@/resources/apis";
 import { prefix, project, region } from "@/config";
+import { enabledServices } from "@/resources/apis";
 import { serverServiceAccount } from "@/resources/identity";
 
 export const service = new gcp.cloudrunv2.Service(
