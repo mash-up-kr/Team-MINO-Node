@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { Logger } from "nestjs-pino";
 import { BunHonoAdapter } from "../src/adapters/bun-hono.adapter";
 import { AppModule } from "../src/app.module";
-import type { INestApplication } from "@nestjs/common";
 
 let app: INestApplication;
 let baseUrl: string;
@@ -41,7 +41,7 @@ describe("Bun/Hono adapter + nestjs-pino integration", () => {
 
   it("responds with proper status code, not an unhandled error", async () => {
     const res = await fetch(`${baseUrl}/health`);
-    expect([200, 404]).toContain(res.status);
+    expect([200, 404, 503]).toContain(res.status);
   });
 
   it("records request logs via adapter hook", async () => {

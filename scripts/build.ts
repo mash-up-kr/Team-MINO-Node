@@ -2,10 +2,14 @@
 
 // Prevent bundling of NestJS's optional dependencies
 const dependencies = [
+  "@mikro-orm/core",
   "@nestjs/microservices",
   "@nestjs/microservices/microservices-module",
+  "@nestjs/mongoose",
   "@nestjs/platform-express",
   "@nestjs/platform-socket.io",
+  "@nestjs/sequelize/dist/common/sequelize.utils",
+  "@nestjs/typeorm/dist/common/typeorm.utils",
   "@nestjs/websockets/socket-module",
   "class-transformer",
   "class-transformer/storage",

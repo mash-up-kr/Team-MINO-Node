@@ -1,7 +1,7 @@
 import * as gcp from "@pulumi/gcp";
 import * as pulumi from "@pulumi/pulumi";
-import { enabledServices } from "@/resources/apis";
 import { prefix, project, region } from "@/config";
+import { enabledServices } from "@/resources/apis";
 
 const repository = new gcp.artifactregistry.Repository(
   `${prefix}-docker`,

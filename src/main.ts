@@ -1,4 +1,5 @@
 import { NestFactory } from "@nestjs/core";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Logger } from "nestjs-pino";
 import { BunHonoAdapter } from "./adapters/bun-hono.adapter";
 import { AppModule } from "./app.module";
@@ -18,6 +19,15 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.enableShutdownHooks();
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle("Team MINO API")
+    .setDescription("Team MINO backend API documentation")
+    .setVersion("1.0.0")
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  adapter.setupSwagger("/api-docs", document as Record<string, unknown>);
+
   await app.listen(Number(process.env.PORT) || 3000);
 }
 bootstrap();

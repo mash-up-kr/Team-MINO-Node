@@ -1,5 +1,5 @@
-import { BadRequestException, HttpStatus } from "@nestjs/common";
 import type { ArgumentsHost } from "@nestjs/common";
+import { BadRequestException, HttpStatus } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import { AppException } from "../exceptions/app.exception";
 import { HttpExceptionFilter } from "./http-exception.filter";
