@@ -11,13 +11,14 @@ export class ValibotPipe<T extends v.BaseSchema<unknown, unknown, v.BaseIssue<un
     const result = v.safeParse(this.schema, value);
 
     if (!result.success) {
-      const fields = v.flatten(result.issues).nested ?? {};
+      const flat = v.flatten(result.issues);
+      const fields = flat.nested ?? {};
       const message =
         Object.keys(fields).length > 0
           ? Object.entries(fields)
               .map(([field, errors]) => `${field}: ${errors?.join(", ")}`)
               .join(" / ")
-          : (v.flatten(result.issues).root?.join(", ") ?? "Validation failed");
+          : (flat.root?.join(", ") ?? "Validation failed");
 
       throw new AppException("VALIDATION_ERROR", message, HttpStatus.BAD_REQUEST);
     }

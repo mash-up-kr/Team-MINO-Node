@@ -19,18 +19,27 @@ describe("ValibotPipe", () => {
   });
 
   it("유효하지 않은 데이터는 VALIDATION_ERROR AppException을 던진다", () => {
-    expect(() => pipe.transform({ name: "", age: -1 })).toThrowError(AppException);
-
+    let caught: unknown;
     try {
       pipe.transform({ name: "", age: -1 });
     } catch (e) {
-      expect(e).toBeInstanceOf(AppException);
-      expect((e as AppException).errorCode).toBe("VALIDATION_ERROR");
-      expect((e as AppException).getStatus()).toBe(400);
+      caught = e;
     }
+    expect(caught).toBeInstanceOf(AppException);
+    expect((caught as AppException).errorCode).toBe("VALIDATION_ERROR");
+    expect((caught as AppException).getStatus()).toBe(400);
+    expect((caught as AppException).message).toMatch(/name:.*age:/);
   });
 
-  it("필수 필드 누락 시 400 에러를 던진다", () => {
-    expect(() => pipe.transform({ name: "홍길동" })).toThrowError(AppException);
+  it("필수 필드 누락 시 400 에러와 누락 필드명을 포함한 메시지를 던진다", () => {
+    let caught: unknown;
+    try {
+      pipe.transform({ name: "홍길동" });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(AppException);
+    expect((caught as AppException).getStatus()).toBe(400);
+    expect((caught as AppException).message).toMatch(/age:/);
   });
 });
