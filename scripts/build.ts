@@ -4,6 +4,7 @@
 const dependencies = [
   "@nestjs/microservices",
   "@nestjs/microservices/microservices-module",
+  "@nestjs/platform-express",
   "@nestjs/platform-socket.io",
   "@nestjs/websockets/socket-module",
   "class-transformer",
