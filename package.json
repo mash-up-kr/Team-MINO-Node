@@ -14,7 +14,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "./dist/server",
-    "test": "bun test test/",
+    "test": "DATABASE_URL=${DATABASE_URL:-postgresql://localhost/test} bun test test/",
     "test:watch": "bun test --watch",
     "typecheck": "tsgo --noEmit",
     "typecheck:tsc": "tsc --noEmit"
