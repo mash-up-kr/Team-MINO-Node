@@ -5,6 +5,9 @@ on:
     - cron: "0 12 * * *" # 매일 오후 9시 KST (12:00 UTC)
   workflow_dispatch: # 수동 트리거
 
+permissions:
+  pull-requests: read
+
 jobs:
   notify:
     name: Send PR Status to Discord
@@ -40,7 +43,7 @@ jobs:
 
           PAYLOAD=$(jq -n \
             --arg count "$PR_COUNT" \
-            --arg prs "$PR_LIST" \   # ← "$PR_LIST"로 안전하게 참조
+            --arg prs "$PR_LIST" \
             '{
               "embeds": [{
                 "title": "📋 오픈 PR 현황",
@@ -51,6 +54,9 @@ jobs:
             }'
           )
 
-          curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+          curl --fail --show-error --silent \
+            --max-time 10 \
+            --retry 3 --retry-delay 2 \
+            -X POST "$DISCORD_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD"
