@@ -3,9 +3,29 @@ import type { NestApplicationOptions } from "@nestjs/common";
 import { HonoAdapter } from "@kiyasov/platform-hono/adapters";
 import { BunHttpServerStub } from "./bun-http-server-stub";
 
+type RequestLog = {
+  readonly durationMs: number;
+  readonly method: string;
+  readonly path: string;
+  readonly status: number;
+};
+
 // Use HTTP server stub for NestJS lifecycle
 export class BunHonoAdapter extends HonoAdapter {
   private bunServer?: BunServer<unknown>;
+
+  useRequestLogger(log: (request: RequestLog) => void): void {
+    this.instance.use(async (ctx, next) => {
+      const startedAt = performance.now();
+      await next();
+      log({
+        durationMs: Math.round(performance.now() - startedAt),
+        method: ctx.req.method,
+        path: ctx.req.path,
+        status: ctx.res.status,
+      });
+    });
+  }
 
   override initHttpServer(options: NestApplicationOptions): void {
     super.initHttpServer(options);
