@@ -14,20 +14,11 @@ const dependencies = [
 
 const target = process.argv[2] as Bun.Build.CompileTarget | undefined;
 
-const isMissing = (pkg: string): boolean => {
-  try {
-    Bun.resolveSync(pkg, process.cwd());
-    return false;
-  } catch {
-    return true;
-  }
-};
-
 const result = await Bun.build({
   entrypoints: ["./src/main.ts"],
   target: "bun",
   minify: true,
-  external: dependencies.filter((pkg) => isMissing(pkg)),
+  external: dependencies,
   compile: {
     ...(target && { target }),
     outfile: "dist/server",
