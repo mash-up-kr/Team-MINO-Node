@@ -18,5 +18,6 @@
     "types": ["bun-types"],
     "skipLibCheck": true,
     "incremental": true
-  }
+  },
+  "include": ["src", "scripts", "test"]
 }

@@ -1,0 +1,26 @@
+language: ko-KR
+
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!bun.lock"
+    - "!drizzle/**"
+    - "!dist/**"
+  path_instructions:
+    - path: "src/**"
+      instructions: |
+        보안 취약점, 타입 안전성, NestJS 패턴 준수 여부를 중점적으로 검토해주세요.
+        환경변수는 ConfigService를 통해서만 접근하는지 확인해주세요.
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  learnings:
+    scope: local
