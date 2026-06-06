@@ -5,6 +5,9 @@ import { Logger } from "nestjs-pino";
 import { BunHonoAdapter } from "../src/adapters/bun-hono.adapter";
 import { AppModule } from "../src/app.module";
 
+// Provide required env vars for module validation (no real DB needed for adapter tests)
+process.env.DATABASE_URL ??= "postgresql://localhost/test";
+
 let app: INestApplication;
 let baseUrl: string;
 const requestLogs: Array<{ method: string; path: string; status: number }> = [];
@@ -41,7 +44,7 @@ describe("Bun/Hono adapter + nestjs-pino integration", () => {
 
   it("responds with proper status code, not an unhandled error", async () => {
     const res = await fetch(`${baseUrl}/health`);
-    expect([200, 404]).toContain(res.status);
+    expect([200, 404, 503]).toContain(res.status);
   });
 
   it("records request logs via adapter hook", async () => {
