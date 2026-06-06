@@ -1,0 +1,21 @@
+{
+  "name": "team-mino-infra",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "preview:prod": "PULUMI_BACKEND_URL=gs://team-mino-prod-pulumi-state PULUMI_CONFIG_PASSPHRASE= pulumi preview --stack prod --refresh",
+    "up:prod": "PULUMI_BACKEND_URL=gs://team-mino-prod-pulumi-state PULUMI_CONFIG_PASSPHRASE= pulumi up --stack prod --refresh",
+    "refresh:prod": "PULUMI_BACKEND_URL=gs://team-mino-prod-pulumi-state PULUMI_CONFIG_PASSPHRASE= pulumi refresh --stack prod",
+    "output:prod": "PULUMI_BACKEND_URL=gs://team-mino-prod-pulumi-state PULUMI_CONFIG_PASSPHRASE= pulumi stack output --stack prod"
+  },
+  "dependencies": {
+    "@pulumi/gcp": "^9.25.0",
+    "@pulumi/pulumi": "^3.244.0",
+    "pulumi": "^3.244.0"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "^1.0.10",
+    "@types/bun": "^1.3.14",
+    "typescript": "^6.0.3"
+  }
+}

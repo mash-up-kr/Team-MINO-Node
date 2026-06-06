@@ -1,0 +1,4 @@
+name: team-mino-infra
+runtime: bun
+main: src/index.ts
+description: team-mino-node GCP infrastructure (Artifact Registry, Cloud Run, IAM)

@@ -1,8 +1,15 @@
+bin/
 dist/
 node_modules/
+.agents/
+.claude/
+skills-lock.json
+.env
+.env.*
+!.env.example
+!.env.*.example
 [._]*.s[a-v][a-z]
 [._]*.sw[a-p]
 [._]s[a-rt-v][a-z]
 [._]ss[a-gi-z]
 [._]sw[a-p]
-
