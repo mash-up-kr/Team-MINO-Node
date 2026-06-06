@@ -4,8 +4,9 @@ import {
   type ExceptionFilter,
   HttpException,
   HttpStatus,
+  Logger,
 } from "@nestjs/common";
-import type { Response } from "express";
+import { AppException } from "../exceptions/app.exception";
 
 const DEFAULT_ERROR_CODES: Partial<Record<number, string>> = {
   400: "BAD_REQUEST",
@@ -17,36 +18,56 @@ const DEFAULT_ERROR_CODES: Partial<Record<number, string>> = {
   500: "INTERNAL_SERVER_ERROR",
 };
 
+function hasErrorCode(v: unknown): v is { errorCode: string } {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    "errorCode" in v &&
+    typeof (v as Record<string, unknown>).errorCode === "string"
+  );
+}
+
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
+    const response = host.switchToHttp().getResponse<any>();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    if (exception instanceof AppException) {
+      this.sendJson(response, exception.getStatus(), {
+        errorCode: exception.errorCode,
+        message: exception.message,
+      });
+      return;
+    }
 
-    const exceptionResponse =
-      exception instanceof HttpException ? exception.getResponse() : null;
+    if (exception instanceof HttpException) {
+      const status = exception.getStatus();
+      const raw = exception.getResponse();
+      this.sendJson(response, status, {
+        errorCode: hasErrorCode(raw)
+          ? raw.errorCode
+          : (DEFAULT_ERROR_CODES[status] ?? "INTERNAL_SERVER_ERROR"),
+        message: exception.message,
+      });
+      return;
+    }
 
-    const message =
-      typeof exceptionResponse === "string"
-        ? exceptionResponse
-        : typeof exceptionResponse === "object" &&
-            exceptionResponse !== null &&
-            "message" in exceptionResponse
-          ? (exceptionResponse as { message: string | string[] }).message
-          : "Internal server error";
+    if (exception instanceof Error) {
+      this.logger.error(exception.stack);
+    } else {
+      this.logger.error(String(exception));
+    }
+    this.sendJson(response, HttpStatus.INTERNAL_SERVER_ERROR, {
+      errorCode: "INTERNAL_SERVER_ERROR",
+      message: "Internal server error",
+    });
+  }
 
-    const errorCode =
-      typeof exceptionResponse === "object" &&
-      exceptionResponse !== null &&
-      "errorCode" in exceptionResponse
-        ? (exceptionResponse as { errorCode: string }).errorCode
-        : (DEFAULT_ERROR_CODES[status] ?? "INTERNAL_SERVER_ERROR");
-
-    response.status(status).json({ errorCode, message });
+  private sendJson(response: any, status: number, body: unknown): void {
+    // Hono Context: ctx.status() sets internal status, ctx.json() uses it
+    response.status(status);
+    response.res = response.json(body);
   }
 }
