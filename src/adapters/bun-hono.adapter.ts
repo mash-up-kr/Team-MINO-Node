@@ -1,5 +1,6 @@
 import { HonoAdapter } from "@kiyasov/platform-hono/adapters";
 import type { NestApplicationOptions } from "@nestjs/common";
+import type { OpenAPIObject } from "@nestjs/swagger";
 import type { Server as BunServer } from "bun";
 import { BunHttpServerStub } from "./bun-http-server-stub";
 
@@ -27,7 +28,7 @@ export class BunHonoAdapter extends HonoAdapter {
     });
   }
 
-  setupSwagger(path: string, document: object): void {
+  setupSwagger(path: string, document: OpenAPIObject): void {
     this.instance.get(path, (ctx) => ctx.json(document));
   }
 
