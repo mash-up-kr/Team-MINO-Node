@@ -27,6 +27,10 @@ export class BunHonoAdapter extends HonoAdapter {
     });
   }
 
+  setupSwagger(path: string, document: object): void {
+    this.instance.get(path, (ctx) => ctx.json(document));
+  }
+
   override initHttpServer(options: NestApplicationOptions): void {
     super.initHttpServer(options);
     this.httpServer = new BunHttpServerStub(() => this.bunServer) as never;

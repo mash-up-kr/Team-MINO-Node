@@ -18,21 +18,28 @@ const dependencies = [
 
 const target = process.argv[2] as Bun.Build.CompileTarget | undefined;
 
-const result = await Bun.build({
-  entrypoints: ["./src/main.ts"],
-  target: "bun",
-  minify: true,
-  external: dependencies,
-  compile: {
-    ...(target && { target }),
-    outfile: "dist/server",
-    execArgv: ["--smol"],
-  },
-});
+async function build() {
+  const result = await Bun.build({
+    entrypoints: ["./src/main.ts"],
+    target: "bun",
+    minify: true,
+    external: dependencies,
+    compile: {
+      ...(target && { target }),
+      outfile: "dist/server",
+      execArgv: ["--smol"],
+    },
+  });
 
-if (!result.success) {
-  for (const log of result.logs) {
-    console.error(log);
+  if (!result.success) {
+    for (const log of result.logs) {
+      console.error(log);
+    }
+    process.exit(1);
   }
-  process.exit(1);
 }
+
+build().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});
