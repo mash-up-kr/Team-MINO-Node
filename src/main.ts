@@ -5,6 +5,7 @@ import { Logger } from "nestjs-pino";
 import { BunHonoAdapter } from "./adapters/bun-hono.adapter";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
+import { LoggingInterceptor } from "./common/interceptors/logging.interceptor";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 import type { Env } from "./config/env.schema";
 
@@ -16,11 +17,11 @@ async function bootstrap() {
   const configService = app.get(ConfigService<Env>);
   const logger = app.get(Logger);
   app.useLogger(logger);
-  adapter.useRequestLogger(({ method, path, status, durationMs }) => {
-    logger.log(`${method} ${path} ${status} ${durationMs}ms`);
-  });
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.useGlobalInterceptors(new ResponseInterceptor());
+  app.useGlobalInterceptors(
+    new LoggingInterceptor(),
+    new ResponseInterceptor(),
+  );
   app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()

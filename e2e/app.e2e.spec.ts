@@ -4,10 +4,10 @@ import { NestFactory } from "@nestjs/core";
 import { Logger } from "nestjs-pino";
 import { BunHonoAdapter } from "../src/adapters/bun-hono.adapter";
 import { AppModule } from "../src/app.module";
+import { LoggingInterceptor } from "../src/common/interceptors/logging.interceptor";
 
 let app: INestApplication;
 let baseUrl: string;
-const requestLogs: Array<{ method: string; path: string; status: number }> = [];
 
 beforeAll(async () => {
   const adapter = new BunHonoAdapter();
@@ -18,10 +18,7 @@ beforeAll(async () => {
 
   const logger = app.get(Logger);
   app.useLogger(logger);
-  adapter.useRequestLogger(({ method, path, status, durationMs }) => {
-    requestLogs.push({ method, path, status });
-    logger.log(`${method} ${path} ${status} ${durationMs}ms`);
-  });
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
   await app.listen(0);
   const address = app.getHttpServer().address();
@@ -51,14 +48,5 @@ describe("Bun/Hono adapter + nestjs-pino integration", () => {
     expect(body.status).toBe("ok");
     expect(body.info?.database?.status).toBe("up");
     expect(body.details?.database?.status).toBe("up");
-  });
-
-  it("records request logs via adapter hook", async () => {
-    requestLogs.length = 0;
-    await fetch(`${baseUrl}/`);
-    expect(requestLogs).toHaveLength(1);
-    expect(requestLogs[0].method).toBe("GET");
-    expect(requestLogs[0].path).toBe("/");
-    expect(requestLogs[0].status).toBeGreaterThanOrEqual(100);
   });
 });
