@@ -1,6 +1,6 @@
+import { describe, expect, it, jest } from "bun:test";
 import type { ArgumentsHost } from "@nestjs/common";
 import { BadRequestException, HttpStatus } from "@nestjs/common";
-import { describe, expect, it, jest } from "bun:test";
 import { AppException } from "../exceptions/app.exception";
 import { HttpExceptionFilter } from "./http-exception.filter";
 
