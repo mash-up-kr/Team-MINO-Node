@@ -6,9 +6,10 @@
   "scripts": {
     "build": "bun run scripts/build.ts",
     "check": "biome check .",
+    "db:schema-init": "bun run scripts/db-schema-init.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
     "format": "biome format --write .",
     "lint": "biome lint .",
     "start": "nest start",
