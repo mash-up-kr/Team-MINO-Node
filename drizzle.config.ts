@@ -7,7 +7,8 @@ if (!databaseUrl) {
 }
 
 export default defineConfig({
-  schema: "./src/database/schema/index.ts",
+  // 테이블 스키마는 각 모듈의 *.schema.ts에 위치합니다.
+  schema: "./src/modules/**/*.schema.ts",
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {

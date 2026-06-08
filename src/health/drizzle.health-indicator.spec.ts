@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { beforeEach, describe, expect, it, jest } from "bun:test";
 import { HealthIndicatorService } from "@nestjs/terminus";
 import { Test } from "@nestjs/testing";
-import { DatabaseService } from "../database/database.service";
+import { DatabaseService } from "../infrastructures/db/database.service";
 import { DrizzleHealthIndicator } from "./drizzle.health-indicator";
 
 describe("DrizzleHealthIndicator", () => {
