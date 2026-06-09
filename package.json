@@ -16,7 +16,9 @@
     "start": "nest start --exec bun",
     "start:dev": "nest start --watch --exec bun",
     "start:prod": "./dist/server",
-    "test": "DATABASE_URL=${DATABASE_URL:-postgresql://localhost/test} bun test test/",
+    "test": "bun run test:unit && bun run test:e2e",
+    "test:e2e": "DATABASE_URL=${TEST_DATABASE_URL:-postgres://postgres:postgres@localhost:5432/team_mino} bun test e2e/",
+    "test:unit": "bun test src/",
     "test:watch": "bun test --watch",
     "typecheck": "tsgo --noEmit",
     "typecheck:tsc": "tsc --noEmit"

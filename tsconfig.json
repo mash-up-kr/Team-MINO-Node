@@ -19,5 +19,5 @@
     "skipLibCheck": true,
     "incremental": true
   },
-  "include": ["src", "scripts", "test"]
+  "include": ["src", "scripts", "e2e"]
 }

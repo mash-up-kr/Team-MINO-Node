@@ -39,9 +39,18 @@ describe("Bun/Hono adapter + nestjs-pino integration", () => {
     expect(res.status).toBeGreaterThanOrEqual(100);
   });
 
-  it("responds with proper status code, not an unhandled error", async () => {
+  it("responds with healthy database status", async () => {
     const res = await fetch(`${baseUrl}/health`);
-    expect([200, 404, 503]).toContain(res.status);
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as {
+      status: string;
+      info?: { database?: { status?: string } };
+      details?: { database?: { status?: string } };
+    };
+    expect(body.status).toBe("ok");
+    expect(body.info?.database?.status).toBe("up");
+    expect(body.details?.database?.status).toBe("up");
   });
 
   it("records request logs via adapter hook", async () => {
