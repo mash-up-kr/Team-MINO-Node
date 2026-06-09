@@ -57,7 +57,7 @@
   },
   "simple-git-hooks": {
     "pre-commit": "bun run check:staged",
-    "pre-push": "bun run typecheck"
+    "pre-push": "bun run typecheck && bun run test"
   },
   "nano-staged": {
     "*.{ts,tsx,js,jsx,json,jsonc}": "biome check --write"
