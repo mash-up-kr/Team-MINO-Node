@@ -44,9 +44,10 @@ export class BunHonoAdapter extends HonoAdapter {
     const hostname =
       args.find((a): a is string => typeof a === "string") ?? "0.0.0.0";
     const callback = args.find((a): a is () => void => typeof a === "function");
+    const portNumber = typeof port === "number" ? port : Number(port);
 
     this.bunServer = Bun.serve({
-      port: Number(port) || 3000,
+      port: Number.isNaN(portNumber) ? 3000 : portNumber,
       hostname,
       fetch: this.instance.fetch,
     });
