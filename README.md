@@ -76,6 +76,12 @@ bun run format
 bun run test
 ```
 
+`bun run test`는 e2e 테스트를 포함하므로, 실행 전 PostgreSQL 컨테이너가 필요합니다.
+
+```bash
+docker compose up -d postgres
+```
+
 ## API Docs
 
 개발 서버 실행 후 Swagger 문서는 아래 경로에서 확인할 수 있습니다.
