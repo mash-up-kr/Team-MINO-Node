@@ -18,6 +18,7 @@ const dependencies = [
 
 const target = process.argv[2] as Bun.Build.CompileTarget | undefined;
 
+// Externalize only the optional deps that aren't installed (installed ones still get bundled)
 const isMissing = (pkg: string): boolean => {
   try {
     Bun.resolveSync(pkg, process.cwd());
