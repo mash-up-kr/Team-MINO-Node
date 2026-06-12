@@ -1,3 +1,4 @@
+import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Logger } from "nestjs-pino";
@@ -5,12 +6,14 @@ import { BunHonoAdapter } from "./adapters/bun-hono.adapter";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
+import type { Env } from "./config/env.schema";
 
 async function bootstrap() {
   const adapter = new BunHonoAdapter();
   const app = await NestFactory.create(AppModule, adapter, {
     bufferLogs: true,
   });
+  const configService = app.get(ConfigService<Env>);
   const logger = app.get(Logger);
   app.useLogger(logger);
   adapter.useRequestLogger(({ method, path, status, durationMs }) => {
@@ -26,8 +29,8 @@ async function bootstrap() {
     .setVersion("1.0.0")
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  adapter.setupSwagger("/api-docs", document as Record<string, unknown>);
+  adapter.setupSwagger("/api-docs", document);
 
-  await app.listen(Number(process.env.PORT) || 3000);
+  await app.listen(configService.getOrThrow("PORT", { infer: true }));
 }
 bootstrap();

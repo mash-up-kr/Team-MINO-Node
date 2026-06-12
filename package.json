@@ -6,15 +6,19 @@
   "scripts": {
     "build": "bun run scripts/build.ts",
     "check": "biome check .",
+    "check:staged": "nano-staged --bail",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "format": "biome format --write .",
     "lint": "biome lint .",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
+    "postinstall": "simple-git-hooks",
+    "start": "nest start --exec bun",
+    "start:dev": "nest start --watch --exec bun",
     "start:prod": "./dist/server",
-    "test": "DATABASE_URL=${DATABASE_URL:-postgresql://localhost/test} bun test test/",
+    "test": "bun run test:unit && bun run test:e2e",
+    "test:e2e": "DATABASE_URL=${TEST_DATABASE_URL:-postgres://postgres:postgres@localhost:5432/team_mino} bun test e2e/",
+    "test:unit": "bun test src/",
     "test:watch": "bun test --watch",
     "typecheck": "tsgo --noEmit",
     "typecheck:tsc": "tsc --noEmit"
@@ -46,7 +50,16 @@
     "@types/node": "^25.9.1",
     "@typescript/native-preview": "^7.0.0-dev.20260421.2",
     "drizzle-kit": "^0.31.10",
+    "nano-staged": "^1.0.2",
     "pino-pretty": "^13.1.3",
+    "simple-git-hooks": "^2.13.1",
     "typescript": "^6.0.0"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "bun run check:staged",
+    "pre-push": "bun run typecheck && bun run test"
+  },
+  "nano-staged": {
+    "*.{ts,tsx,js,jsx,json,jsonc}": "biome check --write"
   }
 }
