@@ -4,7 +4,6 @@ import { NestFactory } from "@nestjs/core";
 import { Logger } from "nestjs-pino";
 import { BunHonoAdapter } from "../src/adapters/bun-hono.adapter";
 import { AppModule } from "../src/app.module";
-import { LoggingInterceptor } from "../src/common/interceptors/logging.interceptor";
 
 let app: INestApplication;
 let baseUrl: string;
@@ -18,7 +17,6 @@ beforeAll(async () => {
 
   const logger = app.get(Logger);
   app.useLogger(logger);
-  app.useGlobalInterceptors(new LoggingInterceptor());
 
   await app.listen(0);
   const address = app.getHttpServer().address();
