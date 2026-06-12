@@ -1,7 +1,8 @@
+import type { ServeStaticOptions } from "@hono/node-server/serve-static";
 import { HonoAdapter } from "@kiyasov/platform-hono/adapters";
 import type { NestApplicationOptions } from "@nestjs/common";
-import type { OpenAPIObject } from "@nestjs/swagger";
 import type { Server as BunServer } from "bun";
+import { serveStatic } from "hono/bun";
 import { BunHttpServerStub } from "./bun-http-server-stub";
 
 type RequestLog = {
@@ -28,13 +29,30 @@ export class BunHonoAdapter extends HonoAdapter {
     });
   }
 
-  setupSwagger(path: string, document: OpenAPIObject): void {
-    this.instance.get(path, (ctx) => ctx.json(document));
-  }
-
   override initHttpServer(options: NestApplicationOptions): void {
     super.initHttpServer(options);
     this.httpServer = new BunHttpServerStub(() => this.bunServer) as never;
+
+    // Inject Express-style `type`/`send` onto every Hono context
+    this.instance.use(async (ctx, next) => {
+      Object.assign(ctx, {
+        type: (value: string) => {
+          ctx.header("Content-Type", value);
+          return ctx;
+        },
+        send: (body: string) => {
+          ctx.res = ctx.body(body);
+          return ctx;
+        },
+      });
+      await next();
+    });
+  }
+
+  override useStaticAssets(root: string, options?: ServeStaticOptions): void {
+    const prefix = (options as { prefix?: string } | undefined)?.prefix ?? "";
+    const rewriteRequestPath = (path: string) => path.slice(prefix.length);
+    this.instance.get(`${prefix}/*`, serveStatic({ root, rewriteRequestPath }));
   }
 
   override listen(

@@ -28,8 +28,10 @@ async function bootstrap() {
     .setDescription("Team MINO backend API documentation")
     .setVersion("1.0.0")
     .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  adapter.setupSwagger("/api-docs", document);
+
+  SwaggerModule.setup("api-docs", app, () =>
+    SwaggerModule.createDocument(app, swaggerConfig),
+  );
 
   await app.listen(configService.getOrThrow("PORT", { infer: true }));
 }
