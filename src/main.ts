@@ -16,9 +16,6 @@ async function bootstrap() {
   const configService = app.get(ConfigService<Env>);
   const logger = app.get(Logger);
   app.useLogger(logger);
-  adapter.useRequestLogger(({ method, path, status, durationMs }) => {
-    logger.log(`${method} ${path} ${status} ${durationMs}ms`);
-  });
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.enableShutdownHooks();

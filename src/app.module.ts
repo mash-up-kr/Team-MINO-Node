@@ -1,7 +1,13 @@
-import { Module, RequestMethod } from "@nestjs/common";
+import {
+  type MiddlewareConsumer,
+  Module,
+  type NestModule,
+  RequestMethod,
+} from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TerminusModule } from "@nestjs/terminus";
 import { LoggerModule } from "nestjs-pino";
+import { LoggingMiddleware } from "./common/middlewares/logging.middleware";
 import { validateEnv } from "./config/env.schema";
 import { DatabaseModule } from "./database/database.module";
 import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
@@ -32,4 +38,10 @@ import { HealthController } from "./health/health.controller";
   controllers: [HealthController],
   providers: [DrizzleHealthIndicator],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(LoggingMiddleware)
+      .forRoutes({ path: "*", method: RequestMethod.ALL });
+  }
+}
