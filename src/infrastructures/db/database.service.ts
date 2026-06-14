@@ -21,12 +21,11 @@ export class DatabaseService implements OnModuleDestroy {
 
     this.client = postgres(databaseUrl, {
       max,
-      // Supabase 6543 트랜잭션 풀러는 prepared statement를 지원하지 않으므로 끔.
-      // (로컬 postgres에서도 동작에 문제 없음)
-      prepare: false,
       // 이 환경의 스키마만 바라보게 고정. 실수로 다른 환경 테이블을 건드리지 않도록.
       connection: { search_path: schema },
       // TLS는 연결 문자열로 제어합니다(로컬은 미지정, Supabase는 ?sslmode=require).
+      // 연결은 Direct connection(또는 session pooler)을 사용합니다. 트랜잭션 풀러(6543)가
+      // 아니므로 prepared statement 기본 동작(prepare: true)을 유지합니다.
     });
     this.db = drizzle(this.client, { casing: "snake_case" });
   }

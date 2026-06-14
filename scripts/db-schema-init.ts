@@ -11,11 +11,9 @@ import postgres from "postgres";
 import { resolveDbSchema } from "../src/infrastructures/db/db.env";
 
 async function main() {
-  const url = process.env.DATABASE_URL_DIRECT;
+  const url = process.env.DATABASE_URL;
   if (!url) {
-    console.error(
-      "DATABASE_URL_DIRECT 환경변수가 설정되지 않았습니다 (마이그레이션용 세션 풀러 5432 URL).",
-    );
+    console.error("DATABASE_URL 환경변수가 설정되지 않았습니다.");
     process.exit(1);
   }
 
@@ -34,4 +32,7 @@ async function main() {
   }
 }
 
-main();
+main().catch((e) => {
+  console.error("스키마 초기화 실패:", e instanceof Error ? e.message : e);
+  process.exit(1);
+});

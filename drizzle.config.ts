@@ -15,14 +15,13 @@ import { resolveDbSchema } from "./src/infrastructures/db/db.env";
  * - 적용 기록 테이블(__drizzle_migrations)도 환경 스키마별로 따로 둡니다(migrations.schema).
  *   → dev/prod가 같은 기록을 공유해 한쪽만 반영되는 문제 방지.
  *
- * 마이그레이션은 세션 모드 연결(DATABASE_URL_DIRECT, 5432)이 필요합니다.
- * 트랜잭션 풀러(6543)는 락/멀티스테이트먼트 DDL에서 깨질 수 있어 폴백하지 않고 막습니다.
+ * 연결은 런타임과 동일한 DATABASE_URL(Direct connection 또는 session pooler)을 씁니다.
+ * 둘 다 세션 단위 연결이라 락/멀티스테이트먼트 DDL이 안전합니다.
+ * (트랜잭션 풀러 6543은 마이그레이션에 부적합하므로 사용하지 않습니다.)
  */
-const baseUrl = process.env.DATABASE_URL_DIRECT;
+const baseUrl = process.env.DATABASE_URL;
 if (!baseUrl) {
-  throw new Error(
-    "DATABASE_URL_DIRECT is required for migrations (Supabase session pooler, port 5432).",
-  );
+  throw new Error("DATABASE_URL is required for migrations.");
 }
 
 const schema = resolveDbSchema(process.env.DATABASE_SCHEMA);
