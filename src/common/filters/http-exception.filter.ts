@@ -8,6 +8,12 @@ import {
 } from "@nestjs/common";
 import { AppException } from "../exceptions/app.exception";
 
+interface HonoResponse {
+  status(code: number): void;
+  json(body: unknown): unknown;
+  res: unknown;
+}
+
 const DEFAULT_ERROR_CODES: Partial<Record<number, string>> = {
   400: "BAD_REQUEST",
   401: "UNAUTHORIZED",
@@ -32,7 +38,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost) {
-    const response = host.switchToHttp().getResponse<any>();
+    const response = host.switchToHttp().getResponse<HonoResponse>();
 
     if (exception instanceof AppException) {
       this.sendJson(response, exception.getStatus(), {
@@ -65,7 +71,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
     });
   }
 
-  private sendJson(response: any, status: number, body: unknown): void {
+  private sendJson(
+    response: HonoResponse,
+    status: number,
+    body: unknown,
+  ): void {
     // Hono Context: ctx.status() sets internal status, ctx.json() uses it
     response.status(status);
     response.res = response.json(body);

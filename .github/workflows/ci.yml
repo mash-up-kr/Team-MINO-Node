@@ -19,9 +19,29 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+        env:
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: 1
 
       - name: Check (lint + format + imports)
         run: bun run check
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Start PostgreSQL
+        run: docker compose up -d postgres
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..30}; do
+            if docker compose exec -T postgres pg_isready -U postgres -d team_mino; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker compose logs postgres
+          exit 1
 
       - name: Test
         run: bun run test

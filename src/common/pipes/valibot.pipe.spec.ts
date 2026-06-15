@@ -1,5 +1,5 @@
+import { describe, expect, it } from "bun:test";
 import * as v from "valibot";
-import { describe, expect, it } from "vitest";
 import { AppException } from "../exceptions/app.exception";
 import { ValibotPipe } from "./valibot.pipe";
 

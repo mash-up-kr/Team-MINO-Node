@@ -1,24 +1,24 @@
+import { describe, expect, it, jest } from "bun:test";
 import type { ArgumentsHost } from "@nestjs/common";
 import { BadRequestException, HttpStatus } from "@nestjs/common";
-import { describe, expect, it, vi } from "vitest";
 import { AppException } from "../exceptions/app.exception";
 import { HttpExceptionFilter } from "./http-exception.filter";
 
 function createMockHost() {
-  const json = vi.fn().mockReturnValue(new Response());
-  const status = vi.fn();
+  const json = jest.fn().mockReturnValue(new Response());
+  const status = jest.fn();
   const host = {
     switchToHttp: () => ({
       getResponse: () => ({ status, json, res: undefined }),
       getRequest: () => ({ url: "/test" }),
     }),
-    switchToRpc: vi.fn(),
-    switchToWs: vi.fn(),
-    getArgs: vi.fn(),
-    getArgByIndex: vi.fn(),
+    switchToRpc: jest.fn(),
+    switchToWs: jest.fn(),
+    getArgs: jest.fn(),
+    getArgByIndex: jest.fn(),
     getType: () => "http" as const,
-    getHandler: vi.fn(),
-    getClass: vi.fn(),
+    getHandler: jest.fn(),
+    getClass: jest.fn(),
   } as unknown as ArgumentsHost;
 
   return { host, status, json };

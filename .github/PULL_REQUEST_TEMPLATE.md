@@ -1,8 +1,7 @@
-## Summary
+## 📌 Related Issue
 
-- 
+## 🚀 Description
 
-## Stacks
+## ✅ Done
 
-<!-- ejoffe/spr start -->
-<!-- ejoffe/spr end -->
+## 📢 Notes

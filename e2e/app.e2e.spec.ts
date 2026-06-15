@@ -7,7 +7,6 @@ import { AppModule } from "../src/app.module";
 
 let app: INestApplication;
 let baseUrl: string;
-const requestLogs: Array<{ method: string; path: string; status: number }> = [];
 
 beforeAll(async () => {
   const adapter = new BunHonoAdapter();
@@ -18,10 +17,6 @@ beforeAll(async () => {
 
   const logger = app.get(Logger);
   app.useLogger(logger);
-  adapter.useRequestLogger(({ method, path, status, durationMs }) => {
-    requestLogs.push({ method, path, status });
-    logger.log(`${method} ${path} ${status} ${durationMs}ms`);
-  });
 
   await app.listen(0);
   const address = app.getHttpServer().address();
@@ -39,17 +34,17 @@ describe("Bun/Hono adapter + nestjs-pino integration", () => {
     expect(res.status).toBeGreaterThanOrEqual(100);
   });
 
-  it("responds with proper status code, not an unhandled error", async () => {
+  it("responds with healthy database status", async () => {
     const res = await fetch(`${baseUrl}/health`);
-    expect([200, 404, 503]).toContain(res.status);
-  });
+    expect(res.status).toBe(200);
 
-  it("records request logs via adapter hook", async () => {
-    requestLogs.length = 0;
-    await fetch(`${baseUrl}/`);
-    expect(requestLogs).toHaveLength(1);
-    expect(requestLogs[0].method).toBe("GET");
-    expect(requestLogs[0].path).toBe("/");
-    expect(requestLogs[0].status).toBeGreaterThanOrEqual(100);
+    const body = (await res.json()) as {
+      status: string;
+      info?: { database?: { status?: string } };
+      details?: { database?: { status?: string } };
+    };
+    expect(body.status).toBe("ok");
+    expect(body.info?.database?.status).toBe("up");
+    expect(body.details?.database?.status).toBe("up");
   });
 });

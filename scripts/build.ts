@@ -18,21 +18,38 @@ const dependencies = [
 
 const target = process.argv[2] as Bun.Build.CompileTarget | undefined;
 
-const result = await Bun.build({
-  entrypoints: ["./src/main.ts"],
-  target: "bun",
-  minify: true,
-  external: dependencies,
-  compile: {
-    ...(target && { target }),
-    outfile: "dist/server",
-    execArgv: ["--smol"],
-  },
-});
-
-if (!result.success) {
-  for (const log of result.logs) {
-    console.error(log);
+// Externalize only the optional deps that aren't installed (installed ones still get bundled)
+const isMissing = (pkg: string): boolean => {
+  try {
+    Bun.resolveSync(pkg, process.cwd());
+    return false;
+  } catch {
+    return true;
   }
-  process.exit(1);
+};
+
+async function build() {
+  const result = await Bun.build({
+    entrypoints: ["./src/main.ts"],
+    target: "bun",
+    minify: true,
+    external: dependencies.filter((pkg) => isMissing(pkg)),
+    compile: {
+      ...(target && { target }),
+      outfile: "dist/server",
+      execArgv: ["--smol"],
+    },
+  });
+
+  if (!result.success) {
+    for (const log of result.logs) {
+      console.error(log);
+    }
+    process.exit(1);
+  }
 }
+
+build().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});

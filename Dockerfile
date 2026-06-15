@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY package.json bun.lock ./
 RUN --mount=type=cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile
+    SKIP_INSTALL_SIMPLE_GIT_HOOKS=1 bun install --frozen-lockfile
 
 COPY --parents tsconfig.json tsconfig.build.json nest-cli.json scripts src ./
 

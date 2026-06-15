@@ -8,7 +8,7 @@ import { map } from "rxjs";
 
 @Injectable()
 export class ResponseInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler) {
+  intercept(_context: ExecutionContext, next: CallHandler) {
     return next.handle().pipe(
       map((data) => {
         if (data === undefined) return data;
