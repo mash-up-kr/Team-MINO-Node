@@ -8,9 +8,13 @@
  *   DATABASE_SCHEMA=production bun run db:schema-init
  */
 import postgres from "postgres";
+import { loadSecretEnv } from "../src/config/secret-env";
 import { resolveDbSchema } from "../src/infrastructures/db/db.env";
 
 async function main() {
+  // APP_CONFIG_SOURCE=secret-manager 일 때만 SM에서 env를 가져옵니다(기본은 no-op).
+  await loadSecretEnv();
+
   const url = process.env.DATABASE_URL;
   if (!url) {
     console.error("DATABASE_URL 환경변수가 설정되지 않았습니다.");
