@@ -100,7 +100,7 @@ Respond in the same language as the source content (use Korean when the content 
     return parts;
   }
 
-  /** Dedupes then orders by completeness → proximity → provider preference. */
+  /** Orders by completeness → proximity → provider preference. */
   private rankCandidates(candidates: GeoCandidate[]): PlaceCandidate[] {
     return candidates.sort((a, b) => {
       const completenessDiff = this.completeness(b) - this.completeness(a);

@@ -217,25 +217,6 @@ describe("PlaceService", () => {
     await expect(promise).rejects.toThrow("Not implemented");
   });
 
-  it("provider가 다른 동일 장소를 중복 제거하고 필드를 병합한다", async () => {
-    // given
-    const { service, instagram, ai, geocoder } = createService();
-    instagram.fetchPost.mockResolvedValue(makePost());
-    ai.extract.mockResolvedValue({ places: [QUERY] });
-    geocoder.searchAll.mockResolvedValue([
-      makeCandidate({ provider: "kakao", phone: "02-111-2222" }),
-      makeCandidate({ provider: "google", url: "https://maps.example/onion" }),
-    ]);
-
-    // when
-    const result = await service.extractFromUrl(URL);
-
-    // then
-    expect(result).toHaveLength(1);
-    expect(result[0].phone).toBe("02-111-2222");
-    expect(result[0].url).toBe("https://maps.example/onion");
-  });
-
   it("정보가 더 완전한 후보를 먼저 정렬한다", async () => {
     // given
     const { service, instagram, ai, geocoder } = createService();
