@@ -102,7 +102,7 @@ Respond in the same language as the source content (use Korean when the content 
 
   /** Dedupes then orders by completeness → proximity → provider preference. */
   private rankCandidates(candidates: GeoCandidate[]): PlaceCandidate[] {
-    return this.dedupe(candidates).sort((a, b) => {
+    return candidates.sort((a, b) => {
       const completenessDiff = this.completeness(b) - this.completeness(a);
       if (completenessDiff !== 0) return completenessDiff;
 
@@ -112,39 +112,6 @@ Respond in the same language as the source content (use Korean when the content 
 
       return PROVIDER_PRIORITY[a.provider] - PROVIDER_PRIORITY[b.provider];
     });
-  }
-
-  private dedupe(candidates: GeoCandidate[]): GeoCandidate[] {
-    const byKey = new Map<string, GeoCandidate>();
-
-    for (const candidate of candidates) {
-      const key = this.dedupeKey(candidate);
-      const existing = byKey.get(key);
-      byKey.set(
-        key,
-        existing ? this.merge(existing, candidate) : { ...candidate },
-      );
-    }
-
-    return [...byKey.values()];
-  }
-
-  /** Two candidates are the "same place" when name + coordinate roughly match. */
-  private dedupeKey(candidate: GeoCandidate): string {
-    const name = candidate.placeName.trim().toLowerCase().replace(/\s+/g, " ");
-    const lat = candidate.coordinate.lat.toFixed(4);
-    const lng = candidate.coordinate.lng.toFixed(4);
-    return `${name}@${lat},${lng}`;
-  }
-
-  private merge(base: GeoCandidate, extra: GeoCandidate): GeoCandidate {
-    return {
-      ...base,
-      url: base.url ?? extra.url,
-      phone: base.phone ?? extra.phone,
-      category: base.category ?? extra.category,
-      distance: base.distance ?? extra.distance,
-    };
   }
 
   /** Counts how many optional fields are present (higher = more complete). */
