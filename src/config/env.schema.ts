@@ -22,6 +22,11 @@ const envSchema = v.object({
     v.pipe(v.string(), v.regex(/^\d+$/), v.transform(Number), v.minValue(1)),
     "5",
   ),
+  // GCP 프로젝트 ID(Vertex project 겸 Maps X-Goog-User-Project)
+  GOOGLE_CLOUD_PROJECT: v.optional(v.string()),
+  // Gemini 3.x는 global 전용이므로 기본 "global" 사용
+  GOOGLE_VERTEX_LOCATION: v.optional(v.string(), "global"),
+  KAKAO_REST_API_KEY: v.pipe(v.string(), v.minLength(1)),
 });
 
 export type Env = v.InferOutput<typeof envSchema>;
