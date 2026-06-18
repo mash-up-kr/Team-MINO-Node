@@ -9,9 +9,9 @@ import { TerminusModule } from "@nestjs/terminus";
 import { LoggerModule } from "nestjs-pino";
 import { LoggingMiddleware } from "./common/middlewares/logging.middleware";
 import { validateEnv } from "./config/env.schema";
-import { DatabaseModule } from "./database/database.module";
 import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
+import { DatabaseModule } from "./infrastructures/db/database.module";
 
 @Module({
   imports: [

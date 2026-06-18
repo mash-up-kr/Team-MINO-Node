@@ -16,9 +16,11 @@ const envSchema = v.object({
     "3000",
   ),
   DATABASE_URL: v.pipe(v.string(), v.minLength(1), v.url()),
+  // 접근할 스키마. 미설정 시 안전한 기본값 develop. 운영에서만 production 주입.
+  DATABASE_SCHEMA: v.optional(v.picklist(["develop", "production"]), "develop"),
   DB_POOL_SIZE: v.optional(
     v.pipe(v.string(), v.regex(/^\d+$/), v.transform(Number), v.minValue(1)),
-    "10",
+    "5",
   ),
 });
 
