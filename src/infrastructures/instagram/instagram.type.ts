@@ -12,7 +12,14 @@ export interface InstagramLocation {
   } | null;
 }
 
+export interface InstagramOwner {
+  id: string;
+  username: string;
+  fullName: string;
+}
+
 export interface ScrapedPost {
+  owner: InstagramOwner;
   shortcode: string;
   typename: string;
   caption: string | null;

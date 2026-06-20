@@ -25,6 +25,7 @@ describe("PlaceService", () => {
 
   function makePost(overrides: Partial<ScrapedPost> = {}): ScrapedPost {
     return {
+      owner: { id: "1", username: "tester", fullName: "Tester" },
       shortcode: "abc123",
       typename: "GraphImage",
       caption: "성수동 카페",
