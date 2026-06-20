@@ -27,9 +27,8 @@ describe("PlaceService", () => {
     return {
       owner: { id: "1", username: "tester", fullName: "Tester" },
       shortcode: "abc123",
-      typename: "GraphImage",
+      typename: "image",
       caption: "성수동 카페",
-      isVideo: false,
       imageUrls: ["https://img.example/1.jpg"],
       location: null,
       ...overrides,

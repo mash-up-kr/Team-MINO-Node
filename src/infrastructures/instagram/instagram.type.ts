@@ -21,7 +21,7 @@ export interface InstagramOwner {
 export interface ScrapedPost {
   owner: InstagramOwner;
   shortcode: string;
-  typename: string;
+  typename: "image" | "video" | "carousel"; // XDTGraphImage, XDTGraphVideo, XDTGraphSidecar
   caption: string | null;
   imageUrls: string[];
   location: InstagramLocation | null;
