@@ -16,7 +16,6 @@ export interface ScrapedPost {
   shortcode: string;
   typename: string;
   caption: string | null;
-  isVideo: boolean;
   imageUrls: string[];
   location: InstagramLocation | null;
 }
