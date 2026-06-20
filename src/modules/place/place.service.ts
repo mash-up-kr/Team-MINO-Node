@@ -4,8 +4,8 @@ import { AiService } from "../../infrastructures/ai/ai.service";
 import type { ContentPart } from "../../infrastructures/ai/ai.type";
 import { GeocoderService } from "../../infrastructures/geocoder/geocoder.service";
 import type { GeoCandidate } from "../../infrastructures/geocoder/geocoder.type";
-import { InstagramService } from "../../infrastructures/instagram/instagram.service";
-import type { ScrapedPost } from "../../infrastructures/instagram/instagram.type";
+import { ScraperService } from "../../infrastructures/scraper/scraper.service";
+import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import {
   type PlaceCandidate,
   type PlaceQuery,
@@ -25,14 +25,14 @@ Analyze the caption and images to identify every distinct real-world place featu
 Respond in the same language as the source content (use Korean when the content is Korean).`;
 
   constructor(
-    private readonly instagramService: InstagramService,
+    private readonly scraperService: ScraperService,
     private readonly aiService: AiService,
     private readonly geocoderService: GeocoderService,
   ) {}
 
   /** Instagram URL → scrape → AI extraction → geocoding fan-out → ranking. */
   async extractFromUrl(url: string): Promise<PlaceCandidate[]> {
-    const post = await this.instagramService.fetchPost(url);
+    const post = await this.scraperService.fetchPost(url);
     const queries = await this.extractQueries(post);
 
     const settled = await Promise.allSettled(

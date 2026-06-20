@@ -6,8 +6,8 @@ import { AppException } from "../../common/exceptions/app.exception";
 import type { AiService } from "../../infrastructures/ai/ai.service";
 import type { GeocoderService } from "../../infrastructures/geocoder/geocoder.service";
 import type { GeoCandidate } from "../../infrastructures/geocoder/geocoder.type";
-import type { InstagramService } from "../../infrastructures/instagram/instagram.service";
-import type { ScrapedPost } from "../../infrastructures/instagram/instagram.type";
+import type { ScraperService } from "../../infrastructures/scraper/scraper.service";
+import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import { PlaceController } from "./place.controller";
 import { PlaceModule } from "./place.module";
 import { PlaceService } from "./place.service";
@@ -50,7 +50,7 @@ describe("PlaceService", () => {
     const ai = { extract: jest.fn() };
     const geocoder = { searchAll: jest.fn() };
     const service = new PlaceService(
-      instagram as unknown as InstagramService,
+      instagram as unknown as ScraperService,
       ai as unknown as AiService,
       geocoder as unknown as GeocoderService,
     );
