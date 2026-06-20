@@ -1,4 +1,4 @@
-export interface InstagramAddress {
+export interface ScrapedAddress {
   streetAddress: string;
   zipCode: string;
   cityName: string;
@@ -6,25 +6,25 @@ export interface InstagramAddress {
   countryCode: string;
 }
 
-export interface InstagramLocation {
+export interface ScrapedLocation {
   id: string;
   name: string;
   slug: string;
   hasPublicPage: boolean;
-  address: InstagramAddress | null;
+  address: ScrapedAddress | null;
 }
 
-export interface InstagramOwner {
+export interface ScrapedOwner {
   id: string;
   username: string;
   fullName: string;
 }
 
 export interface ScrapedPost {
-  owner: InstagramOwner; // 계정명 등 정보
+  owner: ScrapedOwner; // 계정명 등 정보
   shortcode: string; // 게시글 식별자
   typename: "image" | "video" | "carousel";
   caption: string | null; // 게시글 본문
   imageUrls: string[]; // 사진 + 영상 썸네일
-  location: InstagramLocation | null; // 위치 정보
+  location: ScrapedLocation | null; // 위치 정보
 }
