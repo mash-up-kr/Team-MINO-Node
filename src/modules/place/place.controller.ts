@@ -15,6 +15,8 @@ export class PlaceController {
     switch (body.method) {
       case "instagram_url":
         return this.placeService.extractFromUrl(body.data.url);
+      default:
+        throw new Error(`Unsupported method: ${body.method}`);
     }
   }
 }
