@@ -13,6 +13,7 @@ import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
 import { DatabaseModule } from "./infrastructures/db/database.module";
 import { PlaceModule } from "./modules/place/place.module";
+import { SentryLifecycleService } from "./observability/sentry-lifecycle.service";
 
 @Module({
   imports: [
@@ -38,7 +39,7 @@ import { PlaceModule } from "./modules/place/place.module";
     PlaceModule,
   ],
   controllers: [HealthController],
-  providers: [DrizzleHealthIndicator],
+  providers: [DrizzleHealthIndicator, SentryLifecycleService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

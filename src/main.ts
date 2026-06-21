@@ -1,6 +1,8 @@
+import "./instrument";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import * as Sentry from "@sentry/bun";
 import { Logger } from "nestjs-pino";
 import { BunHonoAdapter } from "./adapters/bun-hono.adapter";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
@@ -37,4 +39,13 @@ async function bootstrap() {
 
   await app.listen(configService.getOrThrow("PORT", { infer: true }));
 }
-bootstrap();
+bootstrap().catch(async (error: unknown) => {
+  const captured =
+    error instanceof Error ? error : new Error("Non-Error bootstrap failure");
+  Sentry.captureException(captured);
+  await Sentry.flush(2_000).then(
+    () => undefined,
+    () => undefined,
+  );
+  process.exitCode = 1;
+});
