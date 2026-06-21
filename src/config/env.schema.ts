@@ -27,6 +27,8 @@ const envSchema = v.object({
   // Gemini 3.x는 global 전용이므로 기본 "global" 사용
   GOOGLE_VERTEX_LOCATION: v.optional(v.string(), "global"),
   KAKAO_REST_API_KEY: v.optional(v.string()),
+  SENTRY_DSN: v.optional(v.pipe(v.string(), v.url(), v.regex(/^https:\/\//))),
+  SENTRY_RELEASE: v.optional(v.pipe(v.string(), v.minLength(1))),
 });
 
 export type Env = v.InferOutput<typeof envSchema>;
