@@ -12,6 +12,7 @@ import { validateEnv } from "./config/env.schema";
 import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
 import { DatabaseModule } from "./infrastructures/db/database.module";
+import { PlaceModule } from "./modules/place/place.module";
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { DatabaseModule } from "./infrastructures/db/database.module";
     }),
     DatabaseModule,
     TerminusModule,
+    PlaceModule,
   ],
   controllers: [HealthController],
   providers: [DrizzleHealthIndicator],
