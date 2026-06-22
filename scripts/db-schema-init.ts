@@ -12,7 +12,7 @@ import { loadSecretEnv } from "../src/config/secret-env";
 import { resolveDbSchema } from "../src/infrastructures/db/db.env";
 
 async function main() {
-  // APP_CONFIG_SOURCE=secret-manager 일 때만 SM에서 env를 가져옵니다(기본은 no-op).
+  // 기본은 Secret Manager에서 env를 가져옵니다. APP_CONFIG_SOURCE=env 일 때만 건너뜀.
   await loadSecretEnv();
 
   const url = process.env.DATABASE_URL;

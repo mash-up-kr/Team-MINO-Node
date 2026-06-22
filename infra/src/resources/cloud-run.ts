@@ -28,9 +28,8 @@ export const service = new gcp.cloudrunv2.Service(
   },
   {
     dependsOn: enabledServices,
-    // 이미지와 env는 런타임/배포가 관리합니다(Pulumi는 서비스 구조·SA·스케일링·IAM만).
-    // prod 배포 시 APP_ENV=prod 를 주입하면 앱이 team-mino-env-prod 시크릿에서 env를 받아옵니다.
-    // (Pulumi가 env를 관리하면, 구 이미지 위에 깨진 리비전을 만들어 up이 실패하므로 분리.)
+    // 이미지·env는 배포(deploy.yml)가 관리. Pulumi가 건드리면 구 이미지 위에 리비전을
+    // 새로 만들어 up이 실패하므로 분리. 배포가 APP_ENV=prod를 주입 → prod 시크릿 fetch.
     ignoreChanges: [
       "template.containers[0].image",
       "template.containers[0].envs",

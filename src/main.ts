@@ -9,9 +9,8 @@ import type { Env } from "./config/env.schema";
 import { loadSecretEnv } from "./config/secret-env";
 
 async function bootstrap() {
-  // env 검증 전에 Secret Manager에서 env를 가져와 process.env를 채웁니다.
-  // AppModule은 import 시점에 ConfigModule.forRoot가 validateEnv를 실행하므로,
-  // 반드시 loadSecretEnv() 이후에 동적 import 해야 합니다(정적 import면 검증이 먼저 돔).
+  // AppModule import 시점에 ConfigModule이 validateEnv를 돌리므로, 그 전에 env를
+  // 주입해야 합니다. 따라서 loadSecretEnv() 이후 동적 import (정적 import면 검증이 먼저 돔).
   await loadSecretEnv();
   const { AppModule } = await import("./app.module");
 
