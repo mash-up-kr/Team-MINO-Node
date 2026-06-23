@@ -47,6 +47,8 @@ const developersGroup = "group:mash-up-16th-team-mino-node@googlegroups.com";
 const developerGroupRoles: Record<string, string> = {
   ...developerRoles,
   viewer: "roles/viewer",
+  // 앱 env 시크릿(local·prod)을 로컬 실행 시 개인 ADC로 읽을 수 있게.
+  "secret-accessor": "roles/secretmanager.secretAccessor",
 };
 for (const [key, role] of Object.entries(developerGroupRoles)) {
   new gcp.projects.IAMMember(`developers-group-${key}`, {
