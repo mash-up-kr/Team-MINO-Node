@@ -36,27 +36,27 @@ export async function runSentryVerification(
   rawEnvironment: Record<string, string | undefined>,
   client: VerificationClient,
 ): Promise<0 | 1> {
-  const parsed = v.safeParse(verificationEnvironmentSchema, rawEnvironment);
-  if (!parsed.success) {
+  try {
+    const parsed = v.safeParse(verificationEnvironmentSchema, rawEnvironment);
+    if (!parsed.success) {
+      return 1;
+    }
+
+    const environment: VerificationEnvironment = parsed.output;
+    const options = createSentryOptions(environment);
+    if (!options) {
+      return 1;
+    }
+
+    client.init(options);
+    client.withScope((scope) => {
+      scope.setFingerprint([environment.SENTRY_VERIFY_MARKER]);
+      scope.setTag("sentry.verify.marker", environment.SENTRY_VERIFY_MARKER);
+      client.captureException(new SentryVerificationError());
+    });
+
+    return (await client.flush(2_000)) ? 0 : 1;
+  } catch {
     return 1;
   }
-
-  const environment: VerificationEnvironment = parsed.output;
-  const options = createSentryOptions(environment);
-  if (!options) {
-    return 1;
-  }
-
-  client.init(options);
-  client.withScope((scope) => {
-    scope.setFingerprint([environment.SENTRY_VERIFY_MARKER]);
-    scope.setTag("sentry.verify.marker", environment.SENTRY_VERIFY_MARKER);
-    client.captureException(new SentryVerificationError());
-  });
-
-  const flushed = await client.flush(2_000).then(
-    (result) => result,
-    () => false,
-  );
-  return flushed ? 0 : 1;
 }

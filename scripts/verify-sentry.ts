@@ -8,6 +8,11 @@ runSentryVerification(process.env, {
   flush: (timeout) => Sentry.flush(timeout),
   init: (options) => Sentry.init(options),
   withScope: (callback) => Sentry.withScope(callback),
-}).then((exitCode) => {
-  process.exitCode = exitCode;
-});
+}).then(
+  (exitCode) => {
+    process.exitCode = exitCode;
+  },
+  () => {
+    process.exitCode = 1;
+  },
+);

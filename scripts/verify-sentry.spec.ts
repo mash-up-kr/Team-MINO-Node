@@ -116,4 +116,28 @@ describe("Sentry verification script", () => {
 
     expect(result).toBe(1);
   });
+
+  it("SDK 초기화 예외를 종료 코드로 반환한다", async () => {
+    const client = {
+      captureException: jest.fn(),
+      flush: jest.fn().mockResolvedValue(true),
+      init: jest.fn(() => {
+        throw new Error("SDK initialization failed");
+      }),
+      withScope: jest.fn(),
+    };
+
+    const result = await runSentryVerification(
+      {
+        NODE_ENV: "production",
+        SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
+        SENTRY_RELEASE: "abc123",
+        SENTRY_VERIFY_MARKER: "team-mino-sentry-qa-123",
+      },
+      client,
+    );
+
+    expect(result).toBe(1);
+    expect(client.captureException).not.toHaveBeenCalled();
+  });
 });
