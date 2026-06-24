@@ -1,35 +1,93 @@
-import "reflect-metadata";
-import { beforeEach, describe, expect, it } from "bun:test";
-import { ConfigModule } from "@nestjs/config";
-import { Test } from "@nestjs/testing";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
+import type { ConfigService } from "@nestjs/config";
 import * as v from "valibot";
-import { AiModule } from "./ai.module";
-import { AiService } from "./ai.service";
+import { AppException } from "../../common/exceptions/app.exception";
+
+// ai / vertex / valibot 어댑터를 모킹한 뒤 AiService를 동적 import 한다.
+const generateObject = mock();
+class NoObjectGeneratedError extends Error {
+  static isInstance(error: unknown): error is NoObjectGeneratedError {
+    return error instanceof NoObjectGeneratedError;
+  }
+}
+mock.module("ai", () => ({ generateObject, NoObjectGeneratedError }));
+mock.module("@ai-sdk/google-vertex", () => ({
+  createVertex: () => (id: string) => ({ id }),
+}));
+mock.module("@ai-sdk/valibot", () => ({
+  valibotSchema: (schema: unknown) => schema,
+}));
+
+let AiService: typeof import("./ai.service").AiService;
+beforeAll(async () => {
+  ({ AiService } = await import("./ai.service"));
+});
+
+const schema = v.object({ name: v.string() });
+
+function makeService() {
+  const config = { get: () => undefined } as unknown as ConfigService;
+  return new AiService(config);
+}
 
 describe("AiService", () => {
-  let service: AiService;
+  beforeEach(() => generateObject.mockReset());
+  afterAll(() => mock.restore());
 
-  beforeEach(async () => {
-    const module = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
-        AiModule,
-      ],
-    }).compile();
-    service = module.get(AiService);
-  });
+  it("멀티모달 content를 모델 메시지로 변환하고 object를 반환한다", async () => {
+    // given
+    generateObject.mockResolvedValue({ object: { name: "어니언" } });
 
-  it("DI 컨테이너에서 AiService를 해석한다", () => {
-    expect(service).toBeInstanceOf(AiService);
-  });
-
-  it("extract는 아직 구현되지 않아 에러를 던진다", async () => {
     // when
-    const call = service.extract(v.object({ name: v.string() }), [
+    const result = await makeService().extract(schema, [
       { type: "text", text: "hello" },
+      { type: "image", url: "https://img.example/a.jpg" },
     ]);
 
     // then
-    await expect(call).rejects.toThrow("Not implemented");
+    expect(result).toEqual({ name: "어니언" });
+    const content = generateObject.mock.calls[0][0].messages[0].content;
+    expect(content[0]).toEqual({ type: "text", text: "hello" });
+    expect(content[1].type).toBe("image");
+    expect(String(content[1].image)).toBe("https://img.example/a.jpg");
+  });
+
+  it("NoObjectGeneratedError는 AI_SCHEMA_MISMATCH(422)로 변환한다", async () => {
+    // given
+    generateObject.mockRejectedValue(new NoObjectGeneratedError("invalid"));
+
+    // when
+    const promise = makeService().extract(schema, [
+      { type: "text", text: "x" },
+    ]);
+
+    // then
+    await expect(promise).rejects.toBeInstanceOf(AppException);
+    await expect(promise).rejects.toMatchObject({
+      errorCode: "AI_SCHEMA_MISMATCH",
+    });
+  });
+
+  it("그 외 에러는 AI_EXTRACTION_FAILED(502)로 변환한다", async () => {
+    // given
+    generateObject.mockRejectedValue(new Error("network down"));
+
+    // when
+    const promise = makeService().extract(schema, [
+      { type: "text", text: "x" },
+    ]);
+
+    // then
+    await expect(promise).rejects.toMatchObject({
+      errorCode: "AI_EXTRACTION_FAILED",
+    });
   });
 });

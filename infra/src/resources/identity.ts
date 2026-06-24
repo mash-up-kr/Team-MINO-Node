@@ -17,6 +17,12 @@ new gcp.projects.IAMMember(`${prefix}-server-log-writer`, {
   member: pulumi.interpolate`serviceAccount:${serverServiceAccount.email}`,
 });
 
+new gcp.projects.IAMMember(`${prefix}-server-vertex-user`, {
+  project,
+  role: "roles/aiplatform.user",
+  member: pulumi.interpolate`serviceAccount:${serverServiceAccount.email}`,
+});
+
 export const developer = new gcp.serviceaccount.Account(`${prefix}-developer`, {
   accountId: `${prefix}-developer`,
   displayName: `${prefix} developer`,
