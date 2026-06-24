@@ -1,4 +1,5 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable } from "@nestjs/common";
+import { AppException } from "../../common/exceptions/app.exception";
 import type { GeoCandidate, GeocoderProvider, GeoQuery } from "./geocoder.type";
 
 export const GEOCODER_PROVIDERS = Symbol("GEOCODER_PROVIDERS");
@@ -10,7 +11,23 @@ export class GeocoderService {
     private readonly providers: GeocoderProvider[],
   ) {}
 
-  async searchAll(_query: GeoQuery): Promise<GeoCandidate[]> {
-    throw new Error("Not implemented");
+  async searchAll(query: GeoQuery): Promise<GeoCandidate[]> {
+    const settled = await Promise.allSettled(
+      this.providers.map((provider) => provider.search(query)),
+    );
+    const succeeded = settled.filter(
+      (result): result is PromiseFulfilledResult<GeoCandidate[]> =>
+        result.status === "fulfilled",
+    );
+
+    if (succeeded.length === 0 && settled.length > 0) {
+      throw new AppException(
+        "GEOCODER_ALL_PROVIDERS_FAILED",
+        "모든 지도 검색 제공자가 실패했습니다.",
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    return succeeded.flatMap((result) => result.value);
   }
 }

@@ -40,6 +40,7 @@ Respond in the same language as the source content (use Korean when the content 
         this.geocoderService.searchAll({
           placeName: query.place_name,
           areaName: query.area_name,
+          areaType: query.area_type,
         }),
       ),
     );
@@ -117,7 +118,7 @@ Respond in the same language as the source content (use Korean when the content 
   /** Counts how many optional fields are present (higher = more complete). */
   private completeness(candidate: GeoCandidate): number {
     let score = 0;
-    if (candidate.url) score++;
+    if (candidate.mapUrl) score++;
     if (candidate.phone) score++;
     if (candidate.category) score++;
     if (candidate.distance !== undefined) score++;
