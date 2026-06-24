@@ -29,6 +29,21 @@ export function sanitizeSentryEvent(event: ErrorEvent): ErrorEvent {
           values: event.exception.values?.map((value) => ({
             ...value,
             value: SAFE_ERROR_MESSAGE,
+            stacktrace: value.stacktrace
+              ? {
+                  ...value.stacktrace,
+                  frames: value.stacktrace.frames?.map((frame) => {
+                    const {
+                      context_line: _contextLine,
+                      post_context: _postContext,
+                      pre_context: _preContext,
+                      vars: _vars,
+                      ...safeFrame
+                    } = frame;
+                    return safeFrame;
+                  }),
+                }
+              : undefined,
           })),
         }
       : undefined,

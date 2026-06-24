@@ -59,7 +59,18 @@ describe("Sentry configuration", () => {
           {
             type: "Error",
             value: "user@example.com token=query-secret",
-            stacktrace: { frames: [{ filename: "src/example.ts", lineno: 7 }] },
+            stacktrace: {
+              frames: [
+                {
+                  context_line: "const password = 'frame-secret'",
+                  filename: "src/example.ts",
+                  lineno: 7,
+                  post_context: ["send(password)"],
+                  pre_context: ["const token = 'token-secret'"],
+                  vars: { password: "frame-secret" },
+                },
+              ],
+            },
           },
         ],
       },
@@ -84,6 +95,8 @@ describe("Sentry configuration", () => {
     expect(serialized).not.toContain("127.0.0.9");
     expect(serialized).not.toContain("query-secret");
     expect(serialized).not.toContain("password");
+    expect(serialized).not.toContain("frame-secret");
+    expect(serialized).not.toContain("token-secret");
     expect(sanitized.exception?.values?.[0]?.value).toBe(
       "Internal server error",
     );
