@@ -4,18 +4,24 @@ import * as v from "valibot";
 import { AppException } from "../../../common/exceptions/app.exception";
 import type { Env } from "../../../config/env.schema";
 import type {
+  Coordinate,
   GeoCandidate,
   GeocoderProvider,
   GeoQuery,
 } from "../geocoder.type";
 import {
+  type KakaoAddressDocument,
   type KakaoKeywordDocument,
+  kakaoAddressSearchResponseSchema,
   kakaoKeywordSearchResponseSchema,
 } from "./kakao.type";
 
+const KAKAO_ADDRESS_SEARCH_URL =
+  "https://dapi.kakao.com/v2/local/search/address.json";
 const KAKAO_KEYWORD_SEARCH_URL =
   "https://dapi.kakao.com/v2/local/search/keyword.json";
 const KAKAO_SEARCH_SIZE = "15";
+const KAKAO_ADDRESS_BIAS_RADIUS = "1000";
 const KAKAO_REQUEST_TIMEOUT_MS = 5000;
 
 @Injectable()
@@ -28,7 +34,33 @@ export class KakaoProvider implements GeocoderProvider {
     const apiKey = this.configService.getOrThrow("KAKAO_REST_API_KEY", {
       infer: true,
     });
-    const url = this.createKeywordSearchUrl(query);
+    let url: string;
+
+    if (query.areaType === "address") {
+      const addressCoordinate = await this.resolveAddressCoordinate(
+        query.areaName,
+        apiKey,
+      );
+      url = addressCoordinate
+        ? this.createAddressBiasedKeywordSearchUrl(query, addressCoordinate)
+        : this.createKeywordSearchUrl(query);
+    } else {
+      url = this.createKeywordSearchUrl(query);
+    }
+
+    const body = await this.requestKakao(url, apiKey);
+    const parsed = v.safeParse(kakaoKeywordSearchResponseSchema, body);
+
+    if (!parsed.success) {
+      throw this.createInvalidResponseException();
+    }
+
+    return parsed.output.documents.map((document) =>
+      this.toGeoCandidate(document),
+    );
+  }
+
+  private async requestKakao(url: string, apiKey: string): Promise<unknown> {
     let response: Response;
 
     try {
@@ -60,21 +92,58 @@ export class KakaoProvider implements GeocoderProvider {
       );
     }
 
-    const body = await this.parseJson(response);
-    const parsed = v.safeParse(kakaoKeywordSearchResponseSchema, body);
+    return this.parseJson(response);
+  }
 
-    if (!parsed.success) {
-      throw this.createInvalidResponseException();
+  private async resolveAddressCoordinate(
+    areaName: string,
+    apiKey: string,
+  ): Promise<Coordinate | undefined> {
+    if (!areaName.trim()) {
+      return undefined;
     }
 
-    return parsed.output.documents.map((document) =>
-      this.toGeoCandidate(document),
-    );
+    try {
+      const url = this.createAddressSearchUrl(areaName);
+      const body = await this.requestKakao(url, apiKey);
+      const parsed = v.safeParse(kakaoAddressSearchResponseSchema, body);
+
+      if (!parsed.success) {
+        throw this.createInvalidResponseException();
+      }
+
+      return this.toAddressCoordinate(parsed.output.documents[0]);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private createAddressSearchUrl(areaName: string): string {
+    const url = new URL(KAKAO_ADDRESS_SEARCH_URL);
+    url.searchParams.set("query", areaName.trim());
+    url.searchParams.set("size", "1");
+
+    return url.toString();
   }
 
   private createKeywordSearchUrl(query: GeoQuery): string {
     const url = new URL(KAKAO_KEYWORD_SEARCH_URL);
     url.searchParams.set("query", this.createKeyword(query));
+    url.searchParams.set("size", KAKAO_SEARCH_SIZE);
+
+    return url.toString();
+  }
+
+  private createAddressBiasedKeywordSearchUrl(
+    query: GeoQuery,
+    addressCoordinate: Coordinate,
+  ): string {
+    const url = new URL(KAKAO_KEYWORD_SEARCH_URL);
+    url.searchParams.set("query", query.placeName.trim());
+    url.searchParams.set("x", String(addressCoordinate.lng));
+    url.searchParams.set("y", String(addressCoordinate.lat));
+    url.searchParams.set("radius", KAKAO_ADDRESS_BIAS_RADIUS);
+    url.searchParams.set("sort", "distance");
     url.searchParams.set("size", KAKAO_SEARCH_SIZE);
 
     return url.toString();
@@ -93,6 +162,17 @@ export class KakaoProvider implements GeocoderProvider {
     } catch {
       throw this.createInvalidResponseException();
     }
+  }
+
+  private toAddressCoordinate(
+    document: KakaoAddressDocument | undefined,
+  ): Coordinate | undefined {
+    if (!document) return undefined;
+
+    return {
+      lat: this.parseCoordinate(document.y),
+      lng: this.parseCoordinate(document.x),
+    };
   }
 
   private toGeoCandidate(document: KakaoKeywordDocument): GeoCandidate {

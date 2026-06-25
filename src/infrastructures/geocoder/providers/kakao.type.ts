@@ -1,5 +1,22 @@
 import * as v from "valibot";
 
+export const kakaoAddressSearchResponseSchema = v.object({
+  documents: v.array(
+    v.object({
+      address_name: v.string(),
+      address_type: v.string(),
+      x: v.string(),
+      y: v.string(),
+    }),
+  ),
+});
+
+type KakaoAddressSearchResponse = v.InferOutput<
+  typeof kakaoAddressSearchResponseSchema
+>;
+export type KakaoAddressDocument =
+  KakaoAddressSearchResponse["documents"][number];
+
 export const kakaoKeywordSearchResponseSchema = v.object({
   documents: v.array(
     v.object({
