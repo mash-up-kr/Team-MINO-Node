@@ -19,6 +19,9 @@ import {
 // 인스타 분석/식별용 정적 ID (거의 바뀌지 않아 상수 유지).
 const X_ASBD_ID = "129477";
 
+// 인스타 응답 지연 시 무한 대기를 막기 위한 요청 타임아웃.
+const REQUEST_TIMEOUT_MS = 10_000;
+
 // 인스타 경로(/p, /reel, /reels, /tv)에서 shortcode 추출. (호스트 검증은 별도)
 const SHORTCODE_PATH_REGEX = /\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/;
 
@@ -104,9 +107,13 @@ export class InstagramProvider {
           "Sec-Fetch-Site": "same-origin",
         },
         body,
+        // 타임아웃 초과 시 fetch가 reject → 아래 catch에서 502로 변환.
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch {
-      throw this.upstreamFailed("인스타그램 요청에 실패했습니다.");
+      throw this.upstreamFailed(
+        "인스타그램 요청에 실패했거나 시간이 초과됐습니다.",
+      );
     }
 
     if (!response.ok) {

@@ -229,6 +229,21 @@ describe("InstagramProvider", () => {
     });
   });
 
+  it("요청이 실패/타임아웃되면 SCRAPER_REQUEST_FAILED를 던진다", async () => {
+    // given — fetch 자체가 reject (네트워크 오류/타임아웃 상황)
+    globalThis.fetch = (async () => {
+      throw new DOMException("timed out", "TimeoutError");
+    }) as unknown as typeof fetch;
+
+    // when
+    const call = provider.fetchPost(URL);
+
+    // then
+    await expect(call).rejects.toMatchObject({
+      errorCode: "SCRAPER_REQUEST_FAILED",
+    });
+  });
+
   it("HTML 등 JSON이 아닌 응답이면 SCRAPER_REQUEST_FAILED를 던진다", async () => {
     // given
     globalThis.fetch = (async () =>
