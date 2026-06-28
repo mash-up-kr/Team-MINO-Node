@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import * as v from "valibot";
 import { AppException } from "../../../common/exceptions/app.exception";
 import type { Env } from "../../../config/env.schema";
 import type {
@@ -8,11 +9,11 @@ import type {
   ScrapedOwner,
   ScrapedPost,
 } from "../scraper.type";
-import type {
-  IgGraphqlResponse,
-  IgLocation,
-  IgOwner,
-  IgShortcodeMedia,
+import {
+  type IgLocation,
+  type IgOwner,
+  IgResponseSchema,
+  type IgShortcodeMedia,
 } from "./instagram.type";
 
 // 인스타 분석/식별용 정적 ID (거의 바뀌지 않아 상수 유지).
@@ -105,23 +106,30 @@ export class InstagramProvider {
         body,
       });
     } catch {
-      throw new AppException(
-        "SCRAPER_REQUEST_FAILED",
-        "인스타그램 요청에 실패했습니다.",
-        HttpStatus.BAD_GATEWAY,
-      );
+      throw this.upstreamFailed("인스타그램 요청에 실패했습니다.");
     }
 
     if (!response.ok) {
-      throw new AppException(
-        "SCRAPER_REQUEST_FAILED",
+      throw this.upstreamFailed(
         `인스타그램 응답 오류입니다. (status: ${response.status})`,
-        HttpStatus.BAD_GATEWAY,
       );
     }
 
-    const json = (await response.json()) as IgGraphqlResponse;
-    const media = json.data?.xdt_shortcode_media;
+    // HTML(차단 페이지 등) 응답이면 JSON 파싱이 실패할 수 있음 → upstream 오류로 취급.
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw this.upstreamFailed("응답을 JSON으로 해석할 수 없습니다.");
+    }
+
+    // 응답 구조를 경계에서 검증 → 구조 변경/예상 밖 응답을 502로 분류(우리 내부오류 아님).
+    const parsed = v.safeParse(IgResponseSchema, payload);
+    if (!parsed.success) {
+      throw this.upstreamFailed("예상하지 못한 응답 구조입니다.");
+    }
+
+    const media = parsed.output.data.xdt_shortcode_media;
     if (!media) {
       // 삭제 / 비공개 / 존재하지 않는 게시글
       throw new AppException(
@@ -131,6 +139,14 @@ export class InstagramProvider {
       );
     }
     return media;
+  }
+
+  private upstreamFailed(message: string): AppException {
+    return new AppException(
+      "SCRAPER_REQUEST_FAILED",
+      message,
+      HttpStatus.BAD_GATEWAY,
+    );
   }
 
   private toScrapedPost(media: IgShortcodeMedia): ScrapedPost {
@@ -178,8 +194,10 @@ export class InstagramProvider {
     };
   }
 
-  // address_json 은 JSON 문자열. 파싱 실패/빈 값은 버린다.
-  private toAddress(addressJson: string | null): ScrapedAddress | null {
+  // address_json 은 JSON 문자열. 없거나(null/undefined) 파싱 실패/빈 값은 버린다.
+  private toAddress(
+    addressJson: string | null | undefined,
+  ): ScrapedAddress | null {
     if (!addressJson) return null;
 
     let raw: Record<string, unknown>;

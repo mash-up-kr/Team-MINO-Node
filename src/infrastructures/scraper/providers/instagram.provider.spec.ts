@@ -228,4 +228,34 @@ describe("InstagramProvider", () => {
       errorCode: "SCRAPER_REQUEST_FAILED",
     });
   });
+
+  it("HTML 등 JSON이 아닌 응답이면 SCRAPER_REQUEST_FAILED를 던진다", async () => {
+    // given
+    globalThis.fetch = (async () =>
+      new Response("<html>blocked</html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      })) as unknown as typeof fetch;
+
+    // when
+    const call = provider.fetchPost(URL);
+
+    // then
+    await expect(call).rejects.toMatchObject({
+      errorCode: "SCRAPER_REQUEST_FAILED",
+    });
+  });
+
+  it("응답 구조가 예상과 다르면 SCRAPER_REQUEST_FAILED를 던진다", async () => {
+    // given — owner 등 필수 필드가 빠진 구조
+    mockFetch({ data: { xdt_shortcode_media: { shortcode: "abc123" } } });
+
+    // when
+    const call = provider.fetchPost(URL);
+
+    // then
+    await expect(call).rejects.toMatchObject({
+      errorCode: "SCRAPER_REQUEST_FAILED",
+    });
+  });
 });
