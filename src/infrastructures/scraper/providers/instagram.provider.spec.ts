@@ -174,9 +174,29 @@ describe("InstagramProvider", () => {
     expect(post.caption).toBeNull();
   });
 
-  it("지원하지 않는 URL은 INVALID_INSTAGRAM_URL을 던진다", async () => {
+  it("reel/reels URL에서도 shortcode를 추출한다", async () => {
+    // given
+    mockFetch({ data: { xdt_shortcode_media: makeMedia() } });
+
     // when
-    const call = provider.fetchPost("https://example.com/not-instagram");
+    const post = await provider.fetchPost(
+      "https://www.instagram.com/reel/abc123/",
+    );
+
+    // then
+    expect(post.shortcode).toBe("abc123");
+  });
+
+  it.each([
+    ["인스타가 아닌 호스트", "https://example.com/not-instagram"],
+    [
+      "경로에 instagram.com 문자열이 섞인 타 도메인",
+      "https://evil.com/?x=instagram.com/p/abc123",
+    ],
+    ["URL 형식이 아닌 값", "not-a-url"],
+  ])("지원하지 않는 URL(%s)은 INVALID_INSTAGRAM_URL을 던진다", async (_label, url) => {
+    // when
+    const call = provider.fetchPost(url);
 
     // then
     await expect(call).rejects.toBeInstanceOf(AppException);

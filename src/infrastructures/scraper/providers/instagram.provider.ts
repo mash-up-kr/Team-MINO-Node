@@ -18,9 +18,8 @@ import type {
 // 인스타 분석/식별용 정적 ID (거의 바뀌지 않아 상수 유지).
 const X_ASBD_ID = "129477";
 
-// p / reel / reels / tv URL 에서 shortcode 추출.
-const SHORTCODE_REGEX =
-  /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(?:reels|reel|p|tv)\/([A-Za-z0-9_-]+)/;
+// 인스타 경로(/p, /reel, /reels, /tv)에서 shortcode 추출. (호스트 검증은 별도)
+const SHORTCODE_PATH_REGEX = /\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/;
 
 @Injectable()
 export class InstagramProvider {
@@ -53,15 +52,33 @@ export class InstagramProvider {
   }
 
   private extractShortcode(url: string): string {
-    const match = url.match(SHORTCODE_REGEX);
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw this.invalidUrl();
+    }
+
+    // 호스트가 instagram.com (또는 서브도메인)인지 먼저 확인 — 문자열 포함 검사로 인한
+    // 타 도메인 우회(SSRF) 방지.
+    const host = parsed.hostname.toLowerCase();
+    if (host !== "instagram.com" && !host.endsWith(".instagram.com")) {
+      throw this.invalidUrl();
+    }
+
+    const match = parsed.pathname.match(SHORTCODE_PATH_REGEX);
     if (!match) {
-      throw new AppException(
-        "INVALID_INSTAGRAM_URL",
-        "지원하지 않는 인스타그램 URL 입니다.",
-        HttpStatus.BAD_REQUEST,
-      );
+      throw this.invalidUrl();
     }
     return match[1];
+  }
+
+  private invalidUrl(): AppException {
+    return new AppException(
+      "INVALID_INSTAGRAM_URL",
+      "지원하지 않는 인스타그램 URL 입니다.",
+      HttpStatus.BAD_REQUEST,
+    );
   }
 
   private async fetchShortcodeMedia(
