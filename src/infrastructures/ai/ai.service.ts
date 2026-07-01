@@ -10,6 +10,7 @@ import type { AiServiceInterface, ContentPart } from "./ai.type";
 
 // Gemini 3.x는 global 엔드포인트 전용이라 location은 env 기본값 "global"을 사용한다.
 const MODEL = "gemini-3.1-flash-lite";
+const AI_TIMEOUT_MS = 30_000;
 
 @Injectable()
 export class AiService implements AiServiceInterface {
@@ -31,6 +32,7 @@ export class AiService implements AiServiceInterface {
         model,
         schema: valibotSchema(schema),
         messages,
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
       });
       return object;
     } catch (error) {
@@ -39,6 +41,13 @@ export class AiService implements AiServiceInterface {
           "AI_SCHEMA_MISMATCH",
           "AI 응답이 스키마와 일치하지 않습니다.",
           HttpStatus.UNPROCESSABLE_ENTITY,
+        );
+      }
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw new AppException(
+          "AI_TIMEOUT",
+          "AI 응답 시간이 초과되었습니다.",
+          HttpStatus.GATEWAY_TIMEOUT,
         );
       }
       throw new AppException(
