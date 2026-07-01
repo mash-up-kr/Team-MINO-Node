@@ -13,8 +13,7 @@ const MODEL = "gemini-3.1-flash-lite";
 
 @Injectable()
 export class AiService implements AiServiceInterface {
-  // createVertex는 project/location이 없으면 즉시 throw하므로, 생성자 부작용을 피해 지연 생성한다.
-  private vertex?: ReturnType<typeof createVertex>;
+  private _client?: ReturnType<typeof createVertex>;
 
   constructor(private readonly configService: ConfigService<Env>) {}
 
@@ -22,11 +21,16 @@ export class AiService implements AiServiceInterface {
     schema: GenericSchema<T>,
     content: ContentPart[],
   ): Promise<T> {
+    const model = this.vertex(MODEL);
+    const messages = [
+      { role: "user" as const, content: this.toModelContent(content) },
+    ];
+
     try {
       const { object } = await generateObject({
-        model: this.getVertex()(MODEL),
+        model,
         schema: valibotSchema(schema),
-        messages: [{ role: "user", content: this.toModelContent(content) }],
+        messages,
       });
       return object;
     } catch (error) {
@@ -45,23 +49,35 @@ export class AiService implements AiServiceInterface {
     }
   }
 
-  // 자격증명은 ADC(Cloud Run 서비스 계정 / 로컬 gcloud)로 처리 — API 키 없음.
-  // project는 SDK가 ADC로 자동 해석하지 않으므로 GOOGLE_CLOUD_PROJECT로 반드시 지정해야 한다.
-  private getVertex() {
-    this.vertex ??= createVertex({
+  // 자격증명은 ADC(Cloud Run 서비스 계정 / 로컬 gcloud)로 처리 — API 키 없음
+  // project는 SDK가 ADC로 자동 해석하지 않으므로 GOOGLE_CLOUD_PROJECT로 반드시 지정해야 함
+  private get vertex() {
+    this._client ??= createVertex({
       project: this.configService.get("GOOGLE_CLOUD_PROJECT", { infer: true }),
       location: this.configService.get("GOOGLE_VERTEX_LOCATION", {
         infer: true,
       }),
     });
-    return this.vertex;
+    return this._client;
   }
 
   private toModelContent(content: ContentPart[]) {
-    return content.map((part) =>
-      part.type === "text"
+    return content.map((part) => {
+      return part.type === "text"
         ? { type: "text" as const, text: part.text }
-        : { type: "image" as const, image: new URL(part.url) },
-    );
+        : { type: "image" as const, image: this.toImageUrl(part.url) };
+    });
+  }
+
+  private toImageUrl(url: string): URL {
+    try {
+      return new URL(url);
+    } catch {
+      throw new AppException(
+        "INVALID_IMAGE_URL",
+        `유효하지 않은 이미지 URL입니다: ${url}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 }
