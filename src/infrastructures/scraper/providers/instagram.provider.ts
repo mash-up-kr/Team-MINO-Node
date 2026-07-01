@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as v from "valibot";
 import { AppException } from "../../../common/exceptions/app.exception";
@@ -27,6 +27,7 @@ const SHORTCODE_PATH_REGEX = /\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/;
 
 @Injectable()
 export class InstagramProvider {
+  private readonly logger = new Logger(InstagramProvider.name);
   private readonly endpoint: string;
   private readonly docId: string;
   private readonly lsd: string;
@@ -133,6 +134,11 @@ export class InstagramProvider {
     // 응답 구조를 경계에서 검증 → 구조 변경/예상 밖 응답을 502로 분류(우리 내부오류 아님).
     const parsed = v.safeParse(IgResponseSchema, payload);
     if (!parsed.success) {
+      // 인스타 구조 변경 추적용 — 어떤 필드가 어긋났는지 남긴다.
+      this.logger.warn({
+        msg: "instagram response schema mismatch",
+        issues: v.flatten(parsed.issues).nested,
+      });
       throw this.upstreamFailed("예상하지 못한 응답 구조입니다.");
     }
 
