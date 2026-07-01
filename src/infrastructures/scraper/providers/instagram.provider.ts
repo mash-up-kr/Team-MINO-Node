@@ -173,10 +173,15 @@ export class InstagramProvider {
     };
   }
 
+  // 접두사 변형(GraphImage / XDTGraphImage 등)은 허용하되, 미지원 타입은 조용히
+  // image로 삼키지 않고 upstream 오류로 실패시킨다(잘못된 데이터가 AI 단계로 가는 것 방지).
   private toTypename(rawTypename: string): ScrapedPost["typename"] {
     if (rawTypename.includes("Sidecar")) return "carousel";
     if (rawTypename.includes("Video")) return "video";
-    return "image";
+    if (rawTypename.includes("Image")) return "image";
+    throw this.upstreamFailed(
+      `지원하지 않는 인스타 게시물 타입입니다. (${rawTypename})`,
+    );
   }
 
   // 캐러셀이면 각 자식의 정지 이미지(영상은 썸네일)를, 아니면 대표 이미지 1장을 반환.
@@ -220,8 +225,11 @@ export class InstagramProvider {
       return null;
     }
 
-    const pick = (value: unknown): string | undefined =>
-      typeof value === "string" && value.trim() ? value : undefined;
+    const pick = (value: unknown): string | undefined => {
+      if (typeof value !== "string") return undefined;
+      const trimmed = value.trim();
+      return trimmed || undefined;
+    };
 
     const address: ScrapedAddress = {
       streetAddress: pick(raw.street_address),

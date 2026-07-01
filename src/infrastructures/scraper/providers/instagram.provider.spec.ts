@@ -157,6 +157,47 @@ describe("InstagramProvider", () => {
     });
   });
 
+  it("주소 값 앞뒤 공백은 trim한다", async () => {
+    // given
+    const addressJson = JSON.stringify({ street_address: "  서울 성동구  " });
+    mockFetch({
+      data: {
+        xdt_shortcode_media: makeMedia({
+          location: {
+            id: "1",
+            name: "장소",
+            slug: "slug",
+            has_public_page: true,
+            address_json: addressJson,
+          },
+        }),
+      },
+    });
+
+    // when
+    const post = await provider.fetchPost(URL);
+
+    // then
+    expect(post.location?.address).toEqual({ streetAddress: "서울 성동구" });
+  });
+
+  it("지원하지 않는 게시물 타입이면 SCRAPER_REQUEST_FAILED를 던진다", async () => {
+    // given
+    mockFetch({
+      data: {
+        xdt_shortcode_media: makeMedia({ __typename: "XDTGraphStory" }),
+      },
+    });
+
+    // when
+    const call = provider.fetchPost(URL);
+
+    // then
+    await expect(call).rejects.toMatchObject({
+      errorCode: "SCRAPER_REQUEST_FAILED",
+    });
+  });
+
   it("caption이 없으면 null로 매핑한다", async () => {
     // given
     mockFetch({
