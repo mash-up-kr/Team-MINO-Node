@@ -1,6 +1,6 @@
 # Sentry 오류 알림 운영
 
-이 서비스는 `@sentry/bun`으로 예상하지 못한 서버 오류와 HTTP 5xx만 수집한다. 정상적인 4xx, 요청·사용자 정보, 오류 원문은 전송하지 않는다. 운영 DSN은 GCP Secret Manager의 `team-mino-env-prod`에 보관하고, 배포 workflow는 Git SHA 기반 `SENTRY_RELEASE`를 Cloud Run에 주입한다.
+이 서비스는 `@sentry/bun`으로 예상하지 못한 서버 오류와 HTTP 5xx만 수집한다. `defaultIntegrations: false`와 `sendDefaultPii: false`로 breadcrumbs·요청·사용자 정보(IP 포함)는 자동 수집하지 않지만, 오류 메시지와 스택트레이스 원문은 그대로 전송된다 — 애플리케이션 코드에서 에러 메시지에 시크릿을 직접 담지 않도록 주의한다. 운영 DSN은 GCP Secret Manager의 `team-mino-env-prod`에 보관하고, 배포 workflow는 Git SHA 기반 `SENTRY_RELEASE`를 Cloud Run에 주입한다.
 
 ## 최초 설정
 
