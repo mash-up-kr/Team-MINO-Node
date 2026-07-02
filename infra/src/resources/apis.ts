@@ -4,6 +4,7 @@ const REQUIRED_APIS = [
   "run.googleapis.com",
   "artifactregistry.googleapis.com",
   "secretmanager.googleapis.com",
+  "cloudtasks.googleapis.com",
 ];
 
 export const enabledServices = REQUIRED_APIS.map(
