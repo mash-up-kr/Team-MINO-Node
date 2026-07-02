@@ -17,7 +17,7 @@
     "start:local": "APP_ENV=local nest start --watch --exec bun",
     "start:prod": "./dist/server",
     "test": "bun run test:unit && bun run test:e2e",
-    "test:e2e": "DATABASE_URL=${TEST_DATABASE_URL:-postgres://postgres:postgres@localhost:5432/team_mino} bun test e2e/",
+    "test:e2e": "DATABASE_URL=${TEST_DATABASE_URL:-postgres://postgres:postgres@localhost:5432/team_mino} CLOUD_TASKS_INVOKER_EMAIL=test-invoker@test.iam.gserviceaccount.com APP_BASE_URL=http://localhost:3000 CLOUD_TASKS_LOCATION=asia-northeast3 CLOUD_TASKS_QUEUE=test-queue bun test e2e/",
     "test:unit": "bun test src/",
     "test:watch": "bun test --watch",
     "typecheck": "tsgo --noEmit",
