@@ -21,17 +21,19 @@ Sentry UI가 Monitors & Alerts workflow를 사용하는 경우 Issue detector에
 
 ## 검증
 
-로컬 자격 증명은 셸 환경에만 둔다. 다음 명령은 고유 fingerprint와 `sentry.verify.marker` tag를 가진 이벤트 한 건을 전송한다.
+로컬 자격 증명은 셸 환경에만 둔다. Sentry 프로젝트의 **Project Settings > Client Keys (DSN) > Send Test Event**로 고유 이벤트 한 건을 전송하거나, 아래처럼 REPL에서 즉석 스크립트로 검증한다.
 
 ```bash
-SENTRY_DSN="..." \
-SENTRY_RELEASE="$(git rev-parse HEAD)" \
-SENTRY_VERIFY_MARKER="team-mino-sentry-qa-$(date -u +%s)" \
-NODE_ENV=production \
-bun run scripts/verify-sentry.ts
+SENTRY_DSN="..." bun repl <<'EOF'
+const Sentry = await import("@sentry/bun");
+const { createSentryOptions } = await import("./src/config/sentry.config");
+Sentry.init(createSentryOptions({ NODE_ENV: "production", SENTRY_DSN: process.env.SENTRY_DSN }));
+Sentry.captureException(new Error("team-mino-sentry-qa"));
+await Sentry.flush(2000);
+EOF
 ```
 
-Sentry에서 marker tag로 이슈를 찾고 최초 Discord 메시지의 이슈 URL과 대조한다. 이슈를 resolved로 바꾸고 6분 후 같은 marker로 다시 실행해 regression 메시지 한 건을 확인한다. unresolved 상태에서 한 번 더 실행했을 때 이벤트 수는 증가하지만 새 Discord 메시지는 없어야 한다.
+Sentry에서 이슈를 찾고 최초 Discord 메시지의 이슈 URL과 대조한다. 이슈를 resolved로 바꾸고 6분 후 같은 방식으로 다시 전송해 regression 메시지 한 건을 확인한다. unresolved 상태에서 한 번 더 전송했을 때 이벤트 수는 증가하지만 새 Discord 메시지는 없어야 한다.
 
 ## 롤백
 
