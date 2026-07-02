@@ -27,6 +27,19 @@ const envSchema = v.object({
   // Gemini 3.x는 global 전용이므로 기본 "global" 사용
   GOOGLE_VERTEX_LOCATION: v.optional(v.string(), "global"),
   KAKAO_REST_API_KEY: v.optional(v.string()),
+  // Cloud Tasks가 워커(/internal/*) 호출 시 쓰는 SA 이메일. OIDC 토큰의 email 클레임과 대조.
+  CLOUD_TASKS_INVOKER_EMAIL: v.pipe(v.string(), v.minLength(1)),
+  // 태스크 생성 시 oidcToken.audience로 지정하는 고정 문자열. 요청 URL 재구성에 기대지 않기 위함.
+  CLOUD_TASKS_OIDC_AUDIENCE: v.optional(
+    v.string(),
+    "team-mino-place-extraction-worker",
+  ),
+  // 이 Cloud Run 서비스 자기 자신의 공개 URL. Cloud Tasks가 워커를 호출할 타겟 베이스.
+  // 첫 배포 후 Pulumi output(serviceUrl)을 그대로 Secret Manager에 채워 넣는다.
+  APP_BASE_URL: v.pipe(v.string(), v.minLength(1), v.url()),
+  // infra/src/resources/tasks.ts의 placeExtractionQueue와 값을 맞춰야 한다.
+  CLOUD_TASKS_LOCATION: v.pipe(v.string(), v.minLength(1)),
+  CLOUD_TASKS_QUEUE: v.pipe(v.string(), v.minLength(1)),
 });
 
 export type Env = v.InferOutput<typeof envSchema>;

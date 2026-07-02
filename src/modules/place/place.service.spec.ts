@@ -247,7 +247,24 @@ describe("PlaceService", () => {
     // given
     const module = await Test.createTestingModule({
       imports: [
-        ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
+        ConfigModule.forRoot({
+          isGlobal: true,
+          ignoreEnvFile: true,
+          // PlaceModule이 이제 DatabaseModule/TasksModule을 물고 있어, 두 모듈
+          // 생성자의 getOrThrow가 실패하지 않도록 module 해석 스모크 테스트용 값 채움.
+          load: [
+            () => ({
+              DATABASE_URL: "postgres://test:test@localhost:5432/test",
+              GOOGLE_CLOUD_PROJECT: "test-project",
+              CLOUD_TASKS_LOCATION: "asia-northeast3",
+              CLOUD_TASKS_QUEUE: "test-queue",
+              APP_BASE_URL: "http://localhost:3000",
+              CLOUD_TASKS_OIDC_AUDIENCE: "test-audience",
+              CLOUD_TASKS_INVOKER_EMAIL:
+                "test-invoker@test.iam.gserviceaccount.com",
+            }),
+          ],
+        }),
         PlaceModule,
       ],
     }).compile();
