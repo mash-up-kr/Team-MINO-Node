@@ -3,18 +3,8 @@ import { ConfigService } from "@nestjs/config";
 import * as v from "valibot";
 import { AppException } from "../../../common/exceptions/app.exception";
 import type { Env } from "../../../config/env.schema";
-import type {
-  ScrapedAddress,
-  ScrapedLocation,
-  ScrapedOwner,
-  ScrapedPost,
-} from "../scraper.type";
-import {
-  type IgLocation,
-  type IgOwner,
-  IgResponseSchema,
-  type IgShortcodeMedia,
-} from "./instagram.type";
+import type { ScrapedAddress, ScrapedPost } from "../scraper.type";
+import { IgResponseSchema, type IgShortcodeMedia } from "./instagram.type";
 
 // 인스타 분석/식별용 정적 ID (거의 바뀌지 않아 상수 유지).
 const X_ASBD_ID = "129477";
@@ -163,13 +153,26 @@ export class InstagramProvider {
   }
 
   private toScrapedPost(media: IgShortcodeMedia): ScrapedPost {
+    const { owner, location } = media;
     return {
       shortcode: media.shortcode,
       typename: this.toTypename(media.__typename),
       caption: media.edge_media_to_caption.edges[0]?.node.text ?? null,
       imageUrls: this.toImageUrls(media),
-      owner: this.toOwner(media.owner),
-      location: this.toLocation(media.location),
+      owner: {
+        id: owner.id,
+        username: owner.username,
+        fullName: owner.full_name,
+      },
+      location: location
+        ? {
+            id: location.id,
+            name: location.name,
+            slug: location.slug,
+            hasPublicPage: location.has_public_page,
+            address: this.toAddress(location.address_json),
+          }
+        : null,
     };
   }
 
@@ -191,25 +194,6 @@ export class InstagramProvider {
       return children.map((edge) => edge.node.display_url);
     }
     return [media.display_url];
-  }
-
-  private toOwner(owner: IgOwner): ScrapedOwner {
-    return {
-      id: owner.id,
-      username: owner.username,
-      fullName: owner.full_name,
-    };
-  }
-
-  private toLocation(location: IgLocation | null): ScrapedLocation | null {
-    if (!location) return null;
-    return {
-      id: location.id,
-      name: location.name,
-      slug: location.slug,
-      hasPublicPage: location.has_public_page,
-      address: this.toAddress(location.address_json),
-    };
   }
 
   // address_json 은 JSON 문자열. 없거나(null/undefined) 파싱 실패/빈 값은 버린다.
