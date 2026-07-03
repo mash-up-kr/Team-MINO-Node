@@ -2,7 +2,7 @@ import { createVertex } from "@ai-sdk/google-vertex";
 import { valibotSchema } from "@ai-sdk/valibot";
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { generateObject, NoObjectGeneratedError } from "ai";
+import { generateText, NoObjectGeneratedError, Output } from "ai";
 import type { GenericSchema } from "valibot";
 import { AppException } from "../../common/exceptions/app.exception";
 import type { Env } from "../../config/env.schema";
@@ -28,13 +28,13 @@ export class AiService implements AiServiceInterface {
     ];
 
     try {
-      const { object } = await generateObject({
+      const { output } = await generateText({
         model,
-        schema: valibotSchema(schema),
         messages,
         abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+        output: Output.object({ schema: valibotSchema(schema) }),
       });
-      return object;
+      return output;
     } catch (error) {
       if (NoObjectGeneratedError.isInstance(error)) {
         throw new AppException(

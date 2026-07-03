@@ -12,13 +12,17 @@ import * as v from "valibot";
 import { AppException } from "../../common/exceptions/app.exception";
 
 // ai / vertex / valibot 어댑터를 모킹한 뒤 AiService를 동적 import 한다.
-const generateObject = mock();
+const generateText = mock();
 class NoObjectGeneratedError extends Error {
   static isInstance(error: unknown): error is NoObjectGeneratedError {
     return error instanceof NoObjectGeneratedError;
   }
 }
-mock.module("ai", () => ({ generateObject, NoObjectGeneratedError }));
+mock.module("ai", () => ({
+  generateText,
+  NoObjectGeneratedError,
+  Output: { object: (options: unknown) => options },
+}));
 mock.module("@ai-sdk/google-vertex", () => ({
   createVertex: () => (id: string) => ({ id }),
 }));
@@ -39,12 +43,12 @@ function makeService() {
 }
 
 describe("AiService", () => {
-  beforeEach(() => generateObject.mockReset());
+  beforeEach(() => generateText.mockReset());
   afterAll(() => mock.restore());
 
-  it("멀티모달 content를 모델 메시지로 변환하고 object를 반환한다", async () => {
+  it("멀티모달 content를 모델 메시지로 변환하고 output을 반환한다", async () => {
     // given
-    generateObject.mockResolvedValue({ object: { name: "어니언" } });
+    generateText.mockResolvedValue({ output: { name: "어니언" } });
 
     // when
     const result = await makeService().extract(schema, [
@@ -54,7 +58,7 @@ describe("AiService", () => {
 
     // then
     expect(result).toEqual({ name: "어니언" });
-    const content = generateObject.mock.calls[0][0].messages[0].content;
+    const content = generateText.mock.calls[0][0].messages[0].content;
     expect(content[0]).toEqual({ type: "text", text: "hello" });
     expect(content[1].type).toBe("image");
     expect(String(content[1].image)).toBe("https://img.example/a.jpg");
@@ -62,7 +66,7 @@ describe("AiService", () => {
 
   it("NoObjectGeneratedError는 AI_SCHEMA_MISMATCH(422)로 변환한다", async () => {
     // given
-    generateObject.mockRejectedValue(new NoObjectGeneratedError("invalid"));
+    generateText.mockRejectedValue(new NoObjectGeneratedError("invalid"));
 
     // when
     const promise = makeService().extract(schema, [
@@ -78,7 +82,7 @@ describe("AiService", () => {
 
   it("그 외 에러는 AI_EXTRACTION_FAILED(502)로 변환한다", async () => {
     // given
-    generateObject.mockRejectedValue(new Error("network down"));
+    generateText.mockRejectedValue(new Error("network down"));
 
     // when
     const promise = makeService().extract(schema, [
