@@ -3,6 +3,11 @@ import { validateEnv } from "./env.schema";
 
 const requiredEnvironment = {
   DATABASE_URL: "postgres://postgres:postgres@localhost:5432/team_mino",
+  INSTAGRAM_APP_ID: "test",
+  INSTAGRAM_DOC_ID: "test",
+  INSTAGRAM_GRAPHQL_ENDPOINT: "https://www.instagram.com/api/graphql",
+  INSTAGRAM_LSD: "test",
+  INSTAGRAM_USER_AGENT: "test",
 };
 
 describe("Sentry environment", () => {
