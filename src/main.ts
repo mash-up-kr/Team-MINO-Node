@@ -1,10 +1,13 @@
 import * as Sentry from "@sentry/bun";
 import { loadSecretEnv } from "./config/secret-env";
-import { SENTRY_FLUSH_TIMEOUT_MS } from "./config/sentry.config";
+import {
+  initializeSentry,
+  SENTRY_FLUSH_TIMEOUT_MS,
+} from "./config/sentry.config";
 
 async function main(): Promise<void> {
   await loadSecretEnv();
-  await import("./instrument");
+  initializeSentry(process.env, Sentry.init);
   const { bootstrap } = await import("./bootstrap");
   await bootstrap();
 }
