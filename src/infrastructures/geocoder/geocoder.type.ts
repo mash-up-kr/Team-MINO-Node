@@ -3,23 +3,27 @@ export interface Coordinate {
   lng: number;
 }
 
+export type AreaType = "landmark" | "address" | "region";
+
 export interface GeoQuery {
   areaName: string;
+  areaType?: AreaType;
   placeName: string;
 }
 
 export interface GeoCandidate {
   provider: "kakao" | "google";
+  providerPlaceId: string;
   placeName: string;
   address: string;
   coordinate: Coordinate;
   distance?: number;
-  url?: string;
+  mapUrl?: string;
   phone?: string;
   category?: string;
 }
 
 export interface GeocoderProvider {
-  name: GeoCandidate["provider"];
+  readonly name: GeoCandidate["provider"];
   search(query: GeoQuery): Promise<GeoCandidate[]>;
 }
