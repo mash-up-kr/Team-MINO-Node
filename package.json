@@ -17,7 +17,7 @@
     "start:local": "APP_ENV=local nest start --watch --exec bun",
     "start:prod": "./dist/server",
     "test": "bun run test:unit && bun run test:e2e",
-    "test:e2e": "DATABASE_URL=${TEST_DATABASE_URL:-postgres://postgres:postgres@localhost:5432/team_mino} INSTAGRAM_GRAPHQL_ENDPOINT=https://www.instagram.com/api/graphql INSTAGRAM_DOC_ID=test INSTAGRAM_LSD=test INSTAGRAM_APP_ID=test INSTAGRAM_USER_AGENT=test bun test e2e/",
+    "test:e2e": "DATABASE_URL=${TEST_DATABASE_URL:-postgres://postgres:postgres@localhost:5432/team_mino} KAKAO_REST_API_KEY=test INSTAGRAM_GRAPHQL_ENDPOINT=https://www.instagram.com/api/graphql INSTAGRAM_DOC_ID=test INSTAGRAM_LSD=test INSTAGRAM_APP_ID=test INSTAGRAM_USER_AGENT=test bun test e2e/",
     "test:unit": "bun test src/",
     "test:watch": "bun test --watch",
     "typecheck": "tsgo --noEmit",
