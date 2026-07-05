@@ -5,6 +5,7 @@ const REQUIRED_APIS = [
   "artifactregistry.googleapis.com",
   "secretmanager.googleapis.com",
   "cloudscheduler.googleapis.com",
+  "aiplatform.googleapis.com",
 ];
 
 export const enabledServices = REQUIRED_APIS.map(
