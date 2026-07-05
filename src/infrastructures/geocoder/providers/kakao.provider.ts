@@ -25,7 +25,9 @@ export class KakaoProvider implements GeocoderProvider {
   constructor(private readonly configService: ConfigService<Env>) {}
 
   async search(query: GeoQuery): Promise<GeoCandidate[]> {
-    const apiKey = this.getApiKey();
+    const apiKey = this.configService.getOrThrow("KAKAO_REST_API_KEY", {
+      infer: true,
+    });
     const url = this.createKeywordSearchUrl(query);
     let response: Response;
 
@@ -68,22 +70,6 @@ export class KakaoProvider implements GeocoderProvider {
     return parsed.output.documents.map((document) =>
       this.toGeoCandidate(document),
     );
-  }
-
-  private getApiKey(): string {
-    const apiKey = this.configService.get("KAKAO_REST_API_KEY", {
-      infer: true,
-    });
-
-    if (!apiKey?.trim()) {
-      throw new AppException(
-        "KAKAO_REST_API_KEY_MISSING",
-        "카카오 REST API 키가 설정되지 않았습니다.",
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-
-    return apiKey;
   }
 
   private createKeywordSearchUrl(query: GeoQuery): string {

@@ -12,11 +12,9 @@ const query: GeoQuery = {
   placeName: "카카오프렌즈",
 };
 
-function createProvider(apiKey: string | undefined = "test-api-key") {
+function createProvider() {
   const configService = {
-    get: jest.fn((key: keyof Env) =>
-      key === "KAKAO_REST_API_KEY" ? apiKey : undefined,
-    ),
+    getOrThrow: jest.fn(() => "test-api-key"),
   } as unknown as ConfigService<Env>;
 
   return new KakaoProvider(configService);
@@ -137,15 +135,6 @@ describe("KakaoProvider", () => {
     const [candidate] = await provider.search(query);
 
     expect(candidate.distance).toBeUndefined();
-  });
-
-  it("KAKAO_REST_API_KEY가 없으면 KAKAO_REST_API_KEY_MISSING을 던진다", async () => {
-    const provider = createProvider("");
-
-    await expectAppException(
-      provider.search(query),
-      "KAKAO_REST_API_KEY_MISSING",
-    );
   });
 
   it("429 응답이면 KAKAO_RATE_LIMITED를 던진다", async () => {
