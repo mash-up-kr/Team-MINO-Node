@@ -1,9 +1,10 @@
 export interface ScrapedAddress {
-  streetAddress: string;
-  zipCode: string;
-  cityName: string;
-  regionName: string;
-  countryCode: string;
+  // 인스타가 주는 대로 통과 — 부분만 오거나 빈 문자열일 수 있어 전부 optional.
+  streetAddress?: string;
+  zipCode?: string;
+  cityName?: string;
+  regionName?: string;
+  countryCode?: string;
 }
 
 export interface ScrapedLocation {

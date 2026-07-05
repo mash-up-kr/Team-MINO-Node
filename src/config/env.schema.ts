@@ -29,6 +29,16 @@ const envSchema = v.object({
   KAKAO_REST_API_KEY: v.optional(v.string()),
   SENTRY_DSN: v.optional(v.pipe(v.string(), v.url(), v.regex(/^https:\/\//))),
   SENTRY_RELEASE: v.optional(v.pipe(v.string(), v.minLength(1))),
+  // Instagram 비공개 GraphQL 호출용 값들. 인스타가 토큰/구조를 바꾸면 env만 갱신하면 됨.
+  INSTAGRAM_GRAPHQL_ENDPOINT: v.pipe(
+    v.string(),
+    v.url(),
+    v.startsWith("https://"),
+  ),
+  INSTAGRAM_DOC_ID: v.pipe(v.string(), v.minLength(1)),
+  INSTAGRAM_LSD: v.pipe(v.string(), v.minLength(1)),
+  INSTAGRAM_APP_ID: v.pipe(v.string(), v.minLength(1)),
+  INSTAGRAM_USER_AGENT: v.pipe(v.string(), v.minLength(1)),
 });
 
 export type Env = v.InferOutput<typeof envSchema>;

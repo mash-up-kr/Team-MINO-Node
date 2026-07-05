@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { beforeEach, describe, expect, it, spyOn } from "bun:test";
+import { ConfigModule } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { InstagramProvider } from "./providers/instagram.provider";
 import { ScraperModule } from "./scraper.module";
@@ -12,7 +13,10 @@ describe("ScraperService", () => {
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
-      imports: [ScraperModule],
+      imports: [
+        ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
+        ScraperModule,
+      ],
     }).compile();
     service = module.get(ScraperService);
     instagram = module.get(InstagramProvider);
