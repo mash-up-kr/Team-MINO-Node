@@ -3,7 +3,8 @@ export interface Coordinate {
   lng: number;
 }
 
-export type AreaType = "landmark" | "address" | "region";
+export const AREA_TYPES = ["landmark", "address", "region"] as const;
+export type AreaType = (typeof AREA_TYPES)[number];
 
 export interface GeoQuery {
   areaName: string;

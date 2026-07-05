@@ -137,6 +137,15 @@ describe("KakaoProvider", () => {
     expect(candidate.distance).toBeUndefined();
   });
 
+  it("fetch가 실패하면 KAKAO_REQUEST_FAILED를 던진다", async () => {
+    globalThis.fetch = jest
+      .fn()
+      .mockRejectedValue(new Error("network error")) as unknown as typeof fetch;
+    const provider = createProvider();
+
+    await expectAppException(provider.search(query), "KAKAO_REQUEST_FAILED");
+  });
+
   it("429 응답이면 KAKAO_RATE_LIMITED를 던진다", async () => {
     mockFetchJson({ error: "rate limited" }, { status: 429 });
     const provider = createProvider();
