@@ -34,20 +34,31 @@ export class KakaoProvider implements GeocoderProvider {
     const apiKey = this.configService.getOrThrow("KAKAO_REST_API_KEY", {
       infer: true,
     });
-    let url: string;
 
     if (query.areaType === "address") {
       const addressCoordinate = await this.resolveAddressCoordinate(
         query.areaName,
         apiKey,
       );
-      url = addressCoordinate
-        ? this.createAddressBiasedKeywordSearchUrl(query, addressCoordinate)
-        : this.createKeywordSearchUrl(query);
-    } else {
-      url = this.createKeywordSearchUrl(query);
+      if (addressCoordinate) {
+        const biased = await this.searchKeyword(
+          this.createAddressBiasedKeywordSearchUrl(query, addressCoordinate),
+          apiKey,
+        );
+        // biased(1km) 결과가 있으면 사용하고, 0건이면 아래 areaName + placeName 검색으로 fallback
+        if (biased.length > 0) {
+          return biased;
+        }
+      }
     }
 
+    return this.searchKeyword(this.createKeywordSearchUrl(query), apiKey);
+  }
+
+  private async searchKeyword(
+    url: string,
+    apiKey: string,
+  ): Promise<GeoCandidate[]> {
     const body = await this.requestKakao(url, apiKey);
     const parsed = v.safeParse(kakaoKeywordSearchResponseSchema, body);
 

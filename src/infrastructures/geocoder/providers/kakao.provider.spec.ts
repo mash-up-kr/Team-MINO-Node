@@ -238,6 +238,33 @@ describe("KakaoProvider", () => {
     expect(keywordRequestUrl.searchParams.get("sort")).toBeNull();
   });
 
+  it("biased 검색이 0건이면 기존 keyword search로 fallback한다", async () => {
+    const fetchMock = mockFetchJsonSequence([
+      { body: createKakaoAddressResponse() },
+      { body: { documents: [] } },
+      { body: createKakaoResponse() },
+    ]);
+    const provider = createProvider();
+
+    const candidates = await provider.search(addressQuery);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    const [biasedUrl] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const biasedRequestUrl = new URL(biasedUrl);
+    expect(biasedRequestUrl.searchParams.get("radius")).toBe("1000");
+    expect(biasedRequestUrl.searchParams.get("sort")).toBe("distance");
+
+    const [keywordUrl] = fetchMock.mock.calls[2] as [string, RequestInit];
+    const keywordRequestUrl = new URL(keywordUrl);
+    expect(keywordRequestUrl.searchParams.get("query")).toBe(
+      "서울 강남구 영동대로 513 카카오프렌즈",
+    );
+    expect(keywordRequestUrl.searchParams.get("x")).toBeNull();
+    expect(keywordRequestUrl.searchParams.get("sort")).toBeNull();
+    expect(candidates.length).toBeGreaterThan(0);
+  });
+
   it("Kakao 응답을 GeoCandidate로 정규화한다", async () => {
     mockFetchJson(createKakaoResponse());
     const provider = createProvider();
