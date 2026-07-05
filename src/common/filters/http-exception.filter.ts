@@ -6,11 +6,16 @@ import {
   HttpStatus,
   Logger,
 } from "@nestjs/common";
-import {
-  type ErrorReporter,
-  sentryErrorReporter,
-} from "../../infrastructures/sentry/sentry-reporter";
 import { AppException } from "../exceptions/app.exception";
+
+export type ErrorReportContext = {
+  readonly errorCode: string;
+  readonly httpStatusCode: number;
+};
+
+export interface ErrorReporter {
+  report(exception: Error, context: ErrorReportContext): void;
+}
 
 interface HonoResponse {
   status(code: number): void;
@@ -41,7 +46,7 @@ function hasErrorCode(v: unknown): v is { errorCode: string } {
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
-  constructor(private readonly reporter: ErrorReporter = sentryErrorReporter) {}
+  constructor(private readonly reporter: ErrorReporter) {}
 
   catch(exception: unknown, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<HonoResponse>();

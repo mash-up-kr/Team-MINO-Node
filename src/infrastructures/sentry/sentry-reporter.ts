@@ -1,13 +1,5 @@
 import * as Sentry from "@sentry/bun";
-
-export type ErrorReportContext = {
-  readonly errorCode: string;
-  readonly httpStatusCode: number;
-};
-
-export interface ErrorReporter {
-  report(exception: Error, context: ErrorReportContext): void;
-}
+import type { ErrorReporter } from "../../common/filters/http-exception.filter";
 
 export const sentryErrorReporter: ErrorReporter = {
   report(exception, context): void {
