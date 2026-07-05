@@ -12,8 +12,8 @@ import { validateEnv } from "./config/env.schema";
 import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
 import { DatabaseModule } from "./infrastructures/db/database.module";
+import { SentryLifecycleService } from "./infrastructures/sentry/sentry-lifecycle.service";
 import { PlaceModule } from "./modules/place/place.module";
-import { SentryLifecycleService } from "./observability/sentry-lifecycle.service";
 
 @Module({
   imports: [

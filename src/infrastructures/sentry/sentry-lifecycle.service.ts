@@ -1,14 +1,14 @@
 import type { OnApplicationShutdown } from "@nestjs/common";
 import { Injectable } from "@nestjs/common";
 import * as Sentry from "@sentry/bun";
+import { SENTRY_FLUSH_TIMEOUT_MS } from "../../config/sentry.config";
 
-const FLUSH_TIMEOUT_MS = 2_000 as const;
 type Flush = (timeout: number) => PromiseLike<boolean>;
 
 export async function flushSentryOnShutdown(
   flush: Flush = Sentry.flush,
 ): Promise<void> {
-  await flush(FLUSH_TIMEOUT_MS).then(
+  await flush(SENTRY_FLUSH_TIMEOUT_MS).then(
     () => undefined,
     () => undefined,
   );

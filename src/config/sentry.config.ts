@@ -6,7 +6,7 @@ export type SentryEnvironment = {
   readonly SENTRY_RELEASE?: string;
 };
 
-type Initialize = (options: BunOptions) => unknown;
+export const SENTRY_FLUSH_TIMEOUT_MS = 2_000 as const;
 
 export function createSentryOptions(
   environment: SentryEnvironment,
@@ -37,7 +37,7 @@ export function createSentryOptions(
 
 export function initializeSentry(
   environment: SentryEnvironment,
-  init: Initialize,
+  init: typeof import("@sentry/bun").init,
 ): void {
   const options = createSentryOptions(environment);
   if (options) {

@@ -9,7 +9,7 @@ import {
 import {
   type ErrorReporter,
   sentryErrorReporter,
-} from "../../observability/sentry-reporter";
+} from "../../infrastructures/sentry/sentry-reporter";
 import { AppException } from "../exceptions/app.exception";
 
 interface HonoResponse {
