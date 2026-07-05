@@ -1,12 +1,17 @@
+import { Injectable } from "@nestjs/common";
 import * as Sentry from "@sentry/bun";
-import type { ErrorReporter } from "../../common/filters/http-exception.filter";
+import type {
+  ErrorReportContext,
+  ErrorReporter,
+} from "../../common/filters/http-exception.filter";
 
-export const sentryErrorReporter: ErrorReporter = {
-  report(exception, context): void {
+@Injectable()
+export class SentryErrorReporter implements ErrorReporter {
+  report(exception: Error, context: ErrorReportContext): void {
     Sentry.withScope((scope) => {
       scope.setTag("error.code", context.errorCode);
       scope.setTag("http.status_code", context.httpStatusCode);
       Sentry.captureException(exception);
     });
-  },
-};
+  }
+}

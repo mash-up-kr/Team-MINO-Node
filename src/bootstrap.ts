@@ -7,7 +7,7 @@ import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 import type { Env } from "./config/env.schema";
-import { sentryErrorReporter } from "./infrastructures/sentry/sentry-reporter";
+import { SentryErrorReporter } from "./infrastructures/sentry/sentry-reporter";
 
 export async function bootstrap(): Promise<void> {
   const adapter = new BunHonoAdapter();
@@ -16,8 +16,9 @@ export async function bootstrap(): Promise<void> {
   });
   const configService = app.get(ConfigService<Env>);
   const logger = app.get(Logger);
+  const errorReporter = app.get(SentryErrorReporter);
   app.useLogger(logger);
-  app.useGlobalFilters(new HttpExceptionFilter(sentryErrorReporter));
+  app.useGlobalFilters(new HttpExceptionFilter(errorReporter));
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.enableShutdownHooks();
 
