@@ -1,4 +1,4 @@
-import type { BunOptions } from "@sentry/bun";
+import type { BunOptions, init as SentryInit } from "@sentry/bun";
 
 export type SentryEnvironment = {
   readonly NODE_ENV?: string;
@@ -37,7 +37,7 @@ export function createSentryOptions(
 
 export function initializeSentry(
   environment: SentryEnvironment,
-  init: typeof import("@sentry/bun").init,
+  init: typeof SentryInit,
 ): void {
   const options = createSentryOptions(environment);
   if (options) {
