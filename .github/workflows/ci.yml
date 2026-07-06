@@ -44,4 +44,6 @@ jobs:
           exit 1
 
       - name: Test
+        env:
+          GOOGLE_CLOUD_PROJECT: team-mino-test
         run: bun run test

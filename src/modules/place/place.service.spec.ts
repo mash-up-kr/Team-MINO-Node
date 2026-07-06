@@ -38,6 +38,7 @@ describe("PlaceService", () => {
   function makeCandidate(overrides: Partial<GeoCandidate> = {}): GeoCandidate {
     return {
       provider: "kakao",
+      providerPlaceId: "kakao-1",
       placeName: "어니언 성수",
       address: "서울 성동구 아차산로 8",
       coordinate: { lat: 37.5445, lng: 127.0559 },
@@ -72,6 +73,7 @@ describe("PlaceService", () => {
     expect(geocoder.searchAll).toHaveBeenCalledWith({
       placeName: QUERY.place_name,
       areaName: QUERY.area_name,
+      areaType: QUERY.area_type,
     });
     expect(result).toHaveLength(1);
   });
@@ -230,7 +232,7 @@ describe("PlaceService", () => {
       makeCandidate({
         placeName: "정보 많은 곳",
         coordinate: { lat: 37.2, lng: 127.2 },
-        url: "https://x",
+        mapUrl: "https://x",
         phone: "02-000",
         category: "카페",
       }),
@@ -241,6 +243,31 @@ describe("PlaceService", () => {
 
     // then
     expect(result[0].placeName).toBe("정보 많은 곳");
+  });
+
+  it("정보 완전도가 같으면 더 가까운 후보를 먼저 정렬한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    ai.extract.mockResolvedValue({ places: [QUERY] });
+    geocoder.searchAll.mockResolvedValue([
+      makeCandidate({
+        placeName: "먼 후보",
+        coordinate: { lat: 37.1, lng: 127.1 },
+        distance: 1200,
+      }),
+      makeCandidate({
+        placeName: "가까운 후보",
+        coordinate: { lat: 37.2, lng: 127.2 },
+        distance: 300,
+      }),
+    ]);
+
+    // when
+    const result = await service.extractFromUrl(URL);
+
+    // then
+    expect(result[0].placeName).toBe("가까운 후보");
   });
 
   it("PlaceModule이 PlaceService와 PlaceController를 해석한다", async () => {
