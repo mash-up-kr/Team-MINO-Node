@@ -39,7 +39,7 @@ beforeAll(async () => {
     bufferLogs: true,
     logger: false,
   });
-  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalFilters(new HttpExceptionFilter({ report: () => undefined }));
   app.useGlobalInterceptors(new ResponseInterceptor());
 
   await app.listen(0);
