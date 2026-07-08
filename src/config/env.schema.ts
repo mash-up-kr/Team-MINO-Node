@@ -23,10 +23,12 @@ const envSchema = v.object({
     "5",
   ),
   // GCP 프로젝트 ID(Vertex project 겸 Maps X-Goog-User-Project)
-  GOOGLE_CLOUD_PROJECT: v.optional(v.string()),
+  GOOGLE_CLOUD_PROJECT: v.pipe(v.string(), v.minLength(1)),
   // Gemini 3.x는 global 전용이므로 기본 "global" 사용
   GOOGLE_VERTEX_LOCATION: v.optional(v.string(), "global"),
   KAKAO_REST_API_KEY: v.pipe(v.string(), v.minLength(1)),
+  SENTRY_DSN: v.optional(v.pipe(v.string(), v.url(), v.regex(/^https:\/\//))),
+  SENTRY_RELEASE: v.optional(v.pipe(v.string(), v.minLength(1))),
   // Instagram 비공개 GraphQL 호출용 값들. 인스타가 토큰/구조를 바꾸면 env만 갱신하면 됨.
   INSTAGRAM_GRAPHQL_ENDPOINT: v.pipe(
     v.string(),

@@ -173,9 +173,13 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v3
 
-      - run: |
+      - name: Deploy server with Sentry release metadata
+        env:
+          IMAGE: "asia-northeast3-docker.pkg.dev/team-mino-prod/team-mino-prod-docker/team-mino-prod-api:${{ github.sha }}"
+          SENTRY_RELEASE: ${{ github.sha }}
+        run: |
           gcloud run services update team-mino-prod-api \
-            --image "asia-northeast3-docker.pkg.dev/team-mino-prod/team-mino-prod-docker/team-mino-prod-api:${{ github.sha }}" \
-            --set-env-vars APP_ENV=prod \
+            --image "$IMAGE" \
+            --set-env-vars "APP_ENV=prod,SENTRY_RELEASE=$SENTRY_RELEASE" \
             --region "asia-northeast3" \
             --project "team-mino-prod"

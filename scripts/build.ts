@@ -33,6 +33,7 @@ async function build() {
     entrypoints: ["./src/main.ts"],
     target: "bun",
     minify: true,
+    sourcemap: "linked",
     external: dependencies.filter((pkg) => isMissing(pkg)),
     compile: {
       ...(target && { target }),
