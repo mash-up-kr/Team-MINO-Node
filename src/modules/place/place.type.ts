@@ -1,5 +1,8 @@
 import * as v from "valibot";
-import type { GeoCandidate } from "../../infrastructures/geocoder/geocoder.type";
+import type {
+  AreaType,
+  GeoCandidate,
+} from "../../infrastructures/geocoder/geocoder.type";
 
 export const placeQuerySchema = v.object({
   place_name: v.pipe(
@@ -41,3 +44,17 @@ export const placeExtractionSchema = v.object({
 export type PlaceExtractionResult = v.InferOutput<typeof placeExtractionSchema>;
 
 export interface PlaceCandidate extends GeoCandidate {}
+
+export interface ExtractedPlace {
+  placeName: string;
+  areaName: string;
+  areaType: AreaType;
+  relation: string;
+}
+
+export interface PlaceMatch {
+  /** 게시글에서 추출한 장소. */
+  extracted: ExtractedPlace;
+  /** 이 장소에 대한 지오코딩 후보(장소 내 랭킹순, 첫 번째가 최상위). 없으면 빈 배열. */
+  matches: PlaceCandidate[];
+}

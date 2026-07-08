@@ -9,7 +9,7 @@ import {
   testGeocodeRequestSchema,
 } from "./place.dto";
 import { PlaceService } from "./place.service";
-import type { PlaceCandidate } from "./place.type";
+import type { PlaceMatch } from "./place.type";
 
 @Controller("api/v1/place")
 export class PlaceController {
@@ -22,7 +22,7 @@ export class PlaceController {
   @Post("places")
   async createPlace(
     @Body(new ValibotPipe(createPlaceRequestSchema)) body: CreatePlaceRequest,
-  ): Promise<PlaceCandidate[]> {
+  ): Promise<PlaceMatch[]> {
     switch (body.method) {
       case "instagram_url":
         return this.placeService.extractFromUrl(body.data.url);
