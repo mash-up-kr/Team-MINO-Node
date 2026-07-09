@@ -9,6 +9,7 @@ const requiredEnvironment = {
   INSTAGRAM_GRAPHQL_ENDPOINT: "https://www.instagram.com/api/graphql",
   INSTAGRAM_LSD: "test",
   INSTAGRAM_USER_AGENT: "test",
+  KAKAO_REST_API_KEY: "test",
 };
 
 describe("Sentry environment", () => {
