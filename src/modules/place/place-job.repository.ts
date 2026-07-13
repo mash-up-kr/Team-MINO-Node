@@ -113,7 +113,10 @@ export class PlaceJobRepository {
   }
 
   /** 성공 종료. lease와 이전 진단(errorCode/Message)을 함께 비운다. */
-  markSucceeded(jobId: string, result: PlaceCandidate[]): Promise<PlaceJob> {
+  markSucceeded(
+    jobId: string,
+    result: PlaceCandidate[],
+  ): Promise<PlaceJob | undefined> {
     return this.transition(jobId, {
       status: "succeeded",
       result,
@@ -127,7 +130,7 @@ export class PlaceJobRepository {
     jobId: string,
     errorCode: string,
     errorMessage: string,
-  ): Promise<PlaceJob> {
+  ): Promise<PlaceJob | undefined> {
     return this.transition(jobId, {
       status: "pending",
       errorCode,
@@ -140,7 +143,7 @@ export class PlaceJobRepository {
     jobId: string,
     errorCode: string,
     errorMessage: string,
-  ): Promise<PlaceJob> {
+  ): Promise<PlaceJob | undefined> {
     return this.transition(jobId, {
       status: "failed",
       errorCode,
@@ -152,7 +155,7 @@ export class PlaceJobRepository {
   private async transition(
     jobId: string,
     set: Partial<PlaceJob> & { status: PlaceJob["status"] },
-  ): Promise<PlaceJob> {
+  ): Promise<PlaceJob | undefined> {
     const [updated] = await this.db
       .update(placeJobs)
       .set({ ...set, processingLeaseExpiresAt: null })

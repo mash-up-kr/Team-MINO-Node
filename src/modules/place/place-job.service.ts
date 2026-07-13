@@ -2,7 +2,9 @@ import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { AppException } from "../../common/exceptions/app.exception";
 import { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
+import type { PlaceJob } from "./place.schema";
 import { PlaceService } from "./place.service";
+import type { PlaceCandidate } from "./place.type";
 import { PlaceJobRepository } from "./place-job.repository";
 import { type PlaceJobResponse, toPlaceJobResponse } from "./place-job.type";
 
@@ -124,11 +126,13 @@ export class PlaceJobService {
       await this.tasksService.enqueuePlaceExtraction(jobId);
     } catch (error) {
       // enqueue 실패는 terminal failed로 남긴다 → dedup 슬롯을 풀어 재요청이 새 job을 만들 수 있게.
-      await this.placeJobRepository.markFailed(
-        jobId,
-        "ENQUEUE_FAILED",
-        sanitizeDiagnostic(
-          error instanceof Error ? error.message : String(error),
+      this.requireTransition(
+        await this.placeJobRepository.markFailed(
+          jobId,
+          "ENQUEUE_FAILED",
+          sanitizeDiagnostic(
+            error instanceof Error ? error.message : String(error),
+          ),
         ),
       );
 
@@ -173,13 +177,10 @@ export class PlaceJobService {
       return toPlaceJobResponse(job);
     }
 
+    let result: PlaceCandidate[];
+
     try {
-      const result = await this.placeService.extractFromUrl(claimed.url);
-      const updated = await this.placeJobRepository.markSucceeded(
-        jobId,
-        result,
-      );
-      return toPlaceJobResponse(updated);
+      result = await this.placeService.extractFromUrl(claimed.url);
     } catch (error) {
       const failure = this.toFailure(error);
       const diagnostic = sanitizeDiagnostic(failure.message);
@@ -189,10 +190,12 @@ export class PlaceJobService {
        * 상한에 닿았으면 재시도 가치가 있어도 terminal failed로 종결해 무한 루프를 끊는다.
        */
       if (failure.retryable && claimed.attempts < MAX_JOB_ATTEMPTS) {
-        await this.placeJobRepository.markRetryable(
-          jobId,
-          failure.errorCode,
-          diagnostic,
+        this.requireTransition(
+          await this.placeJobRepository.markRetryable(
+            jobId,
+            failure.errorCode,
+            diagnostic,
+          ),
         );
 
         throw new AppException(
@@ -207,8 +210,11 @@ export class PlaceJobService {
         failure.errorCode,
         diagnostic,
       );
-      return toPlaceJobResponse(updated);
+      return toPlaceJobResponse(this.requireTransition(updated));
     }
+
+    const updated = await this.placeJobRepository.markSucceeded(jobId, result);
+    return toPlaceJobResponse(this.requireTransition(updated));
   }
 
   private async findJobOrThrow(jobId: string) {
@@ -219,6 +225,18 @@ export class PlaceJobService {
         "PLACE_JOB_NOT_FOUND",
         "존재하지 않는 job입니다.",
         HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return job;
+  }
+
+  private requireTransition(job: PlaceJob | undefined): PlaceJob {
+    if (!job) {
+      throw new AppException(
+        "PLACE_JOB_TRANSITION_CONFLICT",
+        "작업 상태 변경 대상이 없습니다.",
+        HttpStatus.CONFLICT,
       );
     }
 

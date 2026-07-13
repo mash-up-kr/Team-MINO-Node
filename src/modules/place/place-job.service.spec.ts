@@ -46,9 +46,16 @@ function makeHarness() {
       async (): Promise<PlaceJob | undefined> =>
         makeJob({ status: "processing" }),
     ),
-    markSucceeded: mock(async () => makeJob({ status: "succeeded" })),
-    markRetryable: mock(async () => makeJob({ status: "pending" })),
-    markFailed: mock(async () => makeJob({ status: "failed" })),
+    markSucceeded: mock(
+      async (): Promise<PlaceJob | undefined> =>
+        makeJob({ status: "succeeded" }),
+    ),
+    markRetryable: mock(
+      async (): Promise<PlaceJob | undefined> => makeJob({ status: "pending" }),
+    ),
+    markFailed: mock(
+      async (): Promise<PlaceJob | undefined> => makeJob({ status: "failed" }),
+    ),
   };
   const tasksService = { enqueuePlaceExtraction: mock(async () => {}) };
   const placeService = { extractFromUrl: mock(async () => []) };
@@ -238,6 +245,14 @@ describe("PlaceJobService.processJob", () => {
       JOB_ID,
       candidates,
     );
+  });
+
+  it("성공 상태 전이가 0건이면 충돌로 처리한다", async () => {
+    harness.repository.markSucceeded.mockResolvedValue(undefined);
+
+    await expect(harness.service.processJob(JOB_ID)).rejects.toMatchObject({
+      errorCode: "PLACE_JOB_TRANSITION_CONFLICT",
+    });
   });
 
   it("claim 실패(terminal/미만료 lease)면 추출 없이 현재 상태를 돌려준다", async () => {
