@@ -127,7 +127,7 @@ export class PlaceJobService {
     } catch (error) {
       // enqueue 실패는 terminal failed로 남긴다 → dedup 슬롯을 풀어 재요청이 새 job을 만들 수 있게.
       this.requireTransition(
-        await this.placeJobRepository.markFailed(
+        await this.placeJobRepository.markFailedBeforeClaim(
           jobId,
           "ENQUEUE_FAILED",
           sanitizeDiagnostic(
@@ -190,13 +190,15 @@ export class PlaceJobService {
        * 상한에 닿았으면 재시도 가치가 있어도 terminal failed로 종결해 무한 루프를 끊는다.
        */
       if (failure.retryable && claimed.attempts < MAX_JOB_ATTEMPTS) {
-        this.requireTransition(
-          await this.placeJobRepository.markRetryable(
-            jobId,
-            failure.errorCode,
-            diagnostic,
-          ),
+        const updated = await this.placeJobRepository.markRetryable(
+          jobId,
+          claimed.processingLeaseExpiresAt,
+          failure.errorCode,
+          diagnostic,
         );
+        if (!updated) {
+          return toPlaceJobResponse(await this.findJobOrThrow(jobId));
+        }
 
         throw new AppException(
           failure.errorCode,
@@ -207,14 +209,23 @@ export class PlaceJobService {
 
       const updated = await this.placeJobRepository.markFailed(
         jobId,
+        claimed.processingLeaseExpiresAt,
         failure.errorCode,
         diagnostic,
       );
-      return toPlaceJobResponse(this.requireTransition(updated));
+      return toPlaceJobResponse(
+        await this.currentJobAfterClaimedTransition(jobId, updated),
+      );
     }
 
-    const updated = await this.placeJobRepository.markSucceeded(jobId, result);
-    return toPlaceJobResponse(this.requireTransition(updated));
+    const updated = await this.placeJobRepository.markSucceeded(
+      jobId,
+      claimed.processingLeaseExpiresAt,
+      result,
+    );
+    return toPlaceJobResponse(
+      await this.currentJobAfterClaimedTransition(jobId, updated),
+    );
   }
 
   private async findJobOrThrow(jobId: string) {
@@ -241,6 +252,13 @@ export class PlaceJobService {
     }
 
     return job;
+  }
+
+  private async currentJobAfterClaimedTransition(
+    jobId: string,
+    updated: PlaceJob | undefined,
+  ): Promise<PlaceJob> {
+    return updated ?? this.findJobOrThrow(jobId);
   }
 
   private toFailure(error: unknown): Failure {

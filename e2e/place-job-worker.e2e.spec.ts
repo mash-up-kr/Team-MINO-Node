@@ -150,6 +150,51 @@ describe("PlaceJobService.processJob 상태머신 (real PostgreSQL)", () => {
     expect((await readJob(id)).processingLeaseExpiresAt).toBeNull();
   });
 
+  it("만료된 lease를 새 워커가 claim한 뒤에는 이전 워커가 결과를 덮어쓸 수 없다", async () => {
+    const id = await insertJob({ shortcode: "WorkerLeaseRace" });
+    const firstLease = new Date("2026-01-01T00:10:00Z");
+    const firstClaim = await placeJobRepository.claimForProcessing(
+      id,
+      new Date("2026-01-01T00:00:00Z"),
+      firstLease,
+    );
+    if (!firstClaim) throw new Error("first claim must succeed");
+
+    const secondLease = new Date("2026-01-01T00:20:01Z");
+    const secondClaim = await placeJobRepository.claimForProcessing(
+      id,
+      new Date("2026-01-01T00:10:01Z"),
+      secondLease,
+    );
+    if (!secondClaim) throw new Error("second claim must succeed");
+
+    const lateFirstResult = await placeJobRepository.markSucceeded(
+      id,
+      firstClaim.processingLeaseExpiresAt,
+      [candidate()],
+    );
+
+    expect(lateFirstResult).toBeUndefined();
+    expect((await readJob(id)).status).toBe("processing");
+    expect((await readJob(id)).processingLeaseExpiresAt).toEqual(secondLease);
+
+    const secondResult = await placeJobRepository.markSucceeded(
+      id,
+      secondClaim.processingLeaseExpiresAt,
+      [
+        {
+          ...candidate(),
+          placeName: "두 번째 워커 결과",
+        },
+      ],
+    );
+
+    expect(secondResult?.status).toBe("succeeded");
+    expect((await readJob(id)).result?.[0]?.placeName).toBe(
+      "두 번째 워커 결과",
+    );
+  });
+
   it("succeeded/failed terminal job은 재배달 시 no-op으로 그대로 반환한다", async () => {
     const succeededId = await insertJob({
       shortcode: "Worker04a",

@@ -44,7 +44,10 @@ function makeHarness() {
     findById: mock(async (): Promise<PlaceJob | undefined> => makeJob()),
     claimForProcessing: mock(
       async (): Promise<PlaceJob | undefined> =>
-        makeJob({ status: "processing" }),
+        makeJob({
+          status: "processing",
+          processingLeaseExpiresAt: new Date("2026-01-01T00:10:00Z"),
+        }),
     ),
     markSucceeded: mock(
       async (): Promise<PlaceJob | undefined> =>
@@ -54,6 +57,9 @@ function makeHarness() {
       async (): Promise<PlaceJob | undefined> => makeJob({ status: "pending" }),
     ),
     markFailed: mock(
+      async (): Promise<PlaceJob | undefined> => makeJob({ status: "failed" }),
+    ),
+    markFailedBeforeClaim: mock(
       async (): Promise<PlaceJob | undefined> => makeJob({ status: "failed" }),
     ),
   };
@@ -196,7 +202,7 @@ describe("PlaceJobService.createJob", () => {
     await expect(harness.service.createJob(URL)).rejects.toMatchObject({
       errorCode: "ENQUEUE_FAILED",
     });
-    expect(harness.repository.markFailed).toHaveBeenCalledWith(
+    expect(harness.repository.markFailedBeforeClaim).toHaveBeenCalledWith(
       JOB_ID,
       "ENQUEUE_FAILED",
       "queue unavailable",
@@ -243,15 +249,19 @@ describe("PlaceJobService.processJob", () => {
     expect(harness.placeService.extractFromUrl).toHaveBeenCalledWith(URL);
     expect(harness.repository.markSucceeded).toHaveBeenCalledWith(
       JOB_ID,
+      expect.any(Date),
       candidates,
     );
   });
 
-  it("성공 상태 전이가 0건이면 충돌로 처리한다", async () => {
+  it("성공 상태 전이가 0건이면 현재 job을 반환한다", async () => {
     harness.repository.markSucceeded.mockResolvedValue(undefined);
+    harness.repository.findById.mockResolvedValue(
+      makeJob({ status: "processing" }),
+    );
 
-    await expect(harness.service.processJob(JOB_ID)).rejects.toMatchObject({
-      errorCode: "PLACE_JOB_TRANSITION_CONFLICT",
+    await expect(harness.service.processJob(JOB_ID)).resolves.toMatchObject({
+      status: "processing",
     });
   });
 
@@ -290,9 +300,24 @@ describe("PlaceJobService.processJob", () => {
     });
     expect(harness.repository.markRetryable).toHaveBeenCalledWith(
       JOB_ID,
+      expect.any(Date),
       "SCRAPE_FAILED",
       "인스타그램 응답 오류",
     );
+  });
+
+  it("재시도 상태 전이가 0건이면 현재 job을 반환하고 재시도 신호를 보내지 않는다", async () => {
+    harness.placeService.extractFromUrl.mockRejectedValue(
+      new AppException("SCRAPE_FAILED", "인스타그램 응답 오류", 502),
+    );
+    harness.repository.markRetryable.mockResolvedValue(undefined);
+    harness.repository.findById.mockResolvedValue(
+      makeJob({ status: "processing" }),
+    );
+
+    await expect(harness.service.processJob(JOB_ID)).resolves.toMatchObject({
+      status: "processing",
+    });
   });
 
   it("retryable로 명시된 4xx(비결정적 AI 응답)는 pending으로 되돌리고 재시도를 유도한다", async () => {
@@ -310,6 +335,7 @@ describe("PlaceJobService.processJob", () => {
     });
     expect(harness.repository.markRetryable).toHaveBeenCalledWith(
       JOB_ID,
+      expect.any(Date),
       "AI_SCHEMA_MISMATCH",
       "AI 응답이 스키마와 일치하지 않습니다.",
     );
@@ -327,6 +353,7 @@ describe("PlaceJobService.processJob", () => {
     // 진단 메시지는 개행이 공백으로 접혀 저장된다.
     expect(harness.repository.markRetryable).toHaveBeenCalledWith(
       JOB_ID,
+      expect.any(Date),
       "WORKER_UNEXPECTED_ERROR",
       "boom secret-token",
     );
@@ -334,7 +361,11 @@ describe("PlaceJobService.processJob", () => {
 
   it("누적 시도 상한에 닿으면 재시도 가치가 있는 실패도 terminal failed로 종결한다", async () => {
     harness.repository.claimForProcessing.mockResolvedValue(
-      makeJob({ status: "processing", attempts: 10 }),
+      makeJob({
+        status: "processing",
+        attempts: 10,
+        processingLeaseExpiresAt: new Date("2026-01-01T00:10:00Z"),
+      }),
     );
     harness.placeService.extractFromUrl.mockRejectedValue(
       new AppException(
@@ -350,6 +381,7 @@ describe("PlaceJobService.processJob", () => {
     expect(harness.repository.markRetryable).not.toHaveBeenCalled();
     expect(harness.repository.markFailed).toHaveBeenCalledWith(
       JOB_ID,
+      expect.any(Date),
       "SCRAPE_FAILED",
       "인스타그램 응답 오류",
     );
@@ -369,6 +401,7 @@ describe("PlaceJobService.processJob", () => {
     expect(response.status).toBe("failed");
     expect(harness.repository.markFailed).toHaveBeenCalledWith(
       JOB_ID,
+      expect.any(Date),
       "INVALID_INSTAGRAM_URL",
       "지원하지 않는 인스타그램 URL 입니다.",
     );

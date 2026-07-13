@@ -17,6 +17,11 @@ const DEDUP_SHORTCODE_INDEX = "place_jobs_dedup_shortcode_idx";
  */
 const REUSABLE_STATUSES = ["pending", "processing", "succeeded"] as const;
 
+type ProcessingClaim = PlaceJob & {
+  status: "processing";
+  processingLeaseExpiresAt: Date;
+};
+
 /** place_jobs 테이블 접근 전담. 상태 전이 규칙(무엇을 언제 바꾸는가)은 서비스가 결정한다. */
 @Injectable()
 export class PlaceJobRepository {
@@ -88,7 +93,7 @@ export class PlaceJobRepository {
     jobId: string,
     now: Date,
     leaseExpiresAt: Date,
-  ): Promise<PlaceJob | undefined> {
+  ): Promise<ProcessingClaim | undefined> {
     const [claimed] = await this.db
       .update(placeJobs)
       .set({
@@ -109,15 +114,16 @@ export class PlaceJobRepository {
         ),
       )
       .returning();
-    return claimed;
+    return claimed as ProcessingClaim | undefined;
   }
 
   /** 성공 종료. lease와 이전 진단(errorCode/Message)을 함께 비운다. */
   markSucceeded(
     jobId: string,
+    processingLeaseExpiresAt: Date,
     result: PlaceCandidate[],
   ): Promise<PlaceJob | undefined> {
-    return this.transition(jobId, {
+    return this.transition(jobId, processingLeaseExpiresAt, {
       status: "succeeded",
       result,
       errorCode: null,
@@ -128,10 +134,11 @@ export class PlaceJobRepository {
   /** 재시도 대상 실패. lease를 비우고 pending으로 되돌려 다음 배달이 다시 claim하게 한다. */
   markRetryable(
     jobId: string,
+    processingLeaseExpiresAt: Date,
     errorCode: string,
     errorMessage: string,
   ): Promise<PlaceJob | undefined> {
-    return this.transition(jobId, {
+    return this.transition(jobId, processingLeaseExpiresAt, {
       status: "pending",
       errorCode,
       errorMessage,
@@ -141,25 +148,60 @@ export class PlaceJobRepository {
   /** 영구 실패(terminal). dedup 슬롯이 풀려 같은 게시글 재요청이 새 job을 만들 수 있다. */
   markFailed(
     jobId: string,
+    processingLeaseExpiresAt: Date,
     errorCode: string,
     errorMessage: string,
   ): Promise<PlaceJob | undefined> {
-    return this.transition(jobId, {
+    return this.transition(jobId, processingLeaseExpiresAt, {
       status: "failed",
       errorCode,
       errorMessage,
     });
   }
 
-  /** 모든 상태 전이의 공통 형태: 지정 필드 반영 + lease 해제. 한곳만 고치면 되도록 모은다. */
-  private async transition(
+  /** enqueue 전에 실패한 job은 아직 claim 주체가 없으므로 job ID만으로 실패 처리한다. */
+  markFailedBeforeClaim(
+    jobId: string,
+    errorCode: string,
+    errorMessage: string,
+  ): Promise<PlaceJob | undefined> {
+    return this.transitionPending(jobId, {
+      status: "failed",
+      errorCode,
+      errorMessage,
+    });
+  }
+
+  private async transitionPending(
     jobId: string,
     set: Partial<PlaceJob> & { status: PlaceJob["status"] },
   ): Promise<PlaceJob | undefined> {
     const [updated] = await this.db
       .update(placeJobs)
       .set({ ...set, processingLeaseExpiresAt: null })
-      .where(eq(placeJobs.id, jobId))
+      .where(and(eq(placeJobs.id, jobId), eq(placeJobs.status, "pending")))
+      .returning();
+    return updated;
+  }
+
+  /** 모든 상태 전이의 공통 형태: 지정 필드 반영 + lease 해제. 한곳만 고치면 되도록 모은다. */
+  private async transition(
+    jobId: string,
+    processingLeaseExpiresAt: Date | undefined,
+    set: Partial<PlaceJob> & { status: PlaceJob["status"] },
+  ): Promise<PlaceJob | undefined> {
+    const [updated] = await this.db
+      .update(placeJobs)
+      .set({ ...set, processingLeaseExpiresAt: null })
+      .where(
+        processingLeaseExpiresAt
+          ? and(
+              eq(placeJobs.id, jobId),
+              eq(placeJobs.status, "processing"),
+              eq(placeJobs.processingLeaseExpiresAt, processingLeaseExpiresAt),
+            )
+          : eq(placeJobs.id, jobId),
+      )
       .returning();
     return updated;
   }
