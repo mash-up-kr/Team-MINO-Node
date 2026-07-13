@@ -43,6 +43,14 @@ jobs:
           docker compose logs postgres
           exit 1
 
+      - name: Apply database migrations
+        env:
+          APP_CONFIG_SOURCE: env
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/team_mino
+        run: |
+          bun run db:schema-init
+          bun run db:migrate
+
       - name: Test
         env:
           GOOGLE_CLOUD_PROJECT: team-mino-test
