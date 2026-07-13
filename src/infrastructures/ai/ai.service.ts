@@ -37,8 +37,10 @@ export class AiService implements AiServiceInterface {
       return output;
     } catch (error) {
       if (NoObjectGeneratedError.isInstance(error)) {
-        // 모델 출력은 비결정적이라 같은 입력도 재시도하면 스키마에 맞는 응답이
-        // 나올 수 있다. 4xx지만 백그라운드 재시도 대상으로 명시한다.
+        /*
+         * 모델 출력은 비결정적이라 같은 입력도 재시도하면 스키마에 맞는 응답이
+         * 나올 수 있다. 4xx지만 백그라운드 재시도 대상으로 명시한다.
+         */
         throw new AppException(
           "AI_SCHEMA_MISMATCH",
           "AI 응답이 스키마와 일치하지 않습니다.",
@@ -61,8 +63,10 @@ export class AiService implements AiServiceInterface {
     }
   }
 
-  // 자격증명은 ADC(Cloud Run 서비스 계정 / 로컬 gcloud)로 처리 — API 키 없음
-  // project는 SDK가 ADC로 자동 해석하지 않으므로 GOOGLE_CLOUD_PROJECT로 반드시 지정해야 함
+  /*
+   * 자격증명은 ADC(Cloud Run 서비스 계정 / 로컬 gcloud)로 처리 — API 키 없음.
+   * project는 SDK가 ADC로 자동 해석하지 않으므로 GOOGLE_CLOUD_PROJECT로 반드시 지정해야 한다.
+   */
   private get vertex() {
     this._client ??= createVertex({
       project: this.configService.get("GOOGLE_CLOUD_PROJECT", { infer: true }),

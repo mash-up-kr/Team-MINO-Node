@@ -4,13 +4,17 @@ import { DatabaseService } from "../../infrastructures/db/database.service";
 import { type PlaceJob, placeJobs } from "./place.schema";
 import type { PlaceCandidate } from "./place.type";
 
-// 재사용 가능(pending/processing/succeeded) job의 shortcode 유일성을 강제하는
-// partial unique index 이름. 이 제약 위반(23505)만 dedup 경로로 처리하고,
-// 그 외 DB 오류는 그대로 전파한다.
+/*
+ * 재사용 가능(pending/processing/succeeded) job의 shortcode 유일성을 강제하는
+ * partial unique index 이름. 이 제약 위반(23505)만 dedup 경로로 처리하고,
+ * 그 외 DB 오류는 그대로 전파한다.
+ */
 const DEDUP_SHORTCODE_INDEX = "place_jobs_dedup_shortcode_idx";
 
-// pending/processing/succeeded = 같은 게시글 재요청 시 재사용하는 상태.
-// failed일 때만 새 job을 허용한다.
+/*
+ * pending/processing/succeeded = 같은 게시글 재요청 시 재사용하는 상태.
+ * failed일 때만 새 job을 허용한다.
+ */
 const REUSABLE_STATUSES = ["pending", "processing", "succeeded"] as const;
 
 /** place_jobs 테이블 접근 전담. 상태 전이 규칙(무엇을 언제 바꾸는가)은 서비스가 결정한다. */
@@ -158,10 +162,12 @@ export class PlaceJobRepository {
   }
 }
 
-// PostgreSQL unique_violation(23505) 중 dedup partial unique index 위반인지 판별.
-// postgres-js는 PostgresError에 SQLSTATE(code)와 constraint_name을 담지만, drizzle이 이를
-// DrizzleQueryError로 감싸고 실제 오류를 .cause에 넣으므로 cause 체인을 훑어 원본을 찾는다.
-// code/constraint 둘 다 대조해, 다른 unique 제약이나 무관한 DB 오류를 dedup 경로로 삼키지 않는다.
+/*
+ * PostgreSQL unique_violation(23505) 중 dedup partial unique index 위반인지 판별.
+ * postgres-js는 PostgresError에 SQLSTATE(code)와 constraint_name을 담지만, drizzle이 이를
+ * DrizzleQueryError로 감싸고 실제 오류를 .cause에 넣으므로 cause 체인을 훑어 원본을 찾는다.
+ * code/constraint 둘 다 대조해, 다른 unique 제약이나 무관한 DB 오류를 dedup 경로로 삼키지 않는다.
+ */
 function isDedupShortcodeConflict(error: unknown): boolean {
   const pg = unwrapPostgresError(error);
   return pg?.code === "23505" && pg.constraintName === DEDUP_SHORTCODE_INDEX;
@@ -170,8 +176,10 @@ function isDedupShortcodeConflict(error: unknown): boolean {
 function unwrapPostgresError(
   error: unknown,
 ): { code: string; constraintName?: string } | null {
-  // cause 체인을 따라가며 SQLSTATE(code)를 담은 원본 PostgresError를 찾는다. 순환/과도한
-  // 깊이를 방지하기 위해 상한을 둔다.
+  /*
+   * cause 체인을 따라가며 SQLSTATE(code)를 담은 원본 PostgresError를 찾는다. 순환/과도한
+   * 깊이를 방지하기 위해 상한을 둔다.
+   */
   let current: unknown = error;
   for (
     let depth = 0;

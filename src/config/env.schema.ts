@@ -49,15 +49,19 @@ const envSchema = v.pipe(
       v.string(),
       "team-mino-place-extraction-worker",
     ),
-    // 이 Cloud Run 서비스 자기 자신의 공개 URL. Cloud Tasks가 워커를 호출할 타겟 베이스.
-    // 첫 배포 후 Pulumi output(serviceUrl)을 그대로 Secret Manager에 채워 넣는다.
+    /*
+     * 이 Cloud Run 서비스 자기 자신의 공개 URL. Cloud Tasks가 워커를 호출할 타겟 베이스.
+     * 첫 배포 후 Pulumi output(serviceUrl)을 그대로 Secret Manager에 채워 넣는다.
+     */
     APP_BASE_URL: v.pipe(v.string(), v.minLength(1), v.url()),
     // infra/src/resources/tasks.ts의 placeExtractionQueue와 값을 맞춰야 한다.
     CLOUD_TASKS_LOCATION: v.pipe(v.string(), v.minLength(1)),
     CLOUD_TASKS_QUEUE: v.pipe(v.string(), v.minLength(1)),
   }),
-  // 운영(production)에서는 Cloud Tasks가 호출할 APP_BASE_URL이 반드시 https여야 한다.
-  // 로컬/테스트는 http://localhost 를 허용한다.
+  /*
+   * 운영(production)에서는 Cloud Tasks가 호출할 APP_BASE_URL이 반드시 https여야 한다.
+   * 로컬/테스트는 http://localhost 를 허용한다.
+   */
   v.check(
     (env) =>
       env.NODE_ENV !== "production" || env.APP_BASE_URL.startsWith("https://"),

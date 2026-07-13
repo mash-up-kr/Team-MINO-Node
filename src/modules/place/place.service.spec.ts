@@ -272,8 +272,10 @@ describe("PlaceService", () => {
 
   it("PlaceModule이 PlaceService와 PlaceController를 해석한다", async () => {
     // given
-    // DatabaseService·TasksService가 생성자에서 읽는 최소 env만 주입한다.
-    // postgres-js 클라이언트는 lazy connect라 실제 DB 연결은 일어나지 않는다.
+    /*
+     * DatabaseService·TasksService가 생성자에서 읽는 최소 env만 주입한다.
+     * postgres-js 클라이언트는 lazy connect라 실제 DB 연결은 일어나지 않는다.
+     */
     const module = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({

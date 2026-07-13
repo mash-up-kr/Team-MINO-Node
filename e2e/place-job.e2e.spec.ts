@@ -67,8 +67,10 @@ beforeAll(async () => {
         if (enqueue.fail) throw new Error("Cloud Tasks unavailable");
       },
     })
-    // 실제 OIDC 토큰을 만들 수 없으므로, 워커 가드는 테스트 헤더로 인가를 흉내낸다.
-    // (실제 OIDC 검증은 cloud-tasks.guard.spec에서 단위 검증.)
+    /*
+     * 실제 OIDC 토큰을 만들 수 없으므로, 워커 가드는 테스트 헤더로 인가를 흉내낸다.
+     * 실제 OIDC 검증은 cloud-tasks.guard.spec에서 단위 검증한다.
+     */
     .overrideGuard(CloudTasksGuard)
     .useValue({
       canActivate: (ctx: {
