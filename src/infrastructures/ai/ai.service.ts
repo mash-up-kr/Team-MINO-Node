@@ -37,10 +37,13 @@ export class AiService implements AiServiceInterface {
       return output;
     } catch (error) {
       if (NoObjectGeneratedError.isInstance(error)) {
+        // 모델 출력은 비결정적이라 같은 입력도 재시도하면 스키마에 맞는 응답이
+        // 나올 수 있다. 4xx지만 백그라운드 재시도 대상으로 명시한다.
         throw new AppException(
           "AI_SCHEMA_MISMATCH",
           "AI 응답이 스키마와 일치하지 않습니다.",
           HttpStatus.UNPROCESSABLE_ENTITY,
+          { retryable: true },
         );
       }
       if (error instanceof Error && error.name === "TimeoutError") {

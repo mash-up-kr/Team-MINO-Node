@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -30,8 +31,14 @@ export const placeJobs = pgTable(
     // 게시글 단위 dedup 키. 재사용 가능(pending/processing/succeeded) job은 shortcode당
     // 하나만 존재하도록 아래 partial unique index가 강제한다. 같은 게시글 재요청 시
     // 진행 중이면 그 job을, 성공했으면 캐시된 결과를 그대로 돌려주고, failed일 때만 새 job을 허용한다.
+    // succeeded 캐시는 만료 없이 영구 재사용한다(제품 결정) — 게시글이 수정돼도 최초 추출
+    // 결과를 유지하며, 강제 재추출 경로는 의도적으로 두지 않는다.
     shortcode: text().notNull(),
     status: text().$type<PlaceJobStatus>().notNull().default("pending"),
+    // 워커가 이 job을 선점(claim)한 누적 횟수. Cloud Tasks 재시도 상한은 태스크 단위라
+    // 유실 복구(재enqueue)로 태스크가 새로 만들어지면 초기화되는데, 이 칸이 job 전체의
+    // 총 시도량을 기억해 절대 성공 못 할 job의 무한 재시도를 막는다(상한은 서비스에서 판정).
+    attempts: integer().notNull().default(0),
     result: jsonb().$type<PlaceCandidate[]>(),
     errorCode: text(),
     errorMessage: text(),
