@@ -32,7 +32,7 @@ export default defineConfig({
   dialect: "postgresql",
   // 테이블 스키마는 각 모듈의 *.schema.ts에 위치합니다 (예: src/modules/user/user.schema.ts).
   schema: "./src/modules/**/*.schema.ts",
-  out: "./drizzle",
+  out: "./src/infrastructures/db/migrations",
   dbCredentials: { url },
   casing: "snake_case",
   schemaFilter: [schema],
