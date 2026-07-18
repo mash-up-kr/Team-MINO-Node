@@ -20,11 +20,10 @@ export class InstagramProvider {
   private readonly logger = new Logger(InstagramProvider.name);
   private readonly endpoint: string;
   private readonly docId: string;
-  private readonly lsd: string;
   private readonly appId: string;
   private readonly userAgent: string;
 
-  // TODO(다음 태스크): 인스타 토큰(doc_id/lsd/app_id 등) 자동 갱신.
+  // TODO(다음 태스크): 인스타 토큰(doc_id/app_id 등) 자동 갱신.
   //   - 인스타가 토큰을 바꾸면 스크래핑이 깨지는데, 현재는 env라 값 변경 시 재배포가 필요함.
   //   - 토큰을 DB(예: scraper_config 테이블)로 옮기고, 별도 스크립트(크론)가 인스타 페이지를
   //     파싱해 최신 토큰을 DB에 갱신 → 재배포 없이 즉시 반영.
@@ -35,7 +34,6 @@ export class InstagramProvider {
       infer: true,
     });
     this.docId = configService.get("INSTAGRAM_DOC_ID", { infer: true });
-    this.lsd = configService.get("INSTAGRAM_LSD", { infer: true });
     this.appId = configService.get("INSTAGRAM_APP_ID", { infer: true });
     this.userAgent = configService.get("INSTAGRAM_USER_AGENT", { infer: true });
   }
@@ -79,25 +77,22 @@ export class InstagramProvider {
   private async fetchShortcodeMedia(
     shortcode: string,
   ): Promise<IgShortcodeMedia> {
-    const body = new URLSearchParams({
-      variables: JSON.stringify({ shortcode }),
-      doc_id: this.docId,
-      lsd: this.lsd,
-    });
+    // 비로그인 상태에서는 POST /api/graphql 가 "execution error"로 차단되므로,
+    // 쿼리 파라미터를 실은 GET /graphql/query/ 로 호출한다(인스타 웹의 로그아웃 경로).
+    const requestUrl = new URL(this.endpoint);
+    requestUrl.searchParams.set("doc_id", this.docId);
+    requestUrl.searchParams.set("variables", JSON.stringify({ shortcode }));
 
     let response: Response;
     try {
-      response = await fetch(this.endpoint, {
-        method: "POST",
+      response = await fetch(requestUrl, {
+        method: "GET",
         headers: {
           "User-Agent": this.userAgent,
-          "Content-Type": "application/x-www-form-urlencoded",
           "X-IG-App-ID": this.appId,
-          "X-FB-LSD": this.lsd,
           "X-ASBD-ID": X_ASBD_ID,
           "Sec-Fetch-Site": "same-origin",
         },
-        body,
         // 타임아웃 초과 시 fetch가 reject → 아래 catch에서 502로 변환.
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });

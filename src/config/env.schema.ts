@@ -36,7 +36,6 @@ const envSchema = v.object({
     v.startsWith("https://"),
   ),
   INSTAGRAM_DOC_ID: v.pipe(v.string(), v.minLength(1)),
-  INSTAGRAM_LSD: v.pipe(v.string(), v.minLength(1)),
   INSTAGRAM_APP_ID: v.pipe(v.string(), v.minLength(1)),
   INSTAGRAM_USER_AGENT: v.pipe(v.string(), v.minLength(1)),
 });
