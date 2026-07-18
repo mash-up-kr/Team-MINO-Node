@@ -10,9 +10,8 @@ const URL = "https://www.instagram.com/p/abc123/";
 const CONFIG_STUB = {
   get: (key: string) =>
     ({
-      INSTAGRAM_GRAPHQL_ENDPOINT: "https://www.instagram.com/api/graphql",
+      INSTAGRAM_GRAPHQL_ENDPOINT: "https://www.instagram.com/graphql/query/",
       INSTAGRAM_DOC_ID: "doc",
-      INSTAGRAM_LSD: "lsd",
       INSTAGRAM_APP_ID: "app",
       INSTAGRAM_USER_AGENT: "ua",
     })[key],
