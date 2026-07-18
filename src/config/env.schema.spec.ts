@@ -6,8 +6,7 @@ const requiredEnvironment = {
   GOOGLE_CLOUD_PROJECT: "test-project",
   INSTAGRAM_APP_ID: "test",
   INSTAGRAM_DOC_ID: "test",
-  INSTAGRAM_GRAPHQL_ENDPOINT: "https://www.instagram.com/api/graphql",
-  INSTAGRAM_LSD: "test",
+  INSTAGRAM_GRAPHQL_ENDPOINT: "https://www.instagram.com/graphql/query/",
   INSTAGRAM_USER_AGENT: "test",
   KAKAO_REST_API_KEY: "test",
 };
