@@ -12,6 +12,8 @@ export const service = new gcp.cloudrunv2.Service(
     ingress: "INGRESS_TRAFFIC_ALL",
     template: {
       serviceAccount: serverServiceAccount.email,
+      // Cloud Tasks 600초 deadline보다 길게 유지해 Cloud Run이 먼저 504를 반환하지 않게 한다.
+      timeout: "660s",
       scaling: { minInstanceCount: 1, maxInstanceCount: 1 },
       containers: [
         {
