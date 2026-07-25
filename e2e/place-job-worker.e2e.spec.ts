@@ -6,7 +6,6 @@ import { eq, sql } from "drizzle-orm";
 import { AppException } from "../src/common/exceptions/app.exception";
 import type { Env } from "../src/config/env.schema";
 import { DatabaseService } from "../src/infrastructures/db/database.service";
-import { ScraperService } from "../src/infrastructures/scraper/scraper.service";
 import type { TasksService } from "../src/infrastructures/tasks/tasks.service";
 import { placeJobs } from "../src/modules/place/place.schema";
 import type { PlaceService } from "../src/modules/place/place.service";
@@ -31,9 +30,6 @@ const configStub = {
 
 const databaseService = new DatabaseService(configStub);
 const placeJobRepository = new PlaceJobRepository(databaseService);
-const scraperService = new ScraperService(
-  undefined as unknown as ConstructorParameters<typeof ScraperService>[0],
-);
 const tasksService = {} as unknown as TasksService;
 
 function candidate(): PlaceCandidate {
@@ -59,7 +55,6 @@ function makeService(extract: () => Promise<PlaceCandidate[]>) {
     placeJobRepository,
     tasksService,
     placeService,
-    scraperService,
     configStub,
   );
   return { service, calls: () => calls };

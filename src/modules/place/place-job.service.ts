@@ -2,7 +2,7 @@ import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AppException } from "../../common/exceptions/app.exception";
 import type { Env } from "../../config/env.schema";
-import { ScraperService } from "../../infrastructures/scraper/scraper.service";
+import { extractInstagramShortcode } from "../../infrastructures/scraper/instagram.util";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
 import type { PlaceJob } from "./place.schema";
 import { PlaceService } from "./place.service";
@@ -48,7 +48,6 @@ export class PlaceJobService {
     private readonly placeJobRepository: PlaceJobRepository,
     private readonly tasksService: TasksService,
     private readonly placeService: PlaceService,
-    private readonly scraperService: ScraperService,
     configService: ConfigService<Env>,
   ) {
     this.maxAttempts = configService.getOrThrow("CLOUD_TASKS_MAX_ATTEMPTS", {
@@ -68,7 +67,7 @@ export class PlaceJobService {
    */
   async createJob(url: string): Promise<{ jobId: string }> {
     // fetch 없이 URL을 검증하고 dedup 키(shortcode)를 얻는다. 잘못된 URL은 여기서 400.
-    const shortcode = this.scraperService.extractShortcode(url);
+    const shortcode = extractInstagramShortcode(url);
 
     for (let attempt = 0; attempt < MAX_INSERT_ATTEMPTS; attempt++) {
       const reusable =

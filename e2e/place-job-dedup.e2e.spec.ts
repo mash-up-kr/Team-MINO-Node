@@ -4,7 +4,6 @@ import type { ConfigService } from "@nestjs/config";
 import { sql } from "drizzle-orm";
 import type { Env } from "../src/config/env.schema";
 import { DatabaseService } from "../src/infrastructures/db/database.service";
-import { ScraperService } from "../src/infrastructures/scraper/scraper.service";
 import type { TasksService } from "../src/infrastructures/tasks/tasks.service";
 import { placeJobs } from "../src/modules/place/place.schema";
 import type { PlaceService } from "../src/modules/place/place.service";
@@ -31,11 +30,6 @@ const configStub = {
 
 const databaseService = new DatabaseService(configStub);
 const placeJobRepository = new PlaceJobRepository(databaseService);
-// extractShortcode는 순수 파싱이라 provider가 필요 없다.
-const scraperService = new ScraperService(
-  undefined as unknown as ConstructorParameters<typeof ScraperService>[0],
-);
-
 // enqueue 호출을 세는 fake. 필요 시 실패하도록 바꿀 수 있다.
 let enqueued: string[];
 function makeService(enqueueImpl?: (jobId: string) => Promise<void>) {
@@ -51,7 +45,6 @@ function makeService(enqueueImpl?: (jobId: string) => Promise<void>) {
     placeJobRepository,
     tasksService,
     placeService,
-    scraperService,
     configStub,
   );
 }

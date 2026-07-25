@@ -3,7 +3,6 @@ import { HttpStatus } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import { AppException } from "../../common/exceptions/app.exception";
 import type { Env } from "../../config/env.schema";
-import type { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { TasksService } from "../../infrastructures/tasks/tasks.service";
 import type { PlaceJob } from "./place.schema";
 import type { PlaceService } from "./place.service";
@@ -67,7 +66,6 @@ function makeHarness(maxAttempts = 10) {
   };
   const tasksService = { enqueuePlaceExtraction: mock(async () => {}) };
   const placeService = { extractFromUrl: mock(async () => []) };
-  const scraperService = { extractShortcode: mock(() => SHORTCODE) };
   const configService = {
     getOrThrow: () => maxAttempts,
   } as unknown as ConfigService<Env>;
@@ -76,11 +74,10 @@ function makeHarness(maxAttempts = 10) {
     repository as unknown as PlaceJobRepository,
     tasksService as unknown as TasksService,
     placeService as unknown as PlaceService,
-    scraperService as unknown as ScraperService,
     configService,
   );
 
-  return { service, repository, tasksService, placeService, scraperService };
+  return { service, repository, tasksService, placeService };
 }
 
 describe("PlaceJobService.createJob", () => {
@@ -101,14 +98,6 @@ describe("PlaceJobService.createJob", () => {
   });
 
   it("잘못된 URL은 shortcode 추출 단계에서 그대로 전파한다(job 미생성)", async () => {
-    harness.scraperService.extractShortcode.mockImplementation(() => {
-      throw new AppException(
-        "INVALID_INSTAGRAM_URL",
-        "지원하지 않는 인스타그램 URL 입니다.",
-        HttpStatus.BAD_REQUEST,
-      );
-    });
-
     await expect(
       harness.service.createJob("https://evil.com/p/x"),
     ).rejects.toThrow("지원하지 않는 인스타그램 URL");
