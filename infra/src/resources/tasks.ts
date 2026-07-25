@@ -80,6 +80,15 @@ new gcp.cloudtasks.QueueIamMember(`${prefix}-place-extraction-enqueuer`, {
   member: pulumi.interpolate`serviceAccount:${serverServiceAccount.email}`,
 });
 
+// 앱 런타임 SA가 실제 큐의 retryConfig.maxAttempts를 읽어 최종 시도를 판정하도록.
+new gcp.cloudtasks.QueueIamMember(`${prefix}-place-extraction-viewer`, {
+  name: placeExtractionQueue.name,
+  location: region,
+  project,
+  role: "roles/cloudtasks.viewer",
+  member: pulumi.interpolate`serviceAccount:${serverServiceAccount.email}`,
+});
+
 // 로컬 개발 시 개인 ADC로 큐에 태스크를 직접 적재해 테스트할 수 있도록.
 new gcp.cloudtasks.QueueIamMember(
   `${prefix}-place-extraction-developer-enqueuer`,
