@@ -3,7 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import * as v from "valibot";
 import { AppException } from "../../../common/exceptions/app.exception";
 import type { Env } from "../../../config/env.schema";
-import { extractInstagramShortcode } from "../instagram-url";
+import { extractInstagramShortcode } from "../instagram.util";
 import type { ScrapedAddress, ScrapedPost } from "../scraper.type";
 import { IgResponseSchema, type IgShortcodeMedia } from "./instagram.type";
 

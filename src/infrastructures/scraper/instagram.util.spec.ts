@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { AppException } from "../../common/exceptions/app.exception";
-import { extractInstagramShortcode } from "./instagram-url";
+import { extractInstagramShortcode } from "./instagram.util";
 
 const originalFetch = globalThis.fetch;
 
