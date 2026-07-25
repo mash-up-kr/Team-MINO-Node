@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { HttpStatus } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
 import { AppException } from "../../common/exceptions/app.exception";
-import type { Env } from "../../config/env.schema";
 import type { TasksService } from "../../infrastructures/tasks/tasks.service";
 import type { PlaceJob } from "./place.schema";
 import type { PlaceService } from "./place.service";
@@ -64,17 +62,16 @@ function makeHarness(maxAttempts = 10) {
       async (): Promise<PlaceJob | undefined> => makeJob({ status: "failed" }),
     ),
   };
-  const tasksService = { enqueuePlaceExtraction: mock(async () => {}) };
+  const tasksService = {
+    enqueuePlaceExtraction: mock(async () => {}),
+    getMaxAttempts: mock(async () => maxAttempts),
+  };
   const placeService = { extractFromUrl: mock(async () => []) };
-  const configService = {
-    getOrThrow: () => maxAttempts,
-  } as unknown as ConfigService<Env>;
 
   const service = new PlaceJobService(
     repository as unknown as PlaceJobRepository,
     tasksService as unknown as TasksService,
     placeService as unknown as PlaceService,
-    configService,
   );
 
   return { service, repository, tasksService, placeService };
@@ -247,6 +244,18 @@ describe("PlaceJobService.processJob", () => {
       expect.any(Date),
       candidates,
     );
+  });
+
+  it("큐 설정 조회가 실패하면 claim하지 않고 재배달을 기다린다", async () => {
+    harness.tasksService.getMaxAttempts.mockRejectedValue(
+      new Error("queue unavailable"),
+    );
+
+    await expect(harness.service.processJob(JOB_ID)).rejects.toThrow(
+      "queue unavailable",
+    );
+    expect(harness.repository.claimForProcessing).not.toHaveBeenCalled();
+    expect(harness.placeService.extractFromUrl).not.toHaveBeenCalled();
   });
 
   it("성공 상태 전이가 0건이면 현재 job을 반환한다", async () => {

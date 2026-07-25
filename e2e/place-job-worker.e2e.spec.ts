@@ -21,16 +21,15 @@ import { PlaceJobService } from "../src/modules/place/place-job.service";
  */
 
 const configStub = {
-  getOrThrow: (key: string) =>
-    key === "CLOUD_TASKS_MAX_ATTEMPTS"
-      ? Number(process.env[key])
-      : (process.env[key] as string),
+  getOrThrow: (key: string) => process.env[key] as string,
   get: (key: string, fallback?: unknown) => process.env[key] ?? fallback,
 } as unknown as ConfigService<Env>;
 
 const databaseService = new DatabaseService(configStub);
 const placeJobRepository = new PlaceJobRepository(databaseService);
-const tasksService = {} as unknown as TasksService;
+const tasksService = {
+  getMaxAttempts: async () => 10,
+} as unknown as TasksService;
 
 function candidate(): PlaceCandidate {
   return {
@@ -55,7 +54,6 @@ function makeService(extract: () => Promise<PlaceCandidate[]>) {
     placeJobRepository,
     tasksService,
     placeService,
-    configStub,
   );
   return { service, calls: () => calls };
 }

@@ -8,6 +8,7 @@ import type { Env } from "../../config/env.schema";
  * Cloud Tasks HTTP 태스크 기본 데드라인은 짧으므로, 추출이 오래 걸려도 lease와 어긋나지 않게 한다.
  */
 const WORKER_DISPATCH_DEADLINE_SECONDS = 600;
+const QUEUE_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class TasksService {
@@ -21,6 +22,8 @@ export class TasksService {
   private readonly queueParent: string;
   private readonly workerBaseUrl: string;
   private readonly oidcToken: { serviceAccountEmail: string; audience: string };
+  private maxAttemptsCache?: { value: number; expiresAt: number };
+  private maxAttemptsRequest?: Promise<number>;
 
   constructor(configService: ConfigService<Env>) {
     const project = configService.getOrThrow("GOOGLE_CLOUD_PROJECT", {
@@ -70,5 +73,41 @@ export class TasksService {
         },
       },
     });
+  }
+
+  /**
+   * 최종 시도 판정 기준은 별도 env가 아니라 실제 Cloud Tasks 큐 설정에서 읽는다.
+   * 짧게 캐시해 매 실패마다 API를 호출하지 않으면서도 Pulumi 설정 변경을 반영한다.
+   */
+  async getMaxAttempts(): Promise<number> {
+    const cached = this.maxAttemptsCache;
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+    if (!this.maxAttemptsRequest) {
+      this.maxAttemptsRequest = this.loadMaxAttempts().finally(() => {
+        this.maxAttemptsRequest = undefined;
+      });
+    }
+
+    return this.maxAttemptsRequest;
+  }
+
+  private async loadMaxAttempts(): Promise<number> {
+    const [queue] = await this.client.getQueue({ name: this.queueParent });
+    const maxAttempts = queue.retryConfig?.maxAttempts;
+
+    if (
+      typeof maxAttempts !== "number" ||
+      !Number.isInteger(maxAttempts) ||
+      maxAttempts < 1
+    ) {
+      throw new Error("Cloud Tasks 큐의 maxAttempts 설정이 올바르지 않습니다.");
+    }
+
+    this.maxAttemptsCache = {
+      value: maxAttempts,
+      expiresAt: Date.now() + QUEUE_CONFIG_CACHE_TTL_MS,
+    };
+    return maxAttempts;
   }
 }

@@ -14,7 +14,6 @@ const requiredEnvironment = {
   APP_BASE_URL: "http://localhost:3000",
   CLOUD_TASKS_LOCATION: "asia-northeast3",
   CLOUD_TASKS_QUEUE: "team-mino-prod-place-extraction",
-  CLOUD_TASKS_MAX_ATTEMPTS: "10",
 };
 
 describe("Sentry environment", () => {
@@ -73,23 +72,6 @@ describe("Cloud Tasks environment", () => {
 
   it("로컬(개발)에서는 http APP_BASE_URL을 허용한다", () => {
     expect(() => validateEnv(requiredEnvironment)).not.toThrow();
-  });
-
-  it("최대 시도 횟수를 숫자로 변환한다", () => {
-    expect(validateEnv(requiredEnvironment).CLOUD_TASKS_MAX_ATTEMPTS).toBe(10);
-  });
-
-  it.each([
-    "0",
-    "-1",
-    "abc",
-  ])("잘못된 최대 시도 횟수(%s)는 거부한다", (maxAttempts) => {
-    expect(() =>
-      validateEnv({
-        ...requiredEnvironment,
-        CLOUD_TASKS_MAX_ATTEMPTS: maxAttempts,
-      }),
-    ).toThrow(/CLOUD_TASKS_MAX_ATTEMPTS/);
   });
 
   it("audience 미설정 시 기본값을 채운다", () => {

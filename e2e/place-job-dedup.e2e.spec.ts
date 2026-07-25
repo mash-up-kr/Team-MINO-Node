@@ -21,10 +21,7 @@ import { PlaceJobService } from "../src/modules/place/place-job.service";
 
 // test:e2e가 DATABASE_URL을 주입한다. DatabaseService가 읽는 env를 그대로 흉내낸다.
 const configStub = {
-  getOrThrow: (key: string) =>
-    key === "CLOUD_TASKS_MAX_ATTEMPTS"
-      ? Number(process.env[key])
-      : (process.env[key] as string),
+  getOrThrow: (key: string) => process.env[key] as string,
   get: (key: string, fallback?: unknown) => process.env[key] ?? fallback,
 } as unknown as ConfigService<Env>;
 
@@ -35,18 +32,14 @@ let enqueued: string[];
 function makeService(enqueueImpl?: (jobId: string) => Promise<void>) {
   enqueued = [];
   const tasksService = {
+    getMaxAttempts: async () => 10,
     enqueuePlaceExtraction: async (jobId: string) => {
       enqueued.push(jobId);
       if (enqueueImpl) await enqueueImpl(jobId);
     },
   } as unknown as TasksService;
   const placeService = {} as unknown as PlaceService;
-  return new PlaceJobService(
-    placeJobRepository,
-    tasksService,
-    placeService,
-    configStub,
-  );
+  return new PlaceJobService(placeJobRepository, tasksService, placeService);
 }
 
 const urlFor = (shortcode: string) =>

@@ -43,11 +43,15 @@ type CreateTaskArg = {
 function stubClient(
   service: TasksService,
   createTask: (arg: CreateTaskArg) => Promise<unknown>,
+  getQueue: () => Promise<unknown> = async () => [
+    { retryConfig: { maxAttempts: 10 } },
+  ],
 ) {
   const client = {
     queuePath: (p: string, l: string, q: string) =>
       `projects/${p}/locations/${l}/queues/${q}`,
     createTask: jest.fn(createTask),
+    getQueue: jest.fn(getQueue),
   };
   (service as unknown as { client: typeof client }).client = client;
   return client;
@@ -122,5 +126,55 @@ describe("TasksService.enqueuePlaceExtraction", () => {
           },
         } as unknown as ConfigService<Env>),
     ).toThrow("missing config: CLOUD_TASKS_QUEUE");
+  });
+});
+
+describe("TasksService.getMaxAttempts", () => {
+  it("실제 큐의 retryConfig.maxAttempts를 읽고 캐시한다", async () => {
+    const service = new TasksService(createConfigService());
+    const client = stubClient(
+      service,
+      async () => [{}],
+      async () => [{ retryConfig: { maxAttempts: 10 } }],
+    );
+
+    await expect(service.getMaxAttempts()).resolves.toBe(10);
+    await expect(service.getMaxAttempts()).resolves.toBe(10);
+
+    expect(client.getQueue).toHaveBeenCalledTimes(1);
+    expect(client.getQueue).toHaveBeenCalledWith({
+      name: "projects/team-mino-prod/locations/asia-northeast3/queues/team-mino-prod-place-extraction",
+    });
+  });
+
+  it("큐의 maxAttempts가 없거나 잘못되면 추측하지 않고 실패한다", async () => {
+    const service = new TasksService(createConfigService());
+    stubClient(
+      service,
+      async () => [{}],
+      async () => [{ retryConfig: {} }],
+    );
+
+    await expect(service.getMaxAttempts()).rejects.toThrow(
+      "maxAttempts 설정이 올바르지 않습니다",
+    );
+  });
+
+  it("큐 조회 실패는 캐시하지 않아 다음 호출에서 다시 조회한다", async () => {
+    const service = new TasksService(createConfigService());
+    let calls = 0;
+    const client = stubClient(
+      service,
+      async () => [{}],
+      async () => {
+        calls += 1;
+        if (calls === 1) throw new Error("UNAVAILABLE");
+        return [{ retryConfig: { maxAttempts: 10 } }];
+      },
+    );
+
+    await expect(service.getMaxAttempts()).rejects.toThrow("UNAVAILABLE");
+    await expect(service.getMaxAttempts()).resolves.toBe(10);
+    expect(client.getQueue).toHaveBeenCalledTimes(2);
   });
 });

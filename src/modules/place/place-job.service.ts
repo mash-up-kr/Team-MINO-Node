@@ -1,7 +1,5 @@
 import { HttpStatus, Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { AppException } from "../../common/exceptions/app.exception";
-import type { Env } from "../../config/env.schema";
 import { extractInstagramShortcode } from "../../infrastructures/scraper/instagram.util";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
 import type { PlaceJob } from "./place.schema";
@@ -42,18 +40,12 @@ const STALE_PENDING_MS = PROCESSING_LEASE_MS;
 @Injectable()
 export class PlaceJobService {
   private readonly logger = new Logger(PlaceJobService.name);
-  private readonly maxAttempts: number;
 
   constructor(
     private readonly placeJobRepository: PlaceJobRepository,
     private readonly tasksService: TasksService,
     private readonly placeService: PlaceService,
-    configService: ConfigService<Env>,
-  ) {
-    this.maxAttempts = configService.getOrThrow("CLOUD_TASKS_MAX_ATTEMPTS", {
-      infer: true,
-    });
-  }
+  ) {}
 
   /**
    * 같은 게시글(shortcode) 요청은 early return으로 dedup한다:
@@ -166,6 +158,8 @@ export class PlaceJobService {
     jobId: string,
     taskRetryCount = 0,
   ): Promise<PlaceJobResponse> {
+    // 설정을 읽지 못하면 claim 전에 실패시켜 job을 processing에 가두지 않고 재배달을 기다린다.
+    const maxAttempts = await this.tasksService.getMaxAttempts();
     const now = new Date();
     const leaseExpiresAt = new Date(now.getTime() + PROCESSING_LEASE_MS);
 
@@ -188,7 +182,7 @@ export class PlaceJobService {
       const failure = this.toFailure(error);
       const diagnostic = sanitizeDiagnostic(failure.message);
 
-      const isLastAttempt = taskRetryCount + 1 >= this.maxAttempts;
+      const isLastAttempt = taskRetryCount + 1 >= maxAttempts;
       if (failure.retryable && !isLastAttempt) {
         const updated = await this.placeJobRepository.markRetryable(
           jobId,

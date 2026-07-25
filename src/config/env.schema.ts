@@ -57,12 +57,6 @@ const envSchema = v.pipe(
     // infra/src/resources/tasks.ts의 placeExtractionQueue와 값을 맞춰야 한다.
     CLOUD_TASKS_LOCATION: v.pipe(v.string(), v.minLength(1)),
     CLOUD_TASKS_QUEUE: v.pipe(v.string(), v.minLength(1)),
-    CLOUD_TASKS_MAX_ATTEMPTS: v.pipe(
-      v.string(),
-      v.regex(/^\d+$/),
-      v.transform(Number),
-      v.minValue(1),
-    ),
   }),
   /*
    * 운영(production)에서는 Cloud Tasks가 호출할 APP_BASE_URL이 반드시 https여야 한다.

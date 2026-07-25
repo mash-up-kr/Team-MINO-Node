@@ -62,6 +62,7 @@ beforeAll(async () => {
     .useValue({ extractFromUrl: (url: string) => extraction.fn(url) })
     .overrideProvider(TasksService)
     .useValue({
+      getMaxAttempts: async () => 10,
       enqueuePlaceExtraction: async (jobId: string) => {
         enqueue.calls.push(jobId);
         if (enqueue.fail) throw new Error("Cloud Tasks unavailable");
