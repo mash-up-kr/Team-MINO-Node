@@ -14,7 +14,6 @@ import { NestFactory } from "@nestjs/core";
 import { BunHonoAdapter } from "../src/adapters/bun-hono.adapter";
 import { LoggingMiddleware } from "../src/common/middlewares/logging.middleware";
 
-// path -> status the LoggingMiddleware logged (after the response was built)
 const loggedStatus: Record<string, number> = {};
 
 @Controller()
@@ -51,7 +50,6 @@ let app: INestApplication;
 let baseUrl: string;
 
 beforeAll(async () => {
-  // Capture the status the middleware logs.
   jest.spyOn(Logger.prototype, "log").mockImplementation((entry: unknown) => {
     if (
       entry &&
@@ -59,53 +57,38 @@ beforeAll(async () => {
       "path" in entry &&
       "status" in entry
     ) {
-      const e = entry as { path: string; status: number };
-      loggedStatus[e.path] = e.status;
+      const { path, status } = entry as { path: string; status: number };
+      loggedStatus[path] = status;
     }
   });
 
-  const adapter = new BunHonoAdapter();
-  app = await NestFactory.create(StatusModule, adapter, {
+  app = await NestFactory.create(StatusModule, new BunHonoAdapter(), {
     bufferLogs: true,
     logger: false,
   });
-
   await app.listen(0);
-  const address = app.getHttpServer().address();
-  baseUrl = `http://127.0.0.1:${address.port}`;
+  const { port } = app.getHttpServer().address() as { port: number };
+  baseUrl = `http://127.0.0.1:${port}`;
 });
 
 afterAll(async () => {
   await app.close();
+  jest.restoreAllMocks();
 });
 
-// Hits the endpoint, returns the real HTTP status code.
 async function hit(path: string): Promise<number> {
-  const res = await fetch(`${baseUrl}${path}`);
-  await res.text();
-  return res.status;
+  const response = await fetch(`${baseUrl}${path}`);
+  await response.text();
+  return response.status;
 }
 
-function loggedFor(path: string): number | undefined {
-  return loggedStatus[path];
-}
-
-describe("LoggingMiddleware status accuracy", () => {
-  it("200 OK", async () => {
-    const actual = await hit("/ok");
-    console.log(`/ok        HTTP=${actual}  logged=${loggedFor("/ok")}`);
-    expect(loggedFor("/ok")).toBe(actual);
-  });
-
-  it("201 Created", async () => {
-    const actual = await hit("/created");
-    console.log(`/created   HTTP=${actual}  logged=${loggedFor("/created")}`);
-    expect(loggedFor("/created")).toBe(actual);
-  });
-
-  it("204 No Content", async () => {
-    const actual = await hit("/nocontent");
-    console.log(`/nocontent HTTP=${actual}  logged=${loggedFor("/nocontent")}`);
-    expect(loggedFor("/nocontent")).toBe(actual);
+describe("LoggingMiddleware HTTP status", () => {
+  it.each([
+    "/ok",
+    "/created",
+    "/nocontent",
+  ])("%s의 실제 응답 status를 기록한다", async (path) => {
+    const status = await hit(path);
+    expect(loggedStatus[path]).toBe(status);
   });
 });

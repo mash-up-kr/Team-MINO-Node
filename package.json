@@ -17,9 +17,9 @@
     "start:local": "APP_ENV=local nest start --watch --exec bun",
     "start:prod": "./dist/server",
     "test": "bun run test:unit && bun run test:e2e",
-    "test:e2e": "DATABASE_URL=${TEST_DATABASE_URL:-postgres://postgres:postgres@localhost:5432/team_mino} KAKAO_REST_API_KEY=test GOOGLE_CLOUD_PROJECT=team-mino-test INSTAGRAM_GRAPHQL_ENDPOINT=https://www.instagram.com/api/graphql INSTAGRAM_DOC_ID=test INSTAGRAM_LSD=test INSTAGRAM_APP_ID=test INSTAGRAM_USER_AGENT=test bun test e2e/",
+    "test:e2e": "bun test --preload ./e2e/setup.ts e2e/",
     "test:unit": "bun test src/",
-    "test:watch": "bun test --watch",
+    "test:watch": "bun test --watch src/",
     "typecheck": "tsgo --noEmit",
     "typecheck:tsc": "tsc --noEmit"
   },
@@ -56,6 +56,7 @@
     "@types/node": "^25.9.1",
     "@typescript/native-preview": "^7.0.0-dev.20260421.2",
     "drizzle-kit": "^0.31.10",
+    "embedded-postgres": "17.10.0-beta.17",
     "nano-staged": "^1.0.2",
     "pino-pretty": "^13.1.3",
     "simple-git-hooks": "^2.13.1",
@@ -63,9 +64,15 @@
   },
   "simple-git-hooks": {
     "pre-commit": "bun run check:staged",
-    "pre-push": "bun run typecheck && bun run test"
+    "pre-push": "bun run typecheck && bun run --no-env-file test"
   },
   "nano-staged": {
     "*.{ts,tsx,js,jsx,json,jsonc}": "biome check --write"
-  }
+  },
+  "trustedDependencies": [
+    "@embedded-postgres/darwin-arm64",
+    "@embedded-postgres/darwin-x64",
+    "@embedded-postgres/linux-arm64",
+    "@embedded-postgres/linux-x64"
+  ]
 }
