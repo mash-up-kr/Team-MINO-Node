@@ -5,11 +5,8 @@ import {
   RequestMethod,
 } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 import { TerminusModule } from "@nestjs/terminus";
 import { LoggerModule } from "nestjs-pino";
-import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
-import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 import { LoggingMiddleware } from "./common/middlewares/logging.middleware";
 import { validateEnv } from "./config/env.schema";
 import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
@@ -47,16 +44,6 @@ import { PlaceModule } from "./modules/place/place.module";
     DrizzleHealthIndicator,
     SentryErrorReporter,
     SentryLifecycleService,
-    {
-      provide: APP_FILTER,
-      inject: [SentryErrorReporter],
-      useFactory: (reporter: SentryErrorReporter) =>
-        new HttpExceptionFilter(reporter),
-    },
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: ResponseInterceptor,
-    },
   ],
 })
 export class AppModule implements NestModule {
