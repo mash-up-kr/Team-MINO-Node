@@ -48,6 +48,7 @@ CREATE TABLE "room_members" (
 CREATE TABLE "rooms" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"owner_id" uuid NOT NULL,
+	"type" varchar(16) NOT NULL,
 	"name" varchar(20) NOT NULL,
 	"description" text,
 	"color" varchar(7) NOT NULL,
