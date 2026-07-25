@@ -1,6 +1,6 @@
 import * as gcp from "@pulumi/gcp";
 import * as pulumi from "@pulumi/pulumi";
-import { prefix, project, region } from "@/config";
+import { cloudTasksMaxAttempts, prefix, project, region } from "@/config";
 import { enabledServices } from "@/resources/apis";
 import { service } from "@/resources/cloud-run";
 import { serverServiceAccount } from "@/resources/identity";
@@ -46,7 +46,7 @@ export const placeExtractionQueue = new gcp.cloudtasks.Queue(
       maxConcurrentDispatches: 5,
     },
     retryConfig: {
-      maxAttempts: 10,
+      maxAttempts: cloudTasksMaxAttempts,
       minBackoff: "10s",
       maxBackoff: "300s",
       maxDoublings: 4,
