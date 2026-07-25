@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import EmbeddedPostgres from "embedded-postgres";
-import postgres from "postgres";
 
 const probe = Bun.serve({
   hostname: "127.0.0.1",
@@ -24,9 +23,12 @@ const pg = new EmbeddedPostgres({
   persistent: false,
   onLog: () => undefined,
 });
-const sql = postgres(url, {
-  max: 1,
-  connection: { search_path: "develop" },
+const db = drizzle({
+  connection: {
+    url,
+    max: 1,
+    connection: { search_path: "develop" },
+  },
 });
 
 Object.assign(process.env, {
@@ -46,10 +48,9 @@ beforeAll(async () => {
   await probe.stop(true);
   await pg.start();
   await pg.createDatabase("team_mino");
-  await sql`create schema if not exists develop`;
 
   if (existsSync(migrations)) {
-    await migrate(drizzle(sql), {
+    await migrate(db, {
       migrationsFolder: migrations,
       migrationsSchema: "develop",
     });
@@ -57,6 +58,6 @@ beforeAll(async () => {
 }, 30_000);
 
 afterAll(async () => {
-  await sql.end({ timeout: 5 });
+  await db.$client.end({ timeout: 5 });
   await pg.stop();
 }, 30_000);
