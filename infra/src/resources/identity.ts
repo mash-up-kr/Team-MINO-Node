@@ -32,6 +32,7 @@ const developerRoles: Record<string, string> = {
   "run-developer": "roles/run.developer",
   "artifactregistry-writer": "roles/artifactregistry.writer",
   "logging-viewer": "roles/logging.viewer",
+  "cloudtasks-viewer": "roles/cloudtasks.viewer",
 };
 for (const [key, role] of Object.entries(developerRoles)) {
   new gcp.projects.IAMMember(`developer-${key}`, {
@@ -44,6 +45,13 @@ for (const [key, role] of Object.entries(developerRoles)) {
 new gcp.serviceaccount.IAMMember(`${prefix}-developer-act-as-runtime`, {
   serviceAccountId: serverServiceAccount.name,
   role: "roles/iam.serviceAccountUser",
+  member: pulumi.interpolate`serviceAccount:${developer.email}`,
+});
+
+// 로컬에서 server SA를 impersonate해 Vertex AI 호출·큐 enqueue 등을 직접 테스트할 수 있도록.
+new gcp.serviceaccount.IAMMember(`${prefix}-developer-impersonate-server`, {
+  serviceAccountId: serverServiceAccount.name,
+  role: "roles/iam.serviceAccountTokenCreator",
   member: pulumi.interpolate`serviceAccount:${developer.email}`,
 });
 
