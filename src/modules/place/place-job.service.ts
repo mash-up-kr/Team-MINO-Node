@@ -182,7 +182,13 @@ export class PlaceJobService {
       const failure = this.toFailure(error);
       const diagnostic = sanitizeDiagnostic(failure.message);
 
-      const isLastAttempt = taskRetryCount + 1 >= maxAttempts;
+      /*
+       * 유실 복구로 새 task를 만들면 taskRetryCount는 0으로 초기화된다.
+       * 최대 횟수는 Cloud Tasks 설정을 따르되, task가 바뀌어도 유지되는
+       * job 누적 claim 횟수를 함께 확인해 전체 실행 횟수를 제한한다.
+       */
+      const isLastAttempt =
+        taskRetryCount + 1 >= maxAttempts || claimed.attempts >= maxAttempts;
       if (failure.retryable && !isLastAttempt) {
         const updated = await this.placeJobRepository.markRetryable(
           jobId,

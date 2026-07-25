@@ -259,13 +259,28 @@ describe("PlaceJobService.processJob 상태머신 (real PostgreSQL)", () => {
   });
 
   it("Cloud Tasks 마지막 시도면 5xx 실패도 terminal failed로 종결한다", async () => {
-    const id = await insertJob({ shortcode: "Worker09", attempts: 9 });
+    const id = await insertJob({ shortcode: "Worker09" });
     const { service } = makeService(async () => {
       throw new AppException("SCRAPER_REQUEST_FAILED", "인스타 5xx 응답", 502);
     });
 
     // throw 없이 반환(2xx) = Cloud Tasks 재시도 중단.
     const result = await service.processJob(id, 9);
+
+    expect(result.status).toBe("failed");
+    const row = await readJob(id);
+    expect(row.status).toBe("failed");
+    expect(row.attempts).toBe(1);
+    expect(row.processingLeaseExpiresAt).toBeNull();
+  });
+
+  it("새 task의 첫 실행이어도 job 누적 시도가 상한이면 5xx 실패를 종결한다", async () => {
+    const id = await insertJob({ shortcode: "Worker11", attempts: 9 });
+    const { service } = makeService(async () => {
+      throw new AppException("SCRAPER_REQUEST_FAILED", "인스타 5xx 응답", 502);
+    });
+
+    const result = await service.processJob(id, 0);
 
     expect(result.status).toBe("failed");
     const row = await readJob(id);

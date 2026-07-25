@@ -367,6 +367,7 @@ describe("PlaceJobService.processJob", () => {
     harness.repository.claimForProcessing.mockResolvedValue(
       makeJob({
         status: "processing",
+        attempts: 1,
         processingLeaseExpiresAt: new Date("2026-01-01T00:10:00Z"),
       }),
     );
@@ -379,6 +380,34 @@ describe("PlaceJobService.processJob", () => {
     );
 
     const response = await harness.service.processJob(JOB_ID, 9);
+
+    expect(response.status).toBe("failed");
+    expect(harness.repository.markRetryable).not.toHaveBeenCalled();
+    expect(harness.repository.markFailed).toHaveBeenCalledWith(
+      JOB_ID,
+      expect.any(Date),
+      "SCRAPE_FAILED",
+      "인스타그램 응답 오류",
+    );
+  });
+
+  it("새 task로 retry count가 초기화돼도 job 누적 시도가 상한이면 failed로 종결한다", async () => {
+    harness.repository.claimForProcessing.mockResolvedValue(
+      makeJob({
+        status: "processing",
+        attempts: 10,
+        processingLeaseExpiresAt: new Date("2026-01-01T00:10:00Z"),
+      }),
+    );
+    harness.placeService.extractFromUrl.mockRejectedValue(
+      new AppException(
+        "SCRAPE_FAILED",
+        "인스타그램 응답 오류",
+        HttpStatus.BAD_GATEWAY,
+      ),
+    );
+
+    const response = await harness.service.processJob(JOB_ID, 0);
 
     expect(response.status).toBe("failed");
     expect(harness.repository.markRetryable).not.toHaveBeenCalled();
