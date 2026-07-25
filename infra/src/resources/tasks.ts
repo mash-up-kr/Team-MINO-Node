@@ -3,7 +3,11 @@ import * as pulumi from "@pulumi/pulumi";
 import { cloudTasksMaxAttempts, prefix, project, region } from "@/config";
 import { enabledServices } from "@/resources/apis";
 import { service } from "@/resources/cloud-run";
-import { serverServiceAccount } from "@/resources/identity";
+import {
+  developer,
+  developersGroup,
+  serverServiceAccount,
+} from "@/resources/identity";
 
 /**
  * Cloud Tasks가 워커(/internal/* on Cloud Run)를 호출할 때 신원으로 쓰는 SA.
@@ -35,6 +39,17 @@ new gcp.serviceaccount.IAMMember(`${prefix}-tasks-invoker-actas`, {
   member: pulumi.interpolate`serviceAccount:${serverServiceAccount.email}`,
 });
 
+// 로컬 개발 시 Cloud Tasks 없이도 tasks-invoker 명의 OIDC 토큰을 직접 발급해
+// /internal/* 가드를 curl 등으로 테스트할 수 있도록.
+new gcp.serviceaccount.IAMMember(
+  `${prefix}-developer-impersonate-tasks-invoker`,
+  {
+    serviceAccountId: taskInvokerServiceAccount.name,
+    role: "roles/iam.serviceAccountTokenCreator",
+    member: pulumi.interpolate`serviceAccount:${developer.email}`,
+  },
+);
+
 export const placeExtractionQueue = new gcp.cloudtasks.Queue(
   `${prefix}-place-extraction`,
   {
@@ -64,3 +79,15 @@ new gcp.cloudtasks.QueueIamMember(`${prefix}-place-extraction-enqueuer`, {
   role: "roles/cloudtasks.enqueuer",
   member: pulumi.interpolate`serviceAccount:${serverServiceAccount.email}`,
 });
+
+// 로컬 개발 시 개인 ADC로 큐에 태스크를 직접 적재해 테스트할 수 있도록.
+new gcp.cloudtasks.QueueIamMember(
+  `${prefix}-place-extraction-developer-enqueuer`,
+  {
+    name: placeExtractionQueue.name,
+    location: region,
+    project,
+    role: "roles/cloudtasks.enqueuer",
+    member: developersGroup,
+  },
+);
