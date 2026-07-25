@@ -5,7 +5,7 @@ export const rooms = pgTable("rooms", {
   id: uuid().primaryKey().defaultRandom(),
   ownerId: uuid()
     .notNull()
-    .references(() => users.id),
+    .references(() => users.id, { onDelete: "cascade" }),
   name: varchar({ length: 20 }).notNull(),
   description: text(),
   // 팔레트 5색 중 하나의 hex 값 (예: "#FF6B6B")
