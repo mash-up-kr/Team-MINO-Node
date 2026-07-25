@@ -20,10 +20,10 @@ export const places = pgTable(
     providerPlaceId: varchar({ length: 128 }).notNull(),
     name: varchar({ length: 255 }).notNull(),
     address: text().notNull(),
-    // 예: 서울특별시
-    city: varchar({ length: 32 }).notNull(),
+    // 예: 서울특별시 — 카카오 응답에 구조화된 지역 필드가 없어 추출 방식 확정 전까지 nullable
+    city: varchar({ length: 32 }),
     // 예: 서초구
-    district: varchar({ length: 32 }).notNull(),
+    district: varchar({ length: 32 }),
     lat: numeric({ mode: "number", precision: 10, scale: 7 }).notNull(),
     lng: numeric({ mode: "number", precision: 10, scale: 7 }).notNull(),
     category: varchar({ length: 64 }),
