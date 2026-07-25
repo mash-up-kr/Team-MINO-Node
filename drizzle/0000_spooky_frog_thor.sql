@@ -1,3 +1,12 @@
+CREATE TABLE "pin_comments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"pin_id" uuid NOT NULL,
+	"created_by" uuid NOT NULL,
+	"content" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "pins" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"room_id" uuid NOT NULL,
@@ -5,7 +14,8 @@ CREATE TABLE "pins" (
 	"source_id" uuid,
 	"created_by" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"last_accessed_at" timestamp with time zone DEFAULT now() NOT NULL
+	"last_accessed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "pins_roomId_placeId_unique" UNIQUE("room_id","place_id")
 );
 --> statement-breakpoint
 CREATE TABLE "places" (
@@ -14,8 +24,8 @@ CREATE TABLE "places" (
 	"provider_place_id" varchar(128) NOT NULL,
 	"name" varchar(255) NOT NULL,
 	"address" text NOT NULL,
-	"city" varchar(32) NOT NULL,
-	"district" varchar(32) NOT NULL,
+	"city" varchar(32),
+	"district" varchar(32),
 	"lat" numeric(10, 7) NOT NULL,
 	"lng" numeric(10, 7) NOT NULL,
 	"category" varchar(64),
@@ -74,12 +84,14 @@ CREATE TABLE "users" (
 	CONSTRAINT "users_deviceId_unique" UNIQUE("device_id")
 );
 --> statement-breakpoint
+ALTER TABLE "pin_comments" ADD CONSTRAINT "pin_comments_pin_id_pins_id_fk" FOREIGN KEY ("pin_id") REFERENCES "pins"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "pin_comments" ADD CONSTRAINT "pin_comments_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pins" ADD CONSTRAINT "pins_room_id_rooms_id_fk" FOREIGN KEY ("room_id") REFERENCES "rooms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pins" ADD CONSTRAINT "pins_place_id_places_id_fk" FOREIGN KEY ("place_id") REFERENCES "places"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pins" ADD CONSTRAINT "pins_source_id_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "sources"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "pins" ADD CONSTRAINT "pins_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "room_members" ADD CONSTRAINT "room_members_room_id_rooms_id_fk" FOREIGN KEY ("room_id") REFERENCES "rooms"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "room_members" ADD CONSTRAINT "room_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rooms" ADD CONSTRAINT "rooms_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rooms" ADD CONSTRAINT "rooms_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "place_sources" ADD CONSTRAINT "place_sources_place_id_places_id_fk" FOREIGN KEY ("place_id") REFERENCES "places"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "place_sources" ADD CONSTRAINT "place_sources_source_id_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "sources"("id") ON DELETE cascade ON UPDATE no action;

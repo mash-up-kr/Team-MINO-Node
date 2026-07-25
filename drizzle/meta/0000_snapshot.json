@@ -1,9 +1,80 @@
 {
-  "id": "3a967fe7-6278-40bb-97c1-8c7a0e8c76d5",
+  "id": "b691125d-d209-4d4a-b285-e79f0872adc4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.pin_comments": {
+      "name": "pin_comments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pin_id": {
+          "name": "pin_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pin_comments_pin_id_pins_id_fk": {
+          "name": "pin_comments_pin_id_pins_id_fk",
+          "tableFrom": "pin_comments",
+          "tableTo": "pins",
+          "columnsFrom": ["pin_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pin_comments_created_by_users_id_fk": {
+          "name": "pin_comments_created_by_users_id_fk",
+          "tableFrom": "pin_comments",
+          "tableTo": "users",
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.pins": {
       "name": "pins",
       "schema": "",
@@ -94,7 +165,13 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "pins_roomId_placeId_unique": {
+          "name": "pins_roomId_placeId_unique",
+          "nullsNotDistinct": false,
+          "columns": ["room_id", "place_id"]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -138,13 +215,13 @@
           "name": "city",
           "type": "varchar(32)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "district": {
           "name": "district",
           "type": "varchar(32)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "lat": {
           "name": "lat",
@@ -339,7 +416,7 @@
           "tableTo": "users",
           "columnsFrom": ["owner_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
