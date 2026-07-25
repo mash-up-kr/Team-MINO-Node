@@ -11,9 +11,10 @@ export const pins = pgTable(
     roomId: uuid()
       .notNull()
       .references(() => rooms.id, { onDelete: "cascade" }),
+    // places는 방 간 공유 엔티티라 핀이 남아 있으면 삭제를 막습니다.
     placeId: uuid()
       .notNull()
-      .references(() => places.id),
+      .references(() => places.id, { onDelete: "restrict" }),
     // 링크 없이 직접 저장한 핀은 출처가 없을 수 있습니다.
     sourceId: uuid().references(() => sources.id, { onDelete: "set null" }),
     createdBy: uuid()
