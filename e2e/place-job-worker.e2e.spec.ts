@@ -22,7 +22,10 @@ import { PlaceJobService } from "../src/modules/place/place-job.service";
  */
 
 const configStub = {
-  getOrThrow: (key: string) => process.env[key] as string,
+  getOrThrow: (key: string) =>
+    key === "CLOUD_TASKS_MAX_ATTEMPTS"
+      ? Number(process.env[key])
+      : (process.env[key] as string),
   get: (key: string, fallback?: unknown) => process.env[key] ?? fallback,
 } as unknown as ConfigService<Env>;
 
@@ -57,6 +60,7 @@ function makeService(extract: () => Promise<PlaceCandidate[]>) {
     tasksService,
     placeService,
     scraperService,
+    configStub,
   );
   return { service, calls: () => calls };
 }
@@ -261,15 +265,14 @@ describe("PlaceJobService.processJob 상태머신 (real PostgreSQL)", () => {
     expect((await readJob(id)).processingLeaseExpiresAt).toBeNull();
   });
 
-  it("누적 시도 상한에 닿으면 5xx 실패도 terminal failed로 종결한다(무한 재시도 차단)", async () => {
-    // 상한 직전(9회)까지 시도된 job. 이번 claim으로 10회째가 된다.
+  it("Cloud Tasks 마지막 시도면 5xx 실패도 terminal failed로 종결한다", async () => {
     const id = await insertJob({ shortcode: "Worker09", attempts: 9 });
     const { service } = makeService(async () => {
       throw new AppException("SCRAPER_REQUEST_FAILED", "인스타 5xx 응답", 502);
     });
 
     // throw 없이 반환(2xx) = Cloud Tasks 재시도 중단.
-    const result = await service.processJob(id);
+    const result = await service.processJob(id, 9);
 
     expect(result.status).toBe("failed");
     const row = await readJob(id);

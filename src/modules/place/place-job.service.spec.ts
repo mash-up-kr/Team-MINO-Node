@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { HttpStatus } from "@nestjs/common";
+import type { ConfigService } from "@nestjs/config";
 import { AppException } from "../../common/exceptions/app.exception";
+import type { Env } from "../../config/env.schema";
 import type { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { TasksService } from "../../infrastructures/tasks/tasks.service";
 import type { PlaceJob } from "./place.schema";
@@ -31,7 +33,7 @@ function makeJob(overrides: Partial<PlaceJob> = {}): PlaceJob {
 
 type Reusable = { id: string; status: PlaceJob["status"]; updatedAt: Date };
 
-function makeHarness() {
+function makeHarness(maxAttempts = 10) {
   const repository = {
     tryInsert: mock(
       async (): Promise<{ id: string } | null> => ({
@@ -66,12 +68,16 @@ function makeHarness() {
   const tasksService = { enqueuePlaceExtraction: mock(async () => {}) };
   const placeService = { extractFromUrl: mock(async () => []) };
   const scraperService = { extractShortcode: mock(() => SHORTCODE) };
+  const configService = {
+    getOrThrow: () => maxAttempts,
+  } as unknown as ConfigService<Env>;
 
   const service = new PlaceJobService(
     repository as unknown as PlaceJobRepository,
     tasksService as unknown as TasksService,
     placeService as unknown as PlaceService,
     scraperService as unknown as ScraperService,
+    configService,
   );
 
   return { service, repository, tasksService, placeService, scraperService };
@@ -359,11 +365,10 @@ describe("PlaceJobService.processJob", () => {
     );
   });
 
-  it("누적 시도 상한에 닿으면 재시도 가치가 있는 실패도 terminal failed로 종결한다", async () => {
+  it("Cloud Tasks 마지막 시도면 retryable 실패도 terminal failed로 종결한다", async () => {
     harness.repository.claimForProcessing.mockResolvedValue(
       makeJob({
         status: "processing",
-        attempts: 10,
         processingLeaseExpiresAt: new Date("2026-01-01T00:10:00Z"),
       }),
     );
@@ -375,7 +380,7 @@ describe("PlaceJobService.processJob", () => {
       ),
     );
 
-    const response = await harness.service.processJob(JOB_ID);
+    const response = await harness.service.processJob(JOB_ID, 9);
 
     expect(response.status).toBe("failed");
     expect(harness.repository.markRetryable).not.toHaveBeenCalled();

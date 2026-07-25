@@ -1,5 +1,7 @@
 import { HttpStatus, Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { AppException } from "../../common/exceptions/app.exception";
+import type { Env } from "../../config/env.schema";
 import { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
 import type { PlaceJob } from "./place.schema";
@@ -37,23 +39,22 @@ const MAX_DIAGNOSTIC_LENGTH = 500;
  */
 const STALE_PENDING_MS = PROCESSING_LEASE_MS;
 
-/*
- * job 전체의 누적 시도 상한. Cloud Tasks의 재시도 상한(태스크당 5회)은 유실 복구가
- * 새 태스크를 만들 때마다 초기화되므로, 절대 성공 못 할 job이 "실패 → 방치 → 재요청
- * → 복구 재enqueue"를 영원히 도는 것을 이 총량 상한이 끊는다(태스크 2사이클 분량).
- */
-const MAX_JOB_ATTEMPTS = 10;
-
 @Injectable()
 export class PlaceJobService {
   private readonly logger = new Logger(PlaceJobService.name);
+  private readonly maxAttempts: number;
 
   constructor(
     private readonly placeJobRepository: PlaceJobRepository,
     private readonly tasksService: TasksService,
     private readonly placeService: PlaceService,
     private readonly scraperService: ScraperService,
-  ) {}
+    configService: ConfigService<Env>,
+  ) {
+    this.maxAttempts = configService.getOrThrow("CLOUD_TASKS_MAX_ATTEMPTS", {
+      infer: true,
+    });
+  }
 
   /**
    * 같은 게시글(shortcode) 요청은 early return으로 dedup한다:
@@ -162,7 +163,10 @@ export class PlaceJobService {
    * 멈추므로, "다시 하면 될 실패"는 예외를 던져(non-2xx) 재시도를 유도하고 "포기할 실패"는
    * 정상 반환해(2xx) 재시도를 막는다. 즉 여기서 던지는 예외는 버그가 아니라 재시도 신호다.
    */
-  async processJob(jobId: string): Promise<PlaceJobResponse> {
+  async processJob(
+    jobId: string,
+    taskRetryCount = 0,
+  ): Promise<PlaceJobResponse> {
     const now = new Date();
     const leaseExpiresAt = new Date(now.getTime() + PROCESSING_LEASE_MS);
 
@@ -185,11 +189,8 @@ export class PlaceJobService {
       const failure = this.toFailure(error);
       const diagnostic = sanitizeDiagnostic(failure.message);
 
-      /*
-       * claim이 attempts를 이미 1 올렸으므로 claimed.attempts가 이번 시도까지의 총량.
-       * 상한에 닿았으면 재시도 가치가 있어도 terminal failed로 종결해 무한 루프를 끊는다.
-       */
-      if (failure.retryable && claimed.attempts < MAX_JOB_ATTEMPTS) {
+      const isLastAttempt = taskRetryCount + 1 >= this.maxAttempts;
+      if (failure.retryable && !isLastAttempt) {
         const updated = await this.placeJobRepository.markRetryable(
           jobId,
           claimed.processingLeaseExpiresAt,

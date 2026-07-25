@@ -1,4 +1,4 @@
-import { Controller, Param, Post, UseGuards } from "@nestjs/common";
+import { Controller, Headers, Param, Post, UseGuards } from "@nestjs/common";
 import { CloudTasksGuard } from "../../common/guards/cloud-tasks.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
 import { jobIdSchema } from "./place.dto";
@@ -14,7 +14,12 @@ export class PlaceJobWorkerController {
   @Post(":jobId/process")
   async process(
     @Param("jobId", new ValibotPipe(jobIdSchema)) jobId: string,
+    @Headers("x-cloudtasks-taskretrycount") retryCountHeader = "0",
   ): Promise<PlaceJobResponse> {
-    return this.placeJobService.processJob(jobId);
+    const retryCount = Number.parseInt(retryCountHeader, 10);
+    return this.placeJobService.processJob(
+      jobId,
+      Number.isNaN(retryCount) ? 0 : retryCount,
+    );
   }
 }
