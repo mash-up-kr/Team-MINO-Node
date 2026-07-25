@@ -46,7 +46,7 @@ export const placeExtractionQueue = new gcp.cloudtasks.Queue(
       maxConcurrentDispatches: 5,
     },
     retryConfig: {
-      maxAttempts: 5,
+      maxAttempts: 10,
       minBackoff: "10s",
       maxBackoff: "300s",
       maxDoublings: 4,
