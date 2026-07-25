@@ -3,7 +3,11 @@ import * as pulumi from "@pulumi/pulumi";
 import { cloudTasksMaxAttempts, prefix, project, region } from "@/config";
 import { enabledServices } from "@/resources/apis";
 import { service } from "@/resources/cloud-run";
-import { developer, serverServiceAccount } from "@/resources/identity";
+import {
+  developer,
+  developersGroup,
+  serverServiceAccount,
+} from "@/resources/identity";
 
 /**
  * Cloud Tasks가 워커(/internal/* on Cloud Run)를 호출할 때 신원으로 쓰는 SA.
@@ -75,3 +79,15 @@ new gcp.cloudtasks.QueueIamMember(`${prefix}-place-extraction-enqueuer`, {
   role: "roles/cloudtasks.enqueuer",
   member: pulumi.interpolate`serviceAccount:${serverServiceAccount.email}`,
 });
+
+// 로컬 개발 시 개인 ADC로 큐에 태스크를 직접 적재해 테스트할 수 있도록.
+new gcp.cloudtasks.QueueIamMember(
+  `${prefix}-place-extraction-developer-enqueuer`,
+  {
+    name: placeExtractionQueue.name,
+    location: region,
+    project,
+    role: "roles/cloudtasks.enqueuer",
+    member: developersGroup,
+  },
+);

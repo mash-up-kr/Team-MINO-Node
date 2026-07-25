@@ -48,21 +48,17 @@ new gcp.serviceaccount.IAMMember(`${prefix}-developer-act-as-runtime`, {
   member: pulumi.interpolate`serviceAccount:${developer.email}`,
 });
 
-// 로컬에서 server SA를 impersonate해 Vertex AI 호출·큐 enqueue 등을 직접 테스트할 수 있도록.
-new gcp.serviceaccount.IAMMember(`${prefix}-developer-impersonate-server`, {
-  serviceAccountId: serverServiceAccount.name,
-  role: "roles/iam.serviceAccountTokenCreator",
-  member: pulumi.interpolate`serviceAccount:${developer.email}`,
-});
-
 // Developer membership is managed manually
-const developersGroup = "group:mash-up-16th-team-mino-node@googlegroups.com";
+export const developersGroup =
+  "group:mash-up-16th-team-mino-node@googlegroups.com";
 
 const developerGroupRoles: Record<string, string> = {
   ...developerRoles,
   viewer: "roles/viewer",
   // 앱 env 시크릿(local·prod)을 로컬 실행 시 개인 ADC로 읽을 수 있게.
   "secret-accessor": "roles/secretmanager.secretAccessor",
+  // Gemini(Vertex AI) 호출을 로컬 개인 ADC로 직접 테스트할 수 있게.
+  "vertex-user": "roles/aiplatform.user",
 };
 for (const [key, role] of Object.entries(developerGroupRoles)) {
   new gcp.projects.IAMMember(`developers-group-${key}`, {
