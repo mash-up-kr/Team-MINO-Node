@@ -1,4 +1,4 @@
-import { pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { index, pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { places } from "../place/place.schema";
 import { sources } from "./source.schema";
 
@@ -14,5 +14,5 @@ export const placeSources = pgTable(
       .references(() => sources.id, { onDelete: "cascade" }),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [unique().on(t.placeId, t.sourceId)],
+  (t) => [unique().on(t.placeId, t.sourceId), index().on(t.sourceId)],
 );

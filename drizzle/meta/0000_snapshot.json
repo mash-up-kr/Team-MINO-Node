@@ -1,5 +1,5 @@
 {
-  "id": "cf861f17-4ac0-4707-b1f3-6b5300d3fdaa",
+  "id": "f6035934-3025-4da6-8c21-bfe6cac00c41",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -25,7 +25,7 @@
           "name": "created_by",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "content": {
           "name": "content",
@@ -48,7 +48,38 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "pin_comments_pin_id_index": {
+          "name": "pin_comments_pin_id_index",
+          "columns": [
+            {
+              "expression": "pin_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pin_comments_created_by_index": {
+          "name": "pin_comments_created_by_index",
+          "columns": [
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "pin_comments_pin_id_pins_id_fk": {
           "name": "pin_comments_pin_id_pins_id_fk",
@@ -65,7 +96,7 @@
           "tableTo": "users",
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -108,7 +139,7 @@
           "name": "created_by",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -125,7 +156,53 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "pins_place_id_index": {
+          "name": "pins_place_id_index",
+          "columns": [
+            {
+              "expression": "place_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pins_source_id_index": {
+          "name": "pins_source_id_index",
+          "columns": [
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pins_created_by_index": {
+          "name": "pins_created_by_index",
+          "columns": [
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "pins_room_id_rooms_id_fk": {
           "name": "pins_room_id_rooms_id_fk",
@@ -142,7 +219,7 @@
           "tableTo": "places",
           "columnsFrom": ["place_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
         "pins_source_id_sources_id_fk": {
@@ -160,7 +237,7 @@
           "tableTo": "users",
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -319,7 +396,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "room_members_user_id_index": {
+          "name": "room_members_user_id_index",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "room_members_room_id_rooms_id_fk": {
           "name": "room_members_room_id_rooms_id_fk",
@@ -414,7 +507,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "rooms_owner_id_index": {
+          "name": "rooms_owner_id_index",
+          "columns": [
+            {
+              "expression": "owner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "rooms_owner_id_users_id_fk": {
           "name": "rooms_owner_id_users_id_fk",
@@ -469,7 +578,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "place_sources_source_id_index": {
+          "name": "place_sources_source_id_index",
+          "columns": [
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "place_sources_place_id_places_id_fk": {
           "name": "place_sources_place_id_places_id_fk",

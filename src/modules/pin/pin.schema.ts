@@ -1,4 +1,4 @@
-import { pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { index, pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { places } from "../place/place.schema";
 import { rooms } from "../room/room.schema";
 import { sources } from "../source/source.schema";
@@ -23,6 +23,11 @@ export const pins = pgTable(
     // 그룹방 내에서 누군가 마지막으로 본 시점 (사용자별 아님)
     lastAccessedAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
   },
-  // 같은 방에 같은 장소 중복 핀 방지
-  (t) => [unique().on(t.roomId, t.placeId)],
+  (t) => [
+    // 같은 방에 같은 장소 중복 핀 방지
+    unique().on(t.roomId, t.placeId),
+    index().on(t.placeId),
+    index().on(t.sourceId),
+    index().on(t.createdBy),
+  ],
 );

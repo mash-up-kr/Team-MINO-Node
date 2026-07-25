@@ -1,4 +1,4 @@
-import { pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { index, pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { users } from "../user/user.schema";
 import { rooms } from "./room.schema";
 
@@ -14,5 +14,5 @@ export const roomMembers = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     joinedAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [unique().on(t.roomId, t.userId)],
+  (t) => [unique().on(t.roomId, t.userId), index().on(t.userId)],
 );
