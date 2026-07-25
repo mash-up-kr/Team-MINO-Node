@@ -65,7 +65,7 @@ export class PlaceJobService {
       const reusable =
         await this.placeJobRepository.findReusableByShortcode(shortcode);
       if (reusable) {
-        await this.rescueIfStalePending(reusable);
+        await this.rescueIfStale(reusable);
         return { jobId: reusable.id };
       }
 
@@ -90,25 +90,39 @@ export class PlaceJobService {
   /**
    * INSERT 직후·enqueue 직전에 프로세스가 죽으면 태스크 없는 pending job이 남고,
    * dedup 때문에 해당 게시글이 영구 차단된다. 오래 조용한 pending을 재사용할 때
-   * 태스크를 다시 넣어 스스로 복구한다. 중복 enqueue가 생겨도 워커 claim이
-   * 한 배달만 실행하므로 안전하다. 실패해도 기존 jobId 반환은 막지 않는다(best-effort).
+   * 태스크를 다시 넣어 스스로 복구한다. lease가 만료됐지만 원래 task가 사라진
+   * processing job도 같은 방식으로 복구한다. DB에서 재enqueue 권한을 선점해 동시
+   * 재요청 중 한 요청만 task를 만들며, 실패해도 기존 jobId 반환은 막지 않는다.
    */
-  private async rescueIfStalePending(reusable: {
+  private async rescueIfStale(reusable: {
     id: string;
     status: string;
     updatedAt: Date;
+    processingLeaseExpiresAt: Date | null;
   }): Promise<void> {
+    const now = new Date();
+    const stalePendingBefore = new Date(now.getTime() - STALE_PENDING_MS);
     const isStalePending =
-      reusable.status === "pending" &&
-      Date.now() - reusable.updatedAt.getTime() > STALE_PENDING_MS;
-    if (!isStalePending) return;
+      reusable.status === "pending" && reusable.updatedAt < stalePendingBefore;
+    const isExpiredProcessing =
+      reusable.status === "processing" &&
+      reusable.processingLeaseExpiresAt !== null &&
+      reusable.processingLeaseExpiresAt < now;
+    if (!isStalePending && !isExpiredProcessing) return;
+
+    const reserved = await this.placeJobRepository.tryReserveStaleRescue(
+      reusable.id,
+      stalePendingBefore,
+      now,
+    );
+    if (!reserved) return;
 
     try {
       await this.tasksService.enqueuePlaceExtraction(reusable.id);
     } catch (error) {
       this.logger.warn(
         { err: error, jobId: reusable.id },
-        "잃어버린 pending job 재enqueue 실패",
+        "멈춘 job 재enqueue 실패",
       );
     }
   }
@@ -144,8 +158,8 @@ export class PlaceJobService {
   /**
    * Cloud Tasks 워커 진입점. 상태머신:
    *  - claim: pending 또는 lease가 만료된 processing 행만 선점하고 10분 lease를 건다.
-   *    claim에 성공한 배달만 추출을 실행한다. 동시 배달·미만료 lease·terminal 상태는
-   *    실행 없이 현재 상태를 돌려준다(존재하지 않으면 404).
+   *    claim에 성공한 배달만 추출을 실행한다. terminal 상태는 현재 상태를 돌려주고,
+   *    다른 배달이 처리 중이면 non-2xx를 반환해 Cloud Tasks가 task를 삭제하지 않게 한다.
    *  - 성공: succeeded로 전이하고 lease와 이전 진단을 비운다.
    *  - 재시도 대상(5xx/예상 밖): lease를 비우고 pending으로 되돌린 뒤 AppException을 던진다.
    *  - 영구 실패(4xx): lease를 비우고 terminal failed로 남긴 뒤 정상 반환한다.
@@ -158,8 +172,6 @@ export class PlaceJobService {
     jobId: string,
     taskRetryCount = 0,
   ): Promise<PlaceJobResponse> {
-    // 설정을 읽지 못하면 claim 전에 실패시켜 job을 processing에 가두지 않고 재배달을 기다린다.
-    const maxAttempts = await this.tasksService.getMaxAttempts();
     const now = new Date();
     const leaseExpiresAt = new Date(now.getTime() + PROCESSING_LEASE_MS);
 
@@ -171,6 +183,14 @@ export class PlaceJobService {
 
     if (!claimed) {
       const job = await this.findJobOrThrow(jobId);
+      if (job.status === "pending" || job.status === "processing") {
+        throw new AppException(
+          "PLACE_JOB_BUSY",
+          "다른 워커가 작업을 처리하고 있습니다.",
+          HttpStatus.CONFLICT,
+          { retryable: true },
+        );
+      }
       return toPlaceJobResponse(job);
     }
 
@@ -182,13 +202,42 @@ export class PlaceJobService {
       const failure = this.toFailure(error);
       const diagnostic = sanitizeDiagnostic(failure.message);
 
+      let maxAttempts: number | undefined;
+      if (failure.retryable) {
+        try {
+          maxAttempts = await this.tasksService.getMaxAttempts();
+        } catch (configError) {
+          const updated = await this.placeJobRepository.markRetryable(
+            jobId,
+            claimed.processingLeaseExpiresAt,
+            "CLOUD_TASKS_CONFIG_UNAVAILABLE",
+            sanitizeDiagnostic(
+              configError instanceof Error
+                ? configError.message
+                : String(configError),
+            ),
+          );
+          if (!updated) {
+            return toPlaceJobResponse(await this.findJobOrThrow(jobId));
+          }
+
+          throw new AppException(
+            "CLOUD_TASKS_CONFIG_UNAVAILABLE",
+            "재시도 설정을 확인하지 못했습니다.",
+            HttpStatus.SERVICE_UNAVAILABLE,
+            { retryable: true },
+          );
+        }
+      }
+
       /*
        * 유실 복구로 새 task를 만들면 taskRetryCount는 0으로 초기화된다.
        * 최대 횟수는 Cloud Tasks 설정을 따르되, task가 바뀌어도 유지되는
        * job 누적 claim 횟수를 함께 확인해 전체 실행 횟수를 제한한다.
        */
       const isLastAttempt =
-        taskRetryCount + 1 >= maxAttempts || claimed.attempts >= maxAttempts;
+        maxAttempts !== undefined &&
+        (taskRetryCount + 1 >= maxAttempts || claimed.attempts >= maxAttempts);
       if (failure.retryable && !isLastAttempt) {
         const updated = await this.placeJobRepository.markRetryable(
           jobId,

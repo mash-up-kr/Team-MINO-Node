@@ -53,16 +53,21 @@ export class PlaceJobRepository {
     }
   }
 
-  async findReusableByShortcode(
-    shortcode: string,
-  ): Promise<
-    { id: string; status: PlaceJob["status"]; updatedAt: Date } | undefined
+  async findReusableByShortcode(shortcode: string): Promise<
+    | {
+        id: string;
+        status: PlaceJob["status"];
+        updatedAt: Date;
+        processingLeaseExpiresAt: Date | null;
+      }
+    | undefined
   > {
     const [job] = await this.db
       .select({
         id: placeJobs.id,
         status: placeJobs.status,
         updatedAt: placeJobs.updatedAt,
+        processingLeaseExpiresAt: placeJobs.processingLeaseExpiresAt,
       })
       .from(placeJobs)
       .where(
@@ -73,6 +78,41 @@ export class PlaceJobRepository {
       )
       .limit(1);
     return job;
+  }
+
+  /**
+   * 오래 멈춘 pending 또는 lease가 만료된 processing job의 재enqueue 권한을
+   * 조건부 상태 전이로 한 요청만 선점한다. 동시 재요청이 여러 task를 만들지 않게 한다.
+   */
+  async tryReserveStaleRescue(
+    jobId: string,
+    stalePendingBefore: Date,
+    now: Date,
+  ): Promise<boolean> {
+    const [reserved] = await this.db
+      .update(placeJobs)
+      .set({
+        status: "pending",
+        processingLeaseExpiresAt: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(placeJobs.id, jobId),
+          or(
+            and(
+              eq(placeJobs.status, "pending"),
+              lt(placeJobs.updatedAt, stalePendingBefore),
+            ),
+            and(
+              eq(placeJobs.status, "processing"),
+              lt(placeJobs.processingLeaseExpiresAt, now),
+            ),
+          ),
+        ),
+      )
+      .returning({ id: placeJobs.id });
+    return reserved !== undefined;
   }
 
   async findById(jobId: string): Promise<PlaceJob | undefined> {
@@ -187,20 +227,18 @@ export class PlaceJobRepository {
   /** 모든 상태 전이의 공통 형태: 지정 필드 반영 + lease 해제. 한곳만 고치면 되도록 모은다. */
   private async transition(
     jobId: string,
-    processingLeaseExpiresAt: Date | undefined,
+    processingLeaseExpiresAt: Date,
     set: Partial<PlaceJob> & { status: PlaceJob["status"] },
   ): Promise<PlaceJob | undefined> {
     const [updated] = await this.db
       .update(placeJobs)
       .set({ ...set, processingLeaseExpiresAt: null })
       .where(
-        processingLeaseExpiresAt
-          ? and(
-              eq(placeJobs.id, jobId),
-              eq(placeJobs.status, "processing"),
-              eq(placeJobs.processingLeaseExpiresAt, processingLeaseExpiresAt),
-            )
-          : eq(placeJobs.id, jobId),
+        and(
+          eq(placeJobs.id, jobId),
+          eq(placeJobs.status, "processing"),
+          eq(placeJobs.processingLeaseExpiresAt, processingLeaseExpiresAt),
+        ),
       )
       .returning();
     return updated;

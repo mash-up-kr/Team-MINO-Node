@@ -28,7 +28,12 @@ function makeJob(overrides: Partial<PlaceJob> = {}): PlaceJob {
   };
 }
 
-type Reusable = { id: string; status: PlaceJob["status"]; updatedAt: Date };
+type Reusable = {
+  id: string;
+  status: PlaceJob["status"];
+  updatedAt: Date;
+  processingLeaseExpiresAt: Date | null;
+};
 
 function makeHarness(maxAttempts = 10) {
   const repository = {
@@ -40,6 +45,7 @@ function makeHarness(maxAttempts = 10) {
     findReusableByShortcode: mock(
       async (): Promise<Reusable | undefined> => undefined,
     ),
+    tryReserveStaleRescue: mock(async (): Promise<boolean> => true),
     findById: mock(async (): Promise<PlaceJob | undefined> => makeJob()),
     claimForProcessing: mock(
       async (): Promise<PlaceJob | undefined> =>
@@ -107,6 +113,7 @@ describe("PlaceJobService.createJob", () => {
       id: existingId,
       status: "succeeded",
       updatedAt: new Date(),
+      processingLeaseExpiresAt: null,
     });
 
     const result = await harness.service.createJob(URL);
@@ -122,6 +129,7 @@ describe("PlaceJobService.createJob", () => {
       id: staleId,
       status: "pending",
       updatedAt: new Date(Date.now() - 11 * 60 * 1000),
+      processingLeaseExpiresAt: null,
     });
 
     const result = await harness.service.createJob(URL);
@@ -130,6 +138,7 @@ describe("PlaceJobService.createJob", () => {
     expect(harness.tasksService.enqueuePlaceExtraction).toHaveBeenCalledWith(
       staleId,
     );
+    expect(harness.repository.tryReserveStaleRescue).toHaveBeenCalledTimes(1);
   });
 
   it("방금 만들어진 pending job 재사용은 재enqueue하지 않는다", async () => {
@@ -137,7 +146,39 @@ describe("PlaceJobService.createJob", () => {
       id: JOB_ID,
       status: "pending",
       updatedAt: new Date(),
+      processingLeaseExpiresAt: null,
     });
+
+    await harness.service.createJob(URL);
+
+    expect(harness.tasksService.enqueuePlaceExtraction).not.toHaveBeenCalled();
+    expect(harness.repository.tryReserveStaleRescue).not.toHaveBeenCalled();
+  });
+
+  it("lease가 만료된 processing job은 task를 다시 enqueue한다", async () => {
+    harness.repository.findReusableByShortcode.mockResolvedValue({
+      id: JOB_ID,
+      status: "processing",
+      updatedAt: new Date(),
+      processingLeaseExpiresAt: new Date(Date.now() - 60 * 1000),
+    });
+
+    await harness.service.createJob(URL);
+
+    expect(harness.repository.tryReserveStaleRescue).toHaveBeenCalledTimes(1);
+    expect(harness.tasksService.enqueuePlaceExtraction).toHaveBeenCalledWith(
+      JOB_ID,
+    );
+  });
+
+  it("다른 요청이 stale rescue를 먼저 선점하면 중복 enqueue하지 않는다", async () => {
+    harness.repository.findReusableByShortcode.mockResolvedValue({
+      id: JOB_ID,
+      status: "pending",
+      updatedAt: new Date(Date.now() - 11 * 60 * 1000),
+      processingLeaseExpiresAt: null,
+    });
+    harness.repository.tryReserveStaleRescue.mockResolvedValue(false);
 
     await harness.service.createJob(URL);
 
@@ -149,6 +190,7 @@ describe("PlaceJobService.createJob", () => {
       id: JOB_ID,
       status: "pending",
       updatedAt: new Date(Date.now() - 11 * 60 * 1000),
+      processingLeaseExpiresAt: null,
     });
     harness.tasksService.enqueuePlaceExtraction.mockRejectedValue(
       new Error("queue unavailable"),
@@ -167,6 +209,7 @@ describe("PlaceJobService.createJob", () => {
         id: racedId,
         status: "pending",
         updatedAt: new Date(),
+        processingLeaseExpiresAt: null,
       });
     harness.repository.tryInsert.mockResolvedValueOnce(null);
 
@@ -212,6 +255,22 @@ describe("PlaceJobService.getJob", () => {
     expect(response.status).toBe("pending");
   });
 
+  it("DB의 내부 진단 메시지를 공개 응답에 그대로 노출하지 않는다", async () => {
+    const harness = makeHarness();
+    harness.repository.findById.mockResolvedValue(
+      makeJob({
+        status: "failed",
+        errorCode: "WORKER_UNEXPECTED_ERROR",
+        errorMessage: "provider secret-token internal-url",
+      }),
+    );
+
+    const response = await harness.service.getJob(JOB_ID);
+
+    expect(response.errorMessage).toBe("장소 추출 작업에 실패했습니다.");
+    expect(response.errorMessage).not.toContain("secret-token");
+  });
+
   it("없는 job이면 404를 던진다", async () => {
     const harness = makeHarness();
     harness.repository.findById.mockResolvedValue(undefined);
@@ -244,18 +303,26 @@ describe("PlaceJobService.processJob", () => {
       expect.any(Date),
       candidates,
     );
+    expect(harness.tasksService.getMaxAttempts).not.toHaveBeenCalled();
   });
 
-  it("큐 설정 조회가 실패하면 claim하지 않고 재배달을 기다린다", async () => {
+  it("재시도 실패 뒤 큐 설정 조회가 실패하면 pending으로 복귀하고 재배달을 기다린다", async () => {
+    harness.placeService.extractFromUrl.mockRejectedValue(
+      new AppException("SCRAPE_FAILED", "인스타그램 응답 오류", 502),
+    );
     harness.tasksService.getMaxAttempts.mockRejectedValue(
       new Error("queue unavailable"),
     );
 
-    await expect(harness.service.processJob(JOB_ID)).rejects.toThrow(
+    await expect(harness.service.processJob(JOB_ID)).rejects.toMatchObject({
+      errorCode: "CLOUD_TASKS_CONFIG_UNAVAILABLE",
+    });
+    expect(harness.repository.markRetryable).toHaveBeenCalledWith(
+      JOB_ID,
+      expect.any(Date),
+      "CLOUD_TASKS_CONFIG_UNAVAILABLE",
       "queue unavailable",
     );
-    expect(harness.repository.claimForProcessing).not.toHaveBeenCalled();
-    expect(harness.placeService.extractFromUrl).not.toHaveBeenCalled();
   });
 
   it("성공 상태 전이가 0건이면 현재 job을 반환한다", async () => {
@@ -269,7 +336,7 @@ describe("PlaceJobService.processJob", () => {
     });
   });
 
-  it("claim 실패(terminal/미만료 lease)면 추출 없이 현재 상태를 돌려준다", async () => {
+  it("claim 실패 후 terminal이면 추출 없이 현재 상태를 돌려준다", async () => {
     harness.repository.claimForProcessing.mockResolvedValue(undefined);
     harness.repository.findById.mockResolvedValue(
       makeJob({ status: "succeeded" }),
@@ -279,6 +346,24 @@ describe("PlaceJobService.processJob", () => {
 
     expect(response.status).toBe("succeeded");
     expect(harness.placeService.extractFromUrl).not.toHaveBeenCalled();
+    expect(harness.tasksService.getMaxAttempts).not.toHaveBeenCalled();
+  });
+
+  it("미만료 processing lease와 충돌하면 non-2xx 재시도 신호를 보낸다", async () => {
+    harness.repository.claimForProcessing.mockResolvedValue(undefined);
+    harness.repository.findById.mockResolvedValue(
+      makeJob({
+        status: "processing",
+        processingLeaseExpiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      }),
+    );
+
+    await expect(harness.service.processJob(JOB_ID)).rejects.toMatchObject({
+      errorCode: "PLACE_JOB_BUSY",
+      status: HttpStatus.CONFLICT,
+    });
+    expect(harness.placeService.extractFromUrl).not.toHaveBeenCalled();
+    expect(harness.tasksService.getMaxAttempts).not.toHaveBeenCalled();
   });
 
   it("claim 실패 + 존재하지 않는 job이면 404를 던진다", async () => {
@@ -437,5 +522,6 @@ describe("PlaceJobService.processJob", () => {
       "INVALID_INSTAGRAM_URL",
       "지원하지 않는 인스타그램 URL 입니다.",
     );
+    expect(harness.tasksService.getMaxAttempts).not.toHaveBeenCalled();
   });
 });

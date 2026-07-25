@@ -105,18 +105,21 @@ describe("PlaceJobService.processJob 상태머신 (real PostgreSQL)", () => {
       return [candidate()];
     });
 
-    const results = await Promise.all([
+    const results = await Promise.allSettled([
       service.processJob(id),
       service.processJob(id),
     ]);
 
     expect(calls()).toBe(1);
-    const statuses = results.map((r) => r.status).sort();
-    // 하나는 succeeded, 다른 하나는 claim 실패로 현재 상태(processing)를 반환.
-    expect(statuses).toContain("succeeded");
+    expect(
+      results.some(
+        (result) =>
+          result.status === "fulfilled" && result.value.status === "succeeded",
+      ),
+    ).toBe(true);
   });
 
-  it("만료되지 않은 processing lease는 다른 배달이 가로챌 수 없다(no-op)", async () => {
+  it("만료되지 않은 processing lease는 가로채지 않고 재시도 신호를 보낸다", async () => {
     const future = new Date(Date.now() + 5 * 60 * 1000);
     const id = await insertJob({
       shortcode: "Worker02",
@@ -125,10 +128,10 @@ describe("PlaceJobService.processJob 상태머신 (real PostgreSQL)", () => {
     });
     const { service, calls } = makeService(async () => [candidate()]);
 
-    const result = await service.processJob(id);
-
     expect(calls()).toBe(0);
-    expect(result.status).toBe("processing");
+    await expect(service.processJob(id)).rejects.toMatchObject({
+      errorCode: "PLACE_JOB_BUSY",
+    });
   });
 
   it("만료된 processing lease는 다시 claim되어 처리된다", async () => {

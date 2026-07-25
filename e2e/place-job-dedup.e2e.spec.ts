@@ -125,6 +125,43 @@ describe("place_jobs dedup (real PostgreSQL)", () => {
     expect(await countRows("Stale00001")).toBe(1);
   });
 
+  it("오래 방치된 pending job에 동시 재요청이 와도 재enqueue는 1회뿐이다", async () => {
+    const service = makeService();
+    const url = urlFor("StaleRace01");
+    const first = await service.createJob(url);
+    await databaseService.db.execute(
+      sql`update ${placeJobs} set updated_at = now() - interval '11 minutes' where id = ${first.jobId}`,
+    );
+    enqueued = [];
+
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () => service.createJob(url)),
+    );
+
+    expect(new Set(results.map((result) => result.jobId))).toEqual(
+      new Set([first.jobId]),
+    );
+    expect(enqueued).toEqual([first.jobId]);
+  });
+
+  it("lease가 만료된 processing job은 pending으로 복구해 재enqueue한다", async () => {
+    const service = makeService();
+    const url = urlFor("ExpiredLease01");
+    const first = await service.createJob(url);
+    await databaseService.db.execute(
+      sql`update ${placeJobs}
+          set status = 'processing',
+              processing_lease_expires_at = now() - interval '1 minute'
+          where id = ${first.jobId}`,
+    );
+    enqueued = [];
+
+    const reused = await service.createJob(url);
+
+    expect(reused.jobId).toBe(first.jobId);
+    expect(enqueued).toEqual([first.jobId]);
+  });
+
   it("이전 job이 failed면 재요청은 새 job을 만든다", async () => {
     const service = makeService();
     const url = urlFor("Failed0001");
