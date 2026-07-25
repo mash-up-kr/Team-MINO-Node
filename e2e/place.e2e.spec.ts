@@ -6,11 +6,13 @@ import { Test } from "@nestjs/testing";
 import { BunHonoAdapter } from "../src/adapters/bun-hono.adapter";
 import { HttpExceptionFilter } from "../src/common/filters/http-exception.filter";
 import { ResponseInterceptor } from "../src/common/interceptors/response.interceptor";
+import { AiService } from "../src/infrastructures/ai/ai.service";
+import { GeocoderService } from "../src/infrastructures/geocoder/geocoder.service";
 import { ScraperService } from "../src/infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../src/infrastructures/scraper/scraper.type";
 import { PlaceModule } from "../src/modules/place/place.module";
 
-// 스크래퍼는 가짜로 대체(네트워크 차단). 이후 단계(AI)가 아직 stub이라 500이 나는 흐름을 검증.
+// 외부 제공자를 가짜로 대체해, 네트워크·인증 상태와 무관하게 API 계약을 검증한다.
 const FAKE_POST: ScrapedPost = {
   shortcode: "abc123",
   typename: "image",
@@ -32,6 +34,31 @@ beforeAll(async () => {
   })
     .overrideProvider(ScraperService)
     .useValue({ fetchPost: async () => FAKE_POST })
+    .overrideProvider(AiService)
+    .useValue({
+      extract: async () => ({
+        places: [
+          {
+            place_name: "테스트 카페",
+            area_name: "성수동",
+            area_type: "region",
+            relation: "게시물에 언급된 카페",
+          },
+        ],
+      }),
+    })
+    .overrideProvider(GeocoderService)
+    .useValue({
+      searchAll: async () => [
+        {
+          provider: "kakao",
+          providerPlaceId: "test-place-id",
+          placeName: "테스트 카페",
+          address: "서울 성동구 성수동",
+          coordinate: { lat: 37.544, lng: 127.056 },
+        },
+      ],
+    })
     .compile();
 
   const adapter = new BunHonoAdapter();
@@ -52,7 +79,7 @@ afterAll(async () => {
 });
 
 describe("POST /api/v1/place/places (e2e)", () => {
-  it("유효한 body는 미구현 AI stub으로 인해 500을 반환한다", async () => {
+  it("유효한 body는 추출한 장소를 반환한다", async () => {
     // given
     const requestBody = {
       method: "instagram_url",
@@ -67,9 +94,13 @@ describe("POST /api/v1/place/places (e2e)", () => {
     });
 
     // then
-    expect(res.status).toBe(500);
-    const body = (await res.json()) as { errorCode: string };
-    expect(body.errorCode).toBe("INTERNAL_SERVER_ERROR");
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      data: Array<{ placeName: string }>;
+    };
+    expect(body.data).toEqual([
+      expect.objectContaining({ placeName: "테스트 카페" }),
+    ]);
   });
 
   it("유효하지 않은 body는 400 VALIDATION_ERROR를 반환한다", async () => {

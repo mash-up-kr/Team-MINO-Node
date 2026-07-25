@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import * as v from "valibot";
 import { AppException } from "../../../common/exceptions/app.exception";
 import type { Env } from "../../../config/env.schema";
+import { extractInstagramShortcode } from "../instagram.util";
 import type { ScrapedAddress, ScrapedPost } from "../scraper.type";
 import { IgResponseSchema, type IgShortcodeMedia } from "./instagram.type";
 
@@ -11,9 +12,6 @@ const X_ASBD_ID = "129477";
 
 // 인스타 응답 지연 시 무한 대기를 막기 위한 요청 타임아웃.
 const REQUEST_TIMEOUT_MS = 10_000;
-
-// 인스타 경로(/p, /reel, /reels, /tv)에서 shortcode 추출. (호스트 검증은 별도)
-const SHORTCODE_PATH_REGEX = /\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/;
 
 @Injectable()
 export class InstagramProvider {
@@ -39,39 +37,9 @@ export class InstagramProvider {
   }
 
   async fetchPost(url: string): Promise<ScrapedPost> {
-    const shortcode = this.extractShortcode(url);
+    const shortcode = extractInstagramShortcode(url);
     const media = await this.fetchShortcodeMedia(shortcode);
     return this.toScrapedPost(media);
-  }
-
-  private extractShortcode(url: string): string {
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      throw this.invalidUrl();
-    }
-
-    // 호스트가 instagram.com (또는 서브도메인)인지 먼저 확인 — 문자열 포함 검사로 인한
-    // 타 도메인 우회(SSRF) 방지.
-    const host = parsed.hostname.toLowerCase();
-    if (host !== "instagram.com" && !host.endsWith(".instagram.com")) {
-      throw this.invalidUrl();
-    }
-
-    const match = parsed.pathname.match(SHORTCODE_PATH_REGEX);
-    if (!match) {
-      throw this.invalidUrl();
-    }
-    return match[1];
-  }
-
-  private invalidUrl(): AppException {
-    return new AppException(
-      "INVALID_INSTAGRAM_URL",
-      "지원하지 않는 인스타그램 URL 입니다.",
-      HttpStatus.BAD_REQUEST,
-    );
   }
 
   private async fetchShortcodeMedia(
