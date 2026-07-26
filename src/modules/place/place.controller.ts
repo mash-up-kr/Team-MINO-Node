@@ -19,8 +19,7 @@ export class PlaceController {
   @Post("places")
   @ApiOperation({
     summary: "인스타그램 URL에서 장소를 추출한 후 지오코딩한다",
-    description:
-      "scrap → AI extraction → geocoding fan-out",
+    description: "scrap → AI extraction → geocoding fan-out",
   })
   @ApiBody({ schema: createPlaceRequestApiSchema })
   @ApiResponse({
@@ -35,7 +34,8 @@ export class PlaceController {
   })
   @ApiResponse({
     status: 502,
-    description: "외부 연동 실패 (SCRAPER_REQUEST_FAILED / GEOCODER_ALL_FAILED)",
+    description:
+      "외부 연동 실패 (SCRAPER_REQUEST_FAILED / GEOCODER_ALL_FAILED)",
     schema: errorResponseApiSchema,
   })
   async createPlace(
