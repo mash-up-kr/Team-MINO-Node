@@ -32,6 +32,7 @@ const developerRoles: Record<string, string> = {
   "run-developer": "roles/run.developer",
   "artifactregistry-writer": "roles/artifactregistry.writer",
   "logging-viewer": "roles/logging.viewer",
+  "cloudtasks-viewer": "roles/cloudtasks.viewer",
 };
 for (const [key, role] of Object.entries(developerRoles)) {
   new gcp.projects.IAMMember(`developer-${key}`, {
@@ -48,13 +49,16 @@ new gcp.serviceaccount.IAMMember(`${prefix}-developer-act-as-runtime`, {
 });
 
 // Developer membership is managed manually
-const developersGroup = "group:mash-up-16th-team-mino-node@googlegroups.com";
+export const developersGroup =
+  "group:mash-up-16th-team-mino-node@googlegroups.com";
 
 const developerGroupRoles: Record<string, string> = {
   ...developerRoles,
   viewer: "roles/viewer",
   // 앱 env 시크릿(local·prod)을 로컬 실행 시 개인 ADC로 읽을 수 있게.
   "secret-accessor": "roles/secretmanager.secretAccessor",
+  // Gemini(Vertex AI) 호출을 로컬 개인 ADC로 직접 테스트할 수 있게.
+  "vertex-user": "roles/aiplatform.user",
 };
 for (const [key, role] of Object.entries(developerGroupRoles)) {
   new gcp.projects.IAMMember(`developers-group-${key}`, {

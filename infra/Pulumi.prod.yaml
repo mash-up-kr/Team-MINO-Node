@@ -1,4 +1,5 @@
 config:
   gcp:project: team-mino-prod
   gcp:region: asia-northeast3
+  team-mino-infra:cloudTasksMaxAttempts: 10
 encryptionsalt: v1:XgJ4mQccRns=:v1:YDTwDIfp/Y2oU1QP:mxb7u3XbHbB3lUVLITBycUFyGgc2Ow==

@@ -18,3 +18,6 @@ if (!projectConfig || !regionConfig) {
 export const prefix = `team-mino-${stack}`;
 export const project = projectConfig;
 export const region = regionConfig;
+export const cloudTasksMaxAttempts = new pulumi.Config().requireNumber(
+  "cloudTasksMaxAttempts",
+);
