@@ -1,10 +1,11 @@
+import { isNull } from "drizzle-orm";
 import {
   jsonb,
   numeric,
   pgTable,
   text,
   timestamp,
-  unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -35,7 +36,14 @@ export const places = pgTable(
       .defaultNow()
       .notNull()
       .$onUpdate(() => new Date()),
+    // soft delete 시각. NULL이면 활성 레코드입니다.
+    deletedAt: timestamp({ withTimezone: true }),
   },
-  // 같은 provider 장소가 다시 유입될 때의 dedup 키
-  (t) => [unique().on(t.provider, t.providerPlaceId)],
+  (t) => [
+    // 같은 provider 장소가 다시 유입될 때의 dedup 키.
+    // 삭제된 행이 키를 점유해 재유입을 막지 않도록 살아있는 행끼리만 유니크합니다.
+    uniqueIndex("places_provider_provider_place_id_active_unique")
+      .on(t.provider, t.providerPlaceId)
+      .where(isNull(t.deletedAt)),
+  ],
 );

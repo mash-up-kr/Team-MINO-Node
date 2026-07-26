@@ -1,5 +1,5 @@
 {
-  "id": "f6035934-3025-4da6-8c21-bfe6cac00c41",
+  "id": "0be9111f-21b2-45bd-bb10-172813da8537",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -46,6 +46,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -87,7 +93,7 @@
           "tableTo": "pins",
           "columnsFrom": ["pin_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "pin_comments_created_by_users_id_fk": {
@@ -96,7 +102,7 @@
           "tableTo": "users",
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -154,9 +160,37 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
+        "pins_room_id_place_id_active_unique": {
+          "name": "pins_room_id_place_id_active_unique",
+          "columns": [
+            {
+              "expression": "room_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "place_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"pins\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "pins_place_id_index": {
           "name": "pins_place_id_index",
           "columns": [
@@ -210,7 +244,7 @@
           "tableTo": "rooms",
           "columnsFrom": ["room_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "pins_place_id_places_id_fk": {
@@ -219,7 +253,7 @@
           "tableTo": "places",
           "columnsFrom": ["place_id"],
           "columnsTo": ["id"],
-          "onDelete": "restrict",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "pins_source_id_sources_id_fk": {
@@ -237,18 +271,12 @@
           "tableTo": "users",
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "pins_roomId_placeId_unique": {
-          "name": "pins_roomId_placeId_unique",
-          "nullsNotDistinct": false,
-          "columns": ["room_id", "place_id"]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -349,18 +377,41 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "places_provider_provider_place_id_active_unique": {
+          "name": "places_provider_provider_place_id_active_unique",
+          "columns": [
+            {
+              "expression": "provider",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provider_place_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"places\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "places_provider_providerPlaceId_unique": {
-          "name": "places_provider_providerPlaceId_unique",
-          "nullsNotDistinct": false,
-          "columns": ["provider", "provider_place_id"]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -394,9 +445,37 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
+        "room_members_room_id_user_id_active_unique": {
+          "name": "room_members_room_id_user_id_active_unique",
+          "columns": [
+            {
+              "expression": "room_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"room_members\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "room_members_user_id_index": {
           "name": "room_members_user_id_index",
           "columns": [
@@ -420,7 +499,7 @@
           "tableTo": "rooms",
           "columnsFrom": ["room_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "room_members_user_id_users_id_fk": {
@@ -429,18 +508,12 @@
           "tableTo": "users",
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "room_members_roomId_userId_unique": {
-          "name": "room_members_roomId_userId_unique",
-          "nullsNotDistinct": false,
-          "columns": ["room_id", "user_id"]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -505,9 +578,31 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
+        "rooms_invite_code_active_unique": {
+          "name": "rooms_invite_code_active_unique",
+          "columns": [
+            {
+              "expression": "invite_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"rooms\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "rooms_owner_id_index": {
           "name": "rooms_owner_id_index",
           "columns": [
@@ -531,18 +626,12 @@
           "tableTo": "users",
           "columnsFrom": ["owner_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "rooms_inviteCode_unique": {
-          "name": "rooms_inviteCode_unique",
-          "nullsNotDistinct": false,
-          "columns": ["invite_code"]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -576,9 +665,37 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
+        "place_sources_place_id_source_id_active_unique": {
+          "name": "place_sources_place_id_source_id_active_unique",
+          "columns": [
+            {
+              "expression": "place_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"place_sources\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "place_sources_source_id_index": {
           "name": "place_sources_source_id_index",
           "columns": [
@@ -602,7 +719,7 @@
           "tableTo": "places",
           "columnsFrom": ["place_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "place_sources_source_id_sources_id_fk": {
@@ -611,18 +728,12 @@
           "tableTo": "sources",
           "columnsFrom": ["source_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "place_sources_placeId_sourceId_unique": {
-          "name": "place_sources_placeId_sourceId_unique",
-          "nullsNotDistinct": false,
-          "columns": ["place_id", "source_id"]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -662,18 +773,35 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "sources_original_url_active_unique": {
+          "name": "sources_original_url_active_unique",
+          "columns": [
+            {
+              "expression": "original_url",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"sources\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "sources_originalUrl_unique": {
-          "name": "sources_originalUrl_unique",
-          "nullsNotDistinct": false,
-          "columns": ["original_url"]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -720,18 +848,35 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "users_device_id_active_unique": {
+          "name": "users_device_id_active_unique",
+          "columns": [
+            {
+              "expression": "device_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"users\".\"deleted_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "users_deviceId_unique": {
-          "name": "users_deviceId_unique",
-          "nullsNotDistinct": false,
-          "columns": ["device_id"]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
