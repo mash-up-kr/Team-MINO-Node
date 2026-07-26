@@ -2,7 +2,8 @@ bin/
 dist/
 node_modules/
 .agents/
-.claude/
+.claude/*
+!.claude/settings.json
 skills-lock.json
 .env
 .env.*
