@@ -76,6 +76,14 @@ describe("PlaceService", () => {
       areaType: QUERY.area_type,
     });
     expect(result).toHaveLength(1);
+    expect(result[0].extracted).toEqual({
+      placeName: "어니언 성수",
+      areaName: "성수동",
+      areaType: "landmark",
+      relation: "카페 방문 후기",
+    });
+    expect(result[0].matches[0]?.placeName).toBe("어니언 성수");
+    expect(result[0].matches).toHaveLength(1);
   });
 
   it("여러 장소가 추출되면 각각 지오코딩한 뒤 결과를 합쳐 랭킹한다", async () => {
@@ -108,9 +116,44 @@ describe("PlaceService", () => {
     // then
     expect(geocoder.searchAll).toHaveBeenCalledTimes(2);
     expect(result).toHaveLength(2);
+    expect(result[0].extracted.placeName).toBe("어니언 성수");
+    expect(result[0].matches[0]?.placeName).toBe("어니언 성수");
+    expect(result[1].extracted.placeName).toBe("대림창고");
+    expect(result[1].matches[0]?.placeName).toBe("대림창고");
   });
 
-  it("일부 쿼리의 지오코딩이 실패해도 성공한 결과만 모아 반환한다", async () => {
+  it("장소 3개는 3개 그룹으로 나오고 각 그룹은 자기 후보만 담는다", async () => {
+    // given
+    const { service, instagram, ai, geocoder } = createService();
+    const places: PlaceQuery[] = ["A", "B", "C"].map((tag) => ({
+      place_name: tag,
+      area_name: "성수동",
+      area_type: "landmark",
+      relation: "코스",
+    }));
+    instagram.fetchPost.mockResolvedValue(makePost());
+    ai.extract.mockResolvedValue({ places });
+    for (const tag of ["A", "B", "C"]) {
+      geocoder.searchAll.mockResolvedValueOnce([
+        makeCandidate({ placeName: `${tag}-1` }),
+        makeCandidate({ placeName: `${tag}-2` }),
+      ]);
+    }
+
+    // when
+    const result = await service.extractFromUrl(URL);
+
+    // then
+    expect(result).toHaveLength(3);
+    for (const [index, tag] of ["A", "B", "C"].entries()) {
+      expect(result[index].extracted.placeName).toBe(tag);
+      expect(
+        result[index].matches.every((c) => c.placeName.startsWith(tag)),
+      ).toBe(true);
+    }
+  });
+
+  it("일부 쿼리의 지오코딩이 실패해도 나머지는 채우고 실패 장소는 빈 후보로 반환한다", async () => {
     // given
     const { service, instagram, ai, geocoder } = createService();
     instagram.fetchPost.mockResolvedValue(makePost());
@@ -134,7 +177,12 @@ describe("PlaceService", () => {
 
     // then
     expect(geocoder.searchAll).toHaveBeenCalledTimes(2);
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(2);
+    expect(result[0].matches[0]?.placeName).toBe("어니언 성수");
+    expect(result[0].matches).toHaveLength(1);
+    expect(result[1].extracted.placeName).toBe("실패 장소");
+    expect(result[1].matches[0]).toBeUndefined();
+    expect(result[1].matches).toHaveLength(0);
   });
 
   it("모든 쿼리의 지오코딩이 실패하면 GEOCODER_ALL_FAILED(502)를 던진다", async () => {
@@ -190,7 +238,7 @@ describe("PlaceService", () => {
     expect(images).toHaveLength(1);
   });
 
-  it("지오코딩 결과가 없으면 GEOCODER_NO_RESULTS(404)를 던진다", async () => {
+  it("지오코딩 결과가 없으면 해당 장소를 빈 후보로 반환한다(에러 아님)", async () => {
     // given
     const { service, instagram, ai, geocoder } = createService();
     instagram.fetchPost.mockResolvedValue(makePost());
@@ -198,13 +246,32 @@ describe("PlaceService", () => {
     geocoder.searchAll.mockResolvedValue([]);
 
     // when
-    const promise = service.extractFromUrl(URL);
+    const result = await service.extractFromUrl(URL);
 
     // then
-    await expect(promise).rejects.toBeInstanceOf(AppException);
-    await expect(promise).rejects.toMatchObject({
-      errorCode: "GEOCODER_NO_RESULTS",
+    expect(result).toHaveLength(1);
+    expect(result[0].extracted).toEqual({
+      placeName: "어니언 성수",
+      areaName: "성수동",
+      areaType: "landmark",
+      relation: "카페 방문 후기",
     });
+    expect(result[0].matches[0]).toBeUndefined();
+    expect(result[0].matches).toHaveLength(0);
+  });
+
+  it("추출된 장소가 없으면 빈 배열을 반환하고 지오코딩을 호출하지 않는다", async () => {
+    // given
+    const { service, instagram, ai, geocoder } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    ai.extract.mockResolvedValue({ places: [] });
+
+    // when
+    const result = await service.extractFromUrl(URL);
+
+    // then
+    expect(result).toEqual([]);
+    expect(geocoder.searchAll).not.toHaveBeenCalled();
   });
 
   it("인프라 서비스의 에러를 그대로 전파한다", async () => {
@@ -242,7 +309,8 @@ describe("PlaceService", () => {
     const result = await service.extractFromUrl(URL);
 
     // then
-    expect(result[0].placeName).toBe("정보 많은 곳");
+    expect(result[0].matches[0]?.placeName).toBe("정보 많은 곳");
+    expect(result[0].matches[0].placeName).toBe("정보 많은 곳");
   });
 
   it("정보 완전도가 같으면 더 가까운 후보를 먼저 정렬한다", async () => {
@@ -267,7 +335,7 @@ describe("PlaceService", () => {
     const result = await service.extractFromUrl(URL);
 
     // then
-    expect(result[0].placeName).toBe("가까운 후보");
+    expect(result[0].matches[0]?.placeName).toBe("가까운 후보");
   });
 
   it("PlaceModule이 PlaceService와 PlaceController를 해석한다", async () => {
