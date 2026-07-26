@@ -28,7 +28,7 @@ export const rooms = pgTable(
     description: text(),
     // 팔레트 5색 중 하나의 hex 값 (예: "#FF6B6B")
     color: varchar({ length: 7 }).notNull(),
-    // 초대 링크(ssokpin.app/r/{code})의 code 부분
+    // 초대 링크(ssokpin.org/r/{code})의 code 부분
     inviteCode: varchar({ length: 16 }).notNull(),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp({ withTimezone: true })
