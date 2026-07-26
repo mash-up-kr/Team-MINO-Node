@@ -44,8 +44,12 @@ Object.assign(process.env, {
 });
 
 beforeAll(async () => {
-  await pg.initialise();
-  await probe.stop(true);
+  try {
+    await pg.initialise();
+  } finally {
+    await probe.stop(true);
+  }
+
   await pg.start();
   await pg.createDatabase("team_mino");
 
