@@ -7,7 +7,7 @@ import type { Env } from "../../config/env.schema";
  * 워커 processing lease(10분)보다 1분 짧은 디스패치 데드라인. 재배달이 lease 만료와
  * 동시에 도착해 기존 워커와 새 워커가 같은 job을 함께 claim하는 경계 경쟁을 피한다.
  */
-const WORKER_DISPATCH_DEADLINE_SECONDS = 540;
+const WORKER_DISPATCH_DEADLINE_SECONDS = 9 * 60;
 const QUEUE_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()

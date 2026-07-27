@@ -3,6 +3,8 @@ import { prefix, project, region } from "@/config";
 import { enabledServices } from "@/resources/apis";
 import { serverServiceAccount } from "@/resources/identity";
 
+const CLOUD_RUN_REQUEST_TIMEOUT_SECONDS = 11 * 60;
+
 export const service = new gcp.cloudrunv2.Service(
   `${prefix}-api`,
   {
@@ -12,8 +14,8 @@ export const service = new gcp.cloudrunv2.Service(
     ingress: "INGRESS_TRAFFIC_ALL",
     template: {
       serviceAccount: serverServiceAccount.email,
-      // Cloud Tasks 600초 deadline보다 길게 유지해 Cloud Run이 먼저 504를 반환하지 않게 한다.
-      timeout: "660s",
+      // Cloud Tasks의 9분 deadline보다 길게 유지해 Cloud Run이 먼저 504를 반환하지 않게 한다.
+      timeout: `${CLOUD_RUN_REQUEST_TIMEOUT_SECONDS}s`,
       scaling: { minInstanceCount: 1, maxInstanceCount: 1 },
       containers: [
         {

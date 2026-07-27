@@ -162,6 +162,7 @@ export class PlaceJobService {
    *    다른 배달이 처리 중이면 non-2xx를 반환해 Cloud Tasks가 task를 삭제하지 않게 한다.
    *  - 성공: succeeded로 전이하고 lease와 이전 진단을 비운다.
    *  - 재시도 대상(5xx/예상 밖): lease를 비우고 pending으로 되돌린 뒤 AppException을 던진다.
+   *  - 큐 재시도 설정 조회 실패: 안전한 상한을 알 수 없으므로 failed로 종결한다.
    *  - 영구 실패(4xx): lease를 비우고 terminal failed로 남긴 뒤 정상 반환한다.
    *
    * 재시도 여부는 HTTP 응답 코드로 뒤집혀 있다: Cloud Tasks는 non-2xx면 재배달하고 2xx면
@@ -207,7 +208,12 @@ export class PlaceJobService {
         try {
           maxAttempts = await this.tasksService.getMaxAttempts();
         } catch (configError) {
-          const updated = await this.placeJobRepository.markRetryable(
+          /*
+           * 실제 큐 설정을 읽지 못한 상태에서 임의의 재시도 횟수를 적용하면 GCP 설정과
+           * 어긋날 수 있다. pending으로 되돌리면 stale rescue가 새 task를 만들며 횟수가
+           * 초기화될 수도 있으므로, 이 job은 failed로 종결하고 운영 복구 뒤 새 요청을 받는다.
+           */
+          const updated = await this.placeJobRepository.markFailed(
             jobId,
             claimed.processingLeaseExpiresAt,
             "CLOUD_TASKS_CONFIG_UNAVAILABLE",
@@ -217,15 +223,8 @@ export class PlaceJobService {
                 : String(configError),
             ),
           );
-          if (!updated) {
-            return toPlaceJobResponse(await this.findJobOrThrow(jobId));
-          }
-
-          throw new AppException(
-            "CLOUD_TASKS_CONFIG_UNAVAILABLE",
-            "재시도 설정을 확인하지 못했습니다.",
-            HttpStatus.SERVICE_UNAVAILABLE,
-            { retryable: true },
+          return toPlaceJobResponse(
+            await this.currentJobAfterClaimedTransition(jobId, updated),
           );
         }
       }

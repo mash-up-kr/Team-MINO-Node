@@ -306,23 +306,33 @@ describe("PlaceJobService.processJob", () => {
     expect(harness.tasksService.getMaxAttempts).not.toHaveBeenCalled();
   });
 
-  it("재시도 실패 뒤 큐 설정 조회가 실패하면 pending으로 복귀하고 재배달을 기다린다", async () => {
+  it("재시도 실패 뒤 큐 설정 조회가 실패하면 failed로 종결하고 재배달을 막는다", async () => {
     harness.placeService.extractFromUrl.mockRejectedValue(
       new AppException("SCRAPE_FAILED", "인스타그램 응답 오류", 502),
     );
     harness.tasksService.getMaxAttempts.mockRejectedValue(
       new Error("queue unavailable"),
     );
+    harness.repository.markFailed.mockResolvedValue(
+      makeJob({
+        status: "failed",
+        errorCode: "CLOUD_TASKS_CONFIG_UNAVAILABLE",
+        errorMessage: "queue unavailable",
+      }),
+    );
 
-    await expect(harness.service.processJob(JOB_ID)).rejects.toMatchObject({
+    await expect(harness.service.processJob(JOB_ID)).resolves.toMatchObject({
+      status: "failed",
       errorCode: "CLOUD_TASKS_CONFIG_UNAVAILABLE",
+      errorMessage: "장소 추출 작업에 실패했습니다.",
     });
-    expect(harness.repository.markRetryable).toHaveBeenCalledWith(
+    expect(harness.repository.markFailed).toHaveBeenCalledWith(
       JOB_ID,
       expect.any(Date),
       "CLOUD_TASKS_CONFIG_UNAVAILABLE",
       "queue unavailable",
     );
+    expect(harness.repository.markRetryable).not.toHaveBeenCalled();
   });
 
   it("성공 상태 전이가 0건이면 현재 job을 반환한다", async () => {

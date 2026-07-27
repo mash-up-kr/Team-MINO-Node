@@ -27,10 +27,6 @@ const configStub = {
 
 const databaseService = new DatabaseService(configStub);
 const placeJobRepository = new PlaceJobRepository(databaseService);
-const tasksService = {
-  getMaxAttempts: async () => 10,
-} as unknown as TasksService;
-
 function candidate(): PlaceMatch {
   return {
     extracted: {
@@ -51,8 +47,11 @@ function candidate(): PlaceMatch {
   };
 }
 
-// extractFromUrl 동작을 테스트마다 바꿔 끼우는 fake placeService.
-function makeService(extract: () => Promise<PlaceMatch[]>) {
+// extractFromUrl과 큐 설정 조회 동작을 테스트마다 바꿔 끼우는 fake.
+function makeService(
+  extract: () => Promise<PlaceMatch[]>,
+  getMaxAttempts: () => Promise<number> = async () => 10,
+) {
   let calls = 0;
   const placeService = {
     extractFromUrl: async () => {
@@ -60,6 +59,7 @@ function makeService(extract: () => Promise<PlaceMatch[]>) {
       return extract();
     },
   } as unknown as PlaceService;
+  const tasksService = { getMaxAttempts } as unknown as TasksService;
   const service = new PlaceJobService(
     placeJobRepository,
     tasksService,
@@ -259,6 +259,32 @@ describe("PlaceJobService.processJob 상태머신 (real PostgreSQL)", () => {
       errorCode: "WORKER_UNEXPECTED_ERROR",
     });
     expect((await readJob(id)).status).toBe("pending");
+  });
+
+  it("큐 재시도 설정을 읽지 못하면 failed로 종결해 새 task 재생성을 막는다", async () => {
+    const id = await insertJob({ shortcode: "WorkerQueueConfig" });
+    const { service } = makeService(
+      async () => {
+        throw new AppException(
+          "SCRAPER_REQUEST_FAILED",
+          "인스타 5xx 응답",
+          502,
+        );
+      },
+      async () => {
+        throw new Error("queue unavailable");
+      },
+    );
+
+    const result = await service.processJob(id);
+
+    expect(result.status).toBe("failed");
+    expect(result.errorCode).toBe("CLOUD_TASKS_CONFIG_UNAVAILABLE");
+    const row = await readJob(id);
+    expect(row.status).toBe("failed");
+    expect(row.errorCode).toBe("CLOUD_TASKS_CONFIG_UNAVAILABLE");
+    expect(row.errorMessage).toBe("queue unavailable");
+    expect(row.processingLeaseExpiresAt).toBeNull();
   });
 
   it("4xx는 terminal failed로 남기고 throw 없이 반환한다(재시도 안 함)", async () => {
