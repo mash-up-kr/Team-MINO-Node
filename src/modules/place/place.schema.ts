@@ -1,15 +1,17 @@
-import { sql } from "drizzle-orm";
+import { isNull, sql } from "drizzle-orm";
 import {
   check,
   integer,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
   uuid,
+  varchar,
 } from "drizzle-orm/pg-core";
-import type { PlaceCandidate } from "./place.type";
+import type { PlaceMatch } from "./place.type";
 
 /*
  * pgEnum 대신 text + CHECK을 쓴다. drizzle-kit이 enum 타입을 public 스키마에 고정 생성하는데,
@@ -45,7 +47,7 @@ export const placeJobs = pgTable(
      * 총 시도량을 기억해 절대 성공 못 할 job의 무한 재시도를 막는다(상한은 서비스에서 판정).
      */
     attempts: integer().notNull().default(0),
-    result: jsonb().$type<PlaceCandidate[]>(),
+    result: jsonb().$type<PlaceMatch[]>(),
     errorCode: text(),
     errorMessage: text(),
     /*
@@ -76,3 +78,41 @@ export const placeJobs = pgTable(
 
 export type PlaceJob = typeof placeJobs.$inferSelect;
 export type NewPlaceJob = typeof placeJobs.$inferInsert;
+
+export const PLACE_PROVIDERS = ["kakao", "google"] as const;
+export type PlaceProvider = (typeof PLACE_PROVIDERS)[number];
+
+export const places = pgTable(
+  "places",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    provider: varchar({ length: 16 }).$type<PlaceProvider>().notNull(),
+    providerPlaceId: varchar({ length: 128 }).notNull(),
+    name: varchar({ length: 255 }).notNull(),
+    address: text().notNull(),
+    // 예: 서울특별시 — 카카오 응답에 구조화된 지역 필드가 없어 추출 방식 확정 전까지 nullable
+    city: varchar({ length: 32 }),
+    // 예: 서초구
+    district: varchar({ length: 32 }),
+    lat: numeric({ mode: "number", precision: 10, scale: 7 }).notNull(),
+    lng: numeric({ mode: "number", precision: 10, scale: 7 }).notNull(),
+    category: varchar({ length: 64 }),
+    phone: varchar({ length: 32 }),
+    externalUrl: text(),
+    images: jsonb().$type<string[]>(),
+    createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp({ withTimezone: true })
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+    // soft delete 시각. NULL이면 활성 레코드입니다.
+    deletedAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [
+    // 같은 provider 장소가 다시 유입될 때의 dedup 키.
+    // 삭제된 행이 키를 점유해 재유입을 막지 않도록 살아있는 행끼리만 유니크합니다.
+    uniqueIndex("places_provider_provider_place_id_active_unique")
+      .on(t.provider, t.providerPlaceId)
+      .where(isNull(t.deletedAt)),
+  ],
+);

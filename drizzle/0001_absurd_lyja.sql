@@ -3,6 +3,7 @@ CREATE TABLE "place_jobs" (
 	"url" text NOT NULL,
 	"shortcode" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
 	"result" jsonb,
 	"error_code" text,
 	"error_message" text,

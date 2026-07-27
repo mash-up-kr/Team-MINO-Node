@@ -20,7 +20,7 @@ import { TasksService } from "../src/infrastructures/tasks/tasks.service";
 import { PlaceModule } from "../src/modules/place/place.module";
 import { placeJobs } from "../src/modules/place/place.schema";
 import { PlaceService } from "../src/modules/place/place.service";
-import type { PlaceCandidate } from "../src/modules/place/place.type";
+import type { PlaceMatch } from "../src/modules/place/place.type";
 
 /**
  * 비동기 장소 추출 job API의 HTTP 계약을 실제 Nest/Hono + PostgreSQL로 고정한다.
@@ -30,18 +30,28 @@ import type { PlaceCandidate } from "../src/modules/place/place.type";
  *   bun run test:e2e
  */
 
-function candidate(): PlaceCandidate {
+function candidate(): PlaceMatch {
   return {
-    provider: "kakao",
-    providerPlaceId: "kakao-onion-seongsu",
-    placeName: "어니언 성수",
-    address: "서울 성동구 아차산로 8",
-    coordinate: { lat: 37.5445, lng: 127.0559 },
+    extracted: {
+      placeName: "어니언 성수",
+      areaName: "성수동",
+      areaType: "region",
+      relation: "게시글에 소개된 장소",
+    },
+    matches: [
+      {
+        provider: "kakao",
+        providerPlaceId: "kakao-onion-seongsu",
+        placeName: "어니언 성수",
+        address: "서울 성동구 아차산로 8",
+        coordinate: { lat: 37.5445, lng: 127.0559 },
+      },
+    ],
   };
 }
 
 // 테스트마다 갈아끼우는 추출/enqueue 동작.
-const extraction: { fn: (url: string) => Promise<PlaceCandidate[]> } = {
+const extraction: { fn: (url: string) => Promise<PlaceMatch[]> } = {
   fn: async () => [candidate()],
 };
 const enqueue: { fail: boolean; calls: string[] } = { fail: false, calls: [] };
@@ -178,7 +188,7 @@ describe("비동기 장소 추출 job API (e2e)", () => {
     // 새 enqueue 없음: 최초 생성 1회가 전부.
     expect(enqueue.calls).toEqual([jobId]);
     const body = (await getJob(jobId).then((r) => r.json())) as {
-      data: { status: string; result: PlaceCandidate[] };
+      data: { status: string; result: PlaceMatch[] };
     };
     expect(body.data.status).toBe("succeeded");
     expect(body.data.result).toEqual([candidate()]);
@@ -236,7 +246,7 @@ describe("비동기 장소 추출 job API (e2e)", () => {
 
     const res = await getJob(jobId);
     const body = (await res.json()) as {
-      data: { status: string; result: PlaceCandidate[] };
+      data: { status: string; result: PlaceMatch[] };
     };
     expect(body.data.status).toBe("succeeded");
     expect(body.data.result).toEqual([candidate()]);

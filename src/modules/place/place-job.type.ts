@@ -1,10 +1,10 @@
 import type { PlaceJob, PlaceJobStatus } from "./place.schema";
-import type { PlaceCandidate } from "./place.type";
+import type { PlaceMatch } from "./place.type";
 
 export interface PlaceJobResponse {
   jobId: string;
   status: PlaceJobStatus;
-  result: PlaceCandidate[] | null;
+  result: PlaceMatch[] | null;
   errorCode: string | null;
   errorMessage: string | null;
   createdAt: Date;

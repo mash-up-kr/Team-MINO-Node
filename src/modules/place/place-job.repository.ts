@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { DatabaseService } from "../../infrastructures/db/database.service";
 import { type PlaceJob, placeJobs } from "./place.schema";
-import type { PlaceCandidate } from "./place.type";
+import type { PlaceMatch } from "./place.type";
 
 /*
  * 재사용 가능(pending/processing/succeeded) job의 shortcode 유일성을 강제하는
@@ -161,7 +161,7 @@ export class PlaceJobRepository {
   markSucceeded(
     jobId: string,
     processingLeaseExpiresAt: Date,
-    result: PlaceCandidate[],
+    result: PlaceMatch[],
   ): Promise<PlaceJob | undefined> {
     return this.transition(jobId, processingLeaseExpiresAt, {
       status: "succeeded",

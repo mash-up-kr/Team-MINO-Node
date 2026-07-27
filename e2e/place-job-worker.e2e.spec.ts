@@ -9,7 +9,7 @@ import { DatabaseService } from "../src/infrastructures/db/database.service";
 import type { TasksService } from "../src/infrastructures/tasks/tasks.service";
 import { placeJobs } from "../src/modules/place/place.schema";
 import type { PlaceService } from "../src/modules/place/place.service";
-import type { PlaceCandidate } from "../src/modules/place/place.type";
+import type { PlaceMatch } from "../src/modules/place/place.type";
 import { PlaceJobRepository } from "../src/modules/place/place-job.repository";
 import { PlaceJobService } from "../src/modules/place/place-job.service";
 
@@ -31,18 +31,28 @@ const tasksService = {
   getMaxAttempts: async () => 10,
 } as unknown as TasksService;
 
-function candidate(): PlaceCandidate {
+function candidate(): PlaceMatch {
   return {
-    provider: "kakao",
-    providerPlaceId: "kakao-onion-seongsu",
-    placeName: "어니언 성수",
-    address: "서울 성동구 아차산로 8",
-    coordinate: { lat: 37.5445, lng: 127.0559 },
+    extracted: {
+      placeName: "어니언 성수",
+      areaName: "성수동",
+      areaType: "region",
+      relation: "게시글에 소개된 장소",
+    },
+    matches: [
+      {
+        provider: "kakao",
+        providerPlaceId: "kakao-onion-seongsu",
+        placeName: "어니언 성수",
+        address: "서울 성동구 아차산로 8",
+        coordinate: { lat: 37.5445, lng: 127.0559 },
+      },
+    ],
   };
 }
 
 // extractFromUrl 동작을 테스트마다 바꿔 끼우는 fake placeService.
-function makeService(extract: () => Promise<PlaceCandidate[]>) {
+function makeService(extract: () => Promise<PlaceMatch[]>) {
   let calls = 0;
   const placeService = {
     extractFromUrl: async () => {
@@ -184,13 +194,16 @@ describe("PlaceJobService.processJob 상태머신 (real PostgreSQL)", () => {
       [
         {
           ...candidate(),
-          placeName: "두 번째 워커 결과",
+          extracted: {
+            ...candidate().extracted,
+            placeName: "두 번째 워커 결과",
+          },
         },
       ],
     );
 
     expect(secondResult?.status).toBe("succeeded");
-    expect((await readJob(id)).result?.[0]?.placeName).toBe(
+    expect((await readJob(id)).result?.[0]?.extracted.placeName).toBe(
       "두 번째 워커 결과",
     );
   });

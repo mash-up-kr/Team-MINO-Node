@@ -4,10 +4,10 @@ import { ConfigService } from "@nestjs/config";
 import type { Env } from "../../config/env.schema";
 
 /*
- * 워커 processing lease(place-job.service의 10분)와 동일하게 맞춘 디스패치 데드라인(초).
- * Cloud Tasks HTTP 태스크 기본 데드라인은 짧으므로, 추출이 오래 걸려도 lease와 어긋나지 않게 한다.
+ * 워커 processing lease(10분)보다 1분 짧은 디스패치 데드라인. 재배달이 lease 만료와
+ * 동시에 도착해 기존 워커와 새 워커가 같은 job을 함께 claim하는 경계 경쟁을 피한다.
  */
-const WORKER_DISPATCH_DEADLINE_SECONDS = 600;
+const WORKER_DISPATCH_DEADLINE_SECONDS = 540;
 const QUEUE_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
@@ -62,8 +62,8 @@ export class TasksService {
       parent: this.queueParent,
       task: {
         /*
-         * 워커의 processing lease(10분)와 맞춘 디스패치 데드라인. 이 시간 안에 2xx가 없으면
-         * Cloud Tasks가 재배달하며, 그때 만료된 lease를 다른 배달이 다시 claim할 수 있다.
+         * 이 시간 안에 2xx가 없으면 Cloud Tasks가 재배달한다. 재배달 시점에도 기존
+         * 10분 lease가 남아 있어 새 배달은 같은 job을 중복 claim하지 못한다.
          */
         dispatchDeadline: { seconds: WORKER_DISPATCH_DEADLINE_SECONDS },
         httpRequest: {

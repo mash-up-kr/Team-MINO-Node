@@ -4,7 +4,7 @@ import { extractInstagramShortcode } from "../../infrastructures/scraper/instagr
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
 import type { PlaceJob } from "./place.schema";
 import { PlaceService } from "./place.service";
-import type { PlaceCandidate } from "./place.type";
+import type { PlaceMatch } from "./place.type";
 import { PlaceJobRepository } from "./place-job.repository";
 import { type PlaceJobResponse, toPlaceJobResponse } from "./place-job.type";
 
@@ -22,8 +22,8 @@ interface Failure {
 const MAX_INSERT_ATTEMPTS = 3;
 
 /*
- * 워커가 job을 processing으로 선점할 때 거는 lease 유효기간(10분). Cloud Tasks 디스패치
- * 데드라인(tasks.service의 WORKER_DISPATCH_DEADLINE_SECONDS)과 맞춘다.
+ * 워커가 job을 processing으로 선점할 때 거는 lease 유효기간(10분). Cloud Tasks의
+ * 9분 디스패치 데드라인보다 길게 두어 재배달이 기존 워커와 중복 claim하지 못하게 한다.
  */
 const PROCESSING_LEASE_MS = 10 * 60 * 1000;
 
@@ -194,7 +194,7 @@ export class PlaceJobService {
       return toPlaceJobResponse(job);
     }
 
-    let result: PlaceCandidate[];
+    let result: PlaceMatch[];
 
     try {
       result = await this.placeService.extractFromUrl(claimed.url);

@@ -73,7 +73,7 @@ describe("TasksService.enqueuePlaceExtraction", () => {
     expect(captured?.parent).toBe(parent);
     // 이름 지정은 서버측 중복 조회 지연 + 이름 재사용 금지(tombstone)를 부르므로 자동 생성에 맡긴다.
     expect(captured?.task.name).toBeUndefined();
-    expect(captured?.task.dispatchDeadline).toEqual({ seconds: 600 });
+    expect(captured?.task.dispatchDeadline).toEqual({ seconds: 540 });
     expect(captured?.task.httpRequest.httpMethod).toBe("POST");
     expect(captured?.task.httpRequest.url).toBe(
       "https://api.team-mino.example/internal/place/jobs/job-123/process",

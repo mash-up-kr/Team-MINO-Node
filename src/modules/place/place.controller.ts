@@ -1,45 +1,51 @@
-import { Body, Controller, Get, Post, Query } from "@nestjs/common";
+import { Body, Controller, Post } from "@nestjs/common";
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
-import { GeocoderService } from "../../infrastructures/geocoder/geocoder.service";
-import type { GeoCandidate } from "../../infrastructures/geocoder/geocoder.type";
 import {
   type CreatePlaceRequest,
+  createPlaceRequestApiSchema,
   createPlaceRequestSchema,
-  type TestGeocodeRequest,
-  testGeocodeRequestSchema,
+  errorResponseApiSchema,
+  placeMatchListResponseApiSchema,
 } from "./place.dto";
 import { PlaceService } from "./place.service";
-import type { PlaceCandidate } from "./place.type";
+import type { PlaceMatch } from "./place.type";
 
+@ApiTags("place")
 @Controller("api/v1/place")
 export class PlaceController {
-  constructor(
-    private readonly placeService: PlaceService,
-    // TODO: KakaoProvider 확인용 임시 의존성으로 전체 플로우 연동 후 제거합니다.
-    private readonly geocoderService: GeocoderService,
-  ) {}
+  constructor(private readonly placeService: PlaceService) {}
 
   @Post("places")
+  @ApiOperation({
+    summary: "인스타그램 URL에서 장소를 추출한 후 지오코딩한다",
+    description: "scrap → AI extraction → geocoding fan-out",
+  })
+  @ApiBody({ schema: createPlaceRequestApiSchema })
+  @ApiResponse({
+    status: 201,
+    description: "장소별 그룹(PlaceMatch[])",
+    schema: placeMatchListResponseApiSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "요청 형식 오류 (VALIDATION_ERROR)",
+    schema: errorResponseApiSchema,
+  })
+  @ApiResponse({
+    status: 502,
+    description:
+      "외부 연동 실패 (SCRAPER_REQUEST_FAILED / GEOCODER_ALL_FAILED)",
+    schema: errorResponseApiSchema,
+  })
   async createPlace(
     @Body(new ValibotPipe(createPlaceRequestSchema)) body: CreatePlaceRequest,
-  ): Promise<PlaceCandidate[]> {
+  ): Promise<PlaceMatch[]> {
     switch (body.method) {
       case "instagram_url":
         return this.placeService.extractFromUrl(body.data.url);
       default:
         throw new Error(`Unsupported method: ${body.method}`);
     }
-  }
-
-  // TODO: KakaoProvider 확인용 임시 테스트 엔드포인트로 전체 플로우 연동 후 제거합니다.
-  @Get("_test/geocode")
-  async testGeocode(
-    @Query(new ValibotPipe(testGeocodeRequestSchema)) query: TestGeocodeRequest,
-  ): Promise<GeoCandidate[]> {
-    return this.geocoderService.searchAll({
-      placeName: query.placeName,
-      areaName: query.areaName,
-      areaType: query.areaType,
-    });
   }
 }

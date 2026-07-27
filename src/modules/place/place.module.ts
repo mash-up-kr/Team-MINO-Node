@@ -5,6 +5,8 @@ import { GeocoderModule } from "../../infrastructures/geocoder/geocoder.module";
 import { ScraperModule } from "../../infrastructures/scraper/scraper.module";
 import { TasksModule } from "../../infrastructures/tasks/tasks.module";
 import { PlaceController } from "./place.controller";
+// TODO(임시): 클라 개발 언블록용 mock. 실제 파이프라인 연동되면 제거.
+import { PlaceMockController } from "./place.mock.controller";
 import { PlaceService } from "./place.service";
 import { PlaceJobController } from "./place-job.controller";
 import { PlaceJobRepository } from "./place-job.repository";
@@ -19,7 +21,12 @@ import { PlaceJobWorkerController } from "./place-job-worker.controller";
     DatabaseModule,
     TasksModule,
   ],
-  controllers: [PlaceController, PlaceJobController, PlaceJobWorkerController],
+  controllers: [
+    PlaceController,
+    PlaceMockController,
+    PlaceJobController,
+    PlaceJobWorkerController,
+  ],
   providers: [PlaceService, PlaceJobService, PlaceJobRepository],
 })
 export class PlaceModule {}
