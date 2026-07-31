@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { DatabaseService } from "../../infrastructures/db/database.service";
-import { type PlaceJob, placeJobs } from "./place.schema";
 import type { PlaceMatch } from "./place.type";
+import { type PlaceJob, placeJobs } from "./place-job.schema";
 
 /*
  * 재사용 가능(pending/processing/succeeded) job의 shortcode 유일성을 강제하는

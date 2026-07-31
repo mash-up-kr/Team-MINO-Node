@@ -1,5 +1,5 @@
-import type { PlaceJob, PlaceJobStatus } from "./place.schema";
 import type { PlaceMatch } from "./place.type";
+import type { PlaceJob, PlaceJobStatus } from "./place-job.schema";
 
 export interface PlaceJobResponse {
   jobId: string;

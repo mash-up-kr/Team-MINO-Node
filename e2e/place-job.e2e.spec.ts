@@ -18,9 +18,9 @@ import { ResponseInterceptor } from "../src/common/interceptors/response.interce
 import { DatabaseService } from "../src/infrastructures/db/database.service";
 import { TasksService } from "../src/infrastructures/tasks/tasks.service";
 import { PlaceModule } from "../src/modules/place/place.module";
-import { placeJobs } from "../src/modules/place/place.schema";
 import { PlaceService } from "../src/modules/place/place.service";
 import type { PlaceMatch } from "../src/modules/place/place.type";
+import { placeJobs } from "../src/modules/place/place-job.schema";
 
 /**
  * 비동기 장소 추출 job API의 HTTP 계약을 실제 Nest/Hono + PostgreSQL로 고정한다.

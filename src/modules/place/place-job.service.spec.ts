@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { HttpStatus } from "@nestjs/common";
 import { AppException } from "../../common/exceptions/app.exception";
 import type { TasksService } from "../../infrastructures/tasks/tasks.service";
-import type { PlaceJob } from "./place.schema";
 import type { PlaceService } from "./place.service";
 import type { PlaceJobRepository } from "./place-job.repository";
+import type { PlaceJob } from "./place-job.schema";
 import { PlaceJobService } from "./place-job.service";
 
 const URL = "https://www.instagram.com/p/abc123/";

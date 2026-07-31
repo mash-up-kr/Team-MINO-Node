@@ -5,9 +5,9 @@ import { sql } from "drizzle-orm";
 import type { Env } from "../src/config/env.schema";
 import { DatabaseService } from "../src/infrastructures/db/database.service";
 import type { TasksService } from "../src/infrastructures/tasks/tasks.service";
-import { placeJobs } from "../src/modules/place/place.schema";
 import type { PlaceService } from "../src/modules/place/place.service";
 import { PlaceJobRepository } from "../src/modules/place/place-job.repository";
+import { placeJobs } from "../src/modules/place/place-job.schema";
 import { PlaceJobService } from "../src/modules/place/place-job.service";
 
 /**

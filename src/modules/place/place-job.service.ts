@@ -2,10 +2,10 @@ import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { AppException } from "../../common/exceptions/app.exception";
 import { extractInstagramShortcode } from "../../infrastructures/scraper/instagram.util";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
-import type { PlaceJob } from "./place.schema";
 import { PlaceService } from "./place.service";
 import type { PlaceMatch } from "./place.type";
 import { PlaceJobRepository } from "./place-job.repository";
+import type { PlaceJob } from "./place-job.schema";
 import { type PlaceJobResponse, toPlaceJobResponse } from "./place-job.type";
 
 interface Failure {
