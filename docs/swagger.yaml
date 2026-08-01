@@ -271,7 +271,7 @@ paths:
     put:
       tags: [Room]
       summary: 방장 위임
-      description: '**방장만** 가능. 위임 대상은 해당 방의 활성 멤버여야 한다.'
+      description: '**방장만** 가능. 위임 대상은 해당 방의 활성 멤버여야 한다. 방장이 방을 나가려면 이 API로 먼저 위임을 완료해야 한다.'
       parameters:
         - $ref: "#/components/parameters/RoomId"
       requestBody:
@@ -296,25 +296,24 @@ paths:
       tags: [Room]
       summary: 방 나가기
       description: |
-        멤버십 soft delete. 방장이 나가는 경우 `nextOwnerId`가 필수이며 위임과 한 트랜잭션으로 처리한다.
-        **방장이 마지막 멤버면 `nextOwnerId` 없이 나가기를 허용하고 방을 삭제(soft delete) 처리한다.** (PR 리뷰 확정)
-        개인방은 나가기 대상이 아니다.
+        멤버십 soft delete. 파라미터 없이 요청하며, 서버가 요청 유저의 상태를 검증해 분기한다.
+        - 일반 멤버: 나가기 처리.
+        - **방장 + 다른 멤버 존재: 에러로 거절** — 먼저 방장 위임(`PUT /rooms/{roomId}/owner`)을 완료해야 한다. (errorCode 예: `OWNER_TRANSFER_REQUIRED`)
+        - **방장 + 마지막 멤버: 나가기를 허용하고 방을 삭제(soft delete) 처리한다.** (PR 리뷰 확정)
+        - 개인방은 나가기 대상이 아니다.
       parameters:
         - $ref: "#/components/parameters/RoomId"
-        - name: nextOwnerId
-          in: query
-          required: false
-          schema:
-            type: string
-            format: uuid
-          description: 방장이 나갈 때 필수(마지막 멤버 제외). DELETE는 requestBody 시맨틱이 없어 쿼리 파라미터로 받는다
       responses:
         "204":
           description: 나가기 완료
-        "400":
-          $ref: "#/components/responses/BadRequest"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "409":
+          description: 방장이 위임 없이 나가기를 요청함 — 위임 후 재시도 필요
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/v1/invitations/{code}:
     get:
