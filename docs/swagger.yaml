@@ -301,17 +301,13 @@ paths:
         개인방은 나가기 대상이 아니다.
       parameters:
         - $ref: "#/components/parameters/RoomId"
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                nextOwnerId:
-                  type: string
-                  format: uuid
-                  description: 방장이 나갈 때 필수(마지막 멤버 제외)
+        - name: nextOwnerId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: 방장이 나갈 때 필수(마지막 멤버 제외). DELETE는 requestBody 시맨틱이 없어 쿼리 파라미터로 받는다
       responses:
         "204":
           description: 나가기 완료

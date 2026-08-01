@@ -378,12 +378,12 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 | `GET` | `/api/v1/rooms/{roomId}` | 방 상세 (방 정보 + 핀 리스트, 지도뷰용 좌표 포함) — 정렬/필터는 TBD 확정 후 계약 갱신 | [004] [005] |
 | `PATCH` | `/api/v1/rooms/{roomId}` | 방 편집 (이름·색상) — **방장만** | [004] |
 | `PUT` | `/api/v1/rooms/{roomId}/owner` | 방장 위임 (body: `nextOwnerId`) — **방장만** | [004] |
-| `DELETE` | `/api/v1/rooms/{roomId}/members/me` | 방 나가기. 방장이면 body에 `nextOwnerId` 필수 (마지막 멤버 제외) | [004] |
+| `DELETE` | `/api/v1/rooms/{roomId}/members/me` | 방 나가기. 방장이면 쿼리 `?nextOwnerId=` 필수 (마지막 멤버 제외) | [004] |
 
 **세부 계약 메모**
 
 - `GET /rooms`: `?savedPlaceId={placeId}`를 주면 각 방에 해당 장소가 이미 저장되어 있는지를 함께 반환한다. "다른 방에 공유" 화면에서 이미 저장된 방을 선택됨/비활성으로 그리는 데 쓴다.
-- `DELETE /rooms/{roomId}/members/me`: 방장의 나가기는 위임과 한 트랜잭션으로 처리한다. **방장이 마지막 멤버면 `nextOwnerId` 없이 나가기를 허용하고 방을 soft delete 처리한다.** (PR 리뷰 확정) 개인방은 나가기 대상이 아니다.
+- `DELETE /rooms/{roomId}/members/me`: 위임 대상은 쿼리 파라미터 `?nextOwnerId=`로 받는다 — DELETE의 requestBody는 HTTP 시맨틱이 정의되어 있지 않아 쓰지 않는다. 방장의 나가기는 위임과 한 트랜잭션으로 처리한다. **방장이 마지막 멤버면 `nextOwnerId` 없이 나가기를 허용하고 방을 soft delete 처리한다.** (PR 리뷰 확정) 개인방은 나가기 대상이 아니다.
 - **명시적 방 삭제 엔드포인트는 두지 않는다.** 방 삭제는 마지막 멤버 나가기 시 서버가 처리하는 결과다.
 
 ### 초대 / 멤버십
