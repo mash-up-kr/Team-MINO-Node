@@ -2,6 +2,8 @@ import * as v from "valibot";
 
 const envSchema = v.pipe(
   v.object({
+    // Secret Manager 선택과 런타임 역할을 구분하는 배포 환경. Cloud Run은 prod, start:local은 local을 주입한다.
+    APP_ENV: v.optional(v.picklist(["local", "prod"]), "local"),
     NODE_ENV: v.optional(
       v.picklist(["development", "test", "production"]),
       "development",
@@ -57,6 +59,11 @@ const envSchema = v.pipe(
     // infra/src/resources/tasks.ts의 placeExtractionQueue와 값을 맞춰야 한다.
     CLOUD_TASKS_LOCATION: v.pipe(v.string(), v.minLength(1)),
     CLOUD_TASKS_QUEUE: v.pipe(v.string(), v.minLength(1)),
+    /*
+     * cloud: 실제 Cloud Tasks enqueue + OIDC guard.
+     * local: `bun run start:local` 전용. enqueue는 no-op이고 워커 guard는 non-production에서만 우회한다.
+     */
+    CLOUD_TASKS_MODE: v.optional(v.picklist(["cloud", "local"]), "cloud"),
   }),
   /*
    * 운영(production)에서는 Cloud Tasks가 호출할 APP_BASE_URL이 반드시 https여야 한다.
@@ -66,6 +73,17 @@ const envSchema = v.pipe(
     (env) =>
       env.NODE_ENV !== "production" || env.APP_BASE_URL.startsWith("https://"),
     "APP_BASE_URL must use https in production",
+  ),
+  v.check(
+    (env) => env.NODE_ENV !== "production" || env.CLOUD_TASKS_MODE === "cloud",
+    "CLOUD_TASKS_MODE=local is not allowed in production",
+  ),
+  // 배포가 보장하는 APP_ENV=prod에서는 NODE_ENV 누락을 development로 묵인하지 않고 fail closed 한다.
+  v.check(
+    (env) =>
+      env.APP_ENV !== "prod" ||
+      (env.NODE_ENV === "production" && env.CLOUD_TASKS_MODE === "cloud"),
+    "APP_ENV=prod requires NODE_ENV=production and CLOUD_TASKS_MODE=cloud",
   ),
 );
 

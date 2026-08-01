@@ -9,6 +9,7 @@ import type { Env } from "../../config/env.schema";
  */
 const WORKER_DISPATCH_DEADLINE_SECONDS = 9 * 60;
 const QUEUE_CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
+const LOCAL_MAX_ATTEMPTS = 10;
 
 @Injectable()
 export class TasksService {
@@ -22,10 +23,15 @@ export class TasksService {
   private readonly queueParent: string;
   private readonly workerBaseUrl: string;
   private readonly oidcToken: { serviceAccountEmail: string; audience: string };
+  private readonly isLocalMode: boolean;
   private maxAttemptsCache?: { value: number; expiresAt: number };
   private maxAttemptsRequest?: Promise<number>;
 
   constructor(configService: ConfigService<Env>) {
+    this.isLocalMode =
+      configService.get("APP_ENV", { infer: true }) === "local" &&
+      configService.get("CLOUD_TASKS_MODE", { infer: true }) === "local";
+
     const project = configService.getOrThrow("GOOGLE_CLOUD_PROJECT", {
       infer: true,
     });
@@ -58,6 +64,8 @@ export class TasksService {
    * 이름 기반 dedup 없이도 안전하다(중복 배달은 no-op으로 수렴).
    */
   async enqueuePlaceExtraction(jobId: string): Promise<void> {
+    if (this.isLocalMode) return;
+
     await this.client.createTask({
       parent: this.queueParent,
       task: {
@@ -80,6 +88,8 @@ export class TasksService {
    * 짧게 캐시해 매 실패마다 API를 호출하지 않으면서도 Pulumi 설정 변경을 반영한다.
    */
   async getMaxAttempts(): Promise<number> {
+    if (this.isLocalMode) return LOCAL_MAX_ATTEMPTS;
+
     const cached = this.maxAttemptsCache;
     if (cached && cached.expiresAt > Date.now()) return cached.value;
 

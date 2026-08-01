@@ -47,6 +47,7 @@ describe("Cloud Tasks environment", () => {
   // production 검증용: APP_BASE_URL https 강제를 확인한다.
   const productionEnvironment = {
     ...requiredEnvironment,
+    APP_ENV: "prod",
     NODE_ENV: "production",
     APP_BASE_URL: "https://api.team-mino.example",
   };
@@ -78,5 +79,32 @@ describe("Cloud Tasks environment", () => {
     expect(validateEnv(requiredEnvironment).CLOUD_TASKS_OIDC_AUDIENCE).toBe(
       "team-mino-place-extraction-worker",
     );
+  });
+
+  it("기본 Cloud Tasks 모드는 cloud다", () => {
+    expect(validateEnv(requiredEnvironment).CLOUD_TASKS_MODE).toBe("cloud");
+  });
+
+  it("로컬에서는 CLOUD_TASKS_MODE=local을 허용한다", () => {
+    expect(
+      validateEnv({ ...requiredEnvironment, CLOUD_TASKS_MODE: "local" })
+        .CLOUD_TASKS_MODE,
+    ).toBe("local");
+  });
+
+  it("production에서는 CLOUD_TASKS_MODE=local을 거부한다", () => {
+    expect(() =>
+      validateEnv({ ...productionEnvironment, CLOUD_TASKS_MODE: "local" }),
+    ).toThrow(/CLOUD_TASKS_MODE/);
+  });
+
+  it("APP_ENV=prod이면 NODE_ENV 누락도 fail closed 한다", () => {
+    expect(() =>
+      validateEnv({
+        ...requiredEnvironment,
+        APP_ENV: "prod",
+        CLOUD_TASKS_MODE: "local",
+      }),
+    ).toThrow(/APP_ENV=prod/);
   });
 });

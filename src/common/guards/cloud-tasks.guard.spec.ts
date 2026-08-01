@@ -12,13 +12,25 @@ type GuardWithClient = {
   client: { verifyIdToken: (...args: unknown[]) => unknown };
 };
 
-function createConfigService(): ConfigService {
+function createConfigService(
+  overrides: Record<string, string> = {},
+): ConfigService {
+  const env: Record<string, string> = {
+    APP_ENV: "local",
+    CLOUD_TASKS_INVOKER_EMAIL: EXPECTED_EMAIL,
+    CLOUD_TASKS_OIDC_AUDIENCE: AUDIENCE,
+    CLOUD_TASKS_MODE: "cloud",
+    NODE_ENV: "development",
+    ...overrides,
+  };
+
   return {
     getOrThrow: (key: string) => {
-      if (key === "CLOUD_TASKS_INVOKER_EMAIL") return EXPECTED_EMAIL;
-      if (key === "CLOUD_TASKS_OIDC_AUDIENCE") return AUDIENCE;
+      const value = env[key];
+      if (value !== undefined) return value;
       throw new Error(`unexpected config key: ${key}`);
     },
+    get: (key: string) => env[key],
   } as unknown as ConfigService;
 }
 
@@ -117,5 +129,31 @@ describe("CloudTasksGuard", () => {
       idToken: "the-token",
       audience: AUDIENCE,
     });
+  });
+
+  it("로컬 모드 + non-production에서는 Postman 직접 호출을 위해 OIDC 없이 통과한다", async () => {
+    const guard = new CloudTasksGuard(
+      createConfigService({ CLOUD_TASKS_MODE: "local" }),
+    );
+    const verifyIdToken = stubVerifyIdToken(guard, () => {
+      throw new Error("should not verify");
+    });
+
+    await expect(guard.canActivate(createContext({}))).resolves.toBe(true);
+    expect(verifyIdToken).not.toHaveBeenCalled();
+  });
+
+  it("production에서는 로컬 모드 값이 들어와도 OIDC 검증을 우회하지 않는다", async () => {
+    const guard = new CloudTasksGuard(
+      createConfigService({
+        APP_ENV: "prod",
+        CLOUD_TASKS_MODE: "local",
+        NODE_ENV: "production",
+      }),
+    );
+
+    await expect(guard.canActivate(createContext({}))).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 });

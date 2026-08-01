@@ -29,6 +29,8 @@ export class CloudTasksGuard implements CanActivate {
   constructor(private readonly configService: ConfigService<Env>) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (this.isLocalWorkerBypassEnabled()) return true;
+
     const request = context.switchToHttp().getRequest<CloudTasksRequest>();
     const authHeader = request.headers.authorization;
     const idToken = authHeader?.startsWith("Bearer ")
@@ -59,6 +61,14 @@ export class CloudTasksGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  private isLocalWorkerBypassEnabled(): boolean {
+    return (
+      this.configService.get("APP_ENV", { infer: true }) === "local" &&
+      this.configService.get("CLOUD_TASKS_MODE", { infer: true }) === "local" &&
+      this.configService.get("NODE_ENV", { infer: true }) !== "production"
+    );
   }
 
   private async verify(idToken: string, audience: string) {

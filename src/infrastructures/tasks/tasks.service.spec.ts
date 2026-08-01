@@ -4,6 +4,7 @@ import type { Env } from "../../config/env.schema";
 import { TasksService } from "./tasks.service";
 
 const ENV: Record<string, string> = {
+  APP_ENV: "local",
   GOOGLE_CLOUD_PROJECT: "team-mino-prod",
   CLOUD_TASKS_LOCATION: "asia-northeast3",
   CLOUD_TASKS_QUEUE: "team-mino-prod-place-extraction",
@@ -23,6 +24,7 @@ function createConfigService(
       if (value === undefined) throw new Error(`missing config: ${key}`);
       return value;
     },
+    get: (key: string) => env[key],
   } as unknown as ConfigService<Env>;
 }
 
@@ -112,6 +114,31 @@ describe("TasksService.enqueuePlaceExtraction", () => {
     );
   });
 
+  it("로컬 모드에서는 Cloud Tasks에 enqueue하지 않는다", async () => {
+    const service = new TasksService(
+      createConfigService({ CLOUD_TASKS_MODE: "local" }),
+    );
+    const client = stubClient(service, async () => {
+      throw new Error("should not enqueue");
+    });
+
+    await expect(service.enqueuePlaceExtraction("job-1")).resolves.toBe(
+      undefined,
+    );
+    expect(client.createTask).not.toHaveBeenCalled();
+  });
+
+  it("APP_ENV=prod이면 local 모드 값을 주입해도 Cloud Tasks를 건너뛰지 않는다", async () => {
+    const service = new TasksService(
+      createConfigService({ APP_ENV: "prod", CLOUD_TASKS_MODE: "local" }),
+    );
+    const client = stubClient(service, async () => [{}]);
+
+    await service.enqueuePlaceExtraction("job-1");
+
+    expect(client.createTask).toHaveBeenCalledTimes(1);
+  });
+
   it("필수 설정이 없으면 생성 시점(부팅)에 즉시 실패한다", () => {
     const missing = { ...ENV } as Record<string, string | undefined>;
     delete missing.CLOUD_TASKS_QUEUE;
@@ -124,6 +151,7 @@ describe("TasksService.enqueuePlaceExtraction", () => {
             if (value === undefined) throw new Error(`missing config: ${key}`);
             return value;
           },
+          get: (key: string) => missing[key],
         } as unknown as ConfigService<Env>),
     ).toThrow("missing config: CLOUD_TASKS_QUEUE");
   });
@@ -176,5 +204,21 @@ describe("TasksService.getMaxAttempts", () => {
     await expect(service.getMaxAttempts()).rejects.toThrow("UNAVAILABLE");
     await expect(service.getMaxAttempts()).resolves.toBe(10);
     expect(client.getQueue).toHaveBeenCalledTimes(2);
+  });
+
+  it("로컬 모드에서는 큐 조회 없이 고정 maxAttempts를 반환한다", async () => {
+    const service = new TasksService(
+      createConfigService({ CLOUD_TASKS_MODE: "local" }),
+    );
+    const client = stubClient(
+      service,
+      async () => [{}],
+      async () => {
+        throw new Error("should not load queue");
+      },
+    );
+
+    await expect(service.getMaxAttempts()).resolves.toBe(10);
+    expect(client.getQueue).not.toHaveBeenCalled();
   });
 });
