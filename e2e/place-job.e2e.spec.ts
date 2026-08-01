@@ -129,7 +129,7 @@ function createBody(url: string) {
 }
 
 async function postJob(url: string) {
-  const res = await fetch(`${baseUrl}/api/v1/place/jobs`, {
+  const res = await fetch(`${baseUrl}/api/v1/place/places`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(createBody(url)),
@@ -152,7 +152,7 @@ async function runWorker(jobId: string, authorized = true) {
 const POST_URL = "https://www.instagram.com/p/E2eCreate1/";
 
 describe("비동기 장소 추출 job API (e2e)", () => {
-  it("POST /jobs는 202와 jobId를 반환하고 enqueue한다", async () => {
+  it("POST /places는 202와 jobId를 반환하고 enqueue한다", async () => {
     const res = await postJob(POST_URL);
 
     expect(res.status).toBe(202);
