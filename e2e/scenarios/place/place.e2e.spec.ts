@@ -22,7 +22,6 @@ import type { ScrapedPost } from "../../../src/infrastructures/scraper/scraper.t
 import { SentryErrorReporter } from "../../../src/infrastructures/sentry/sentry-reporter";
 import { TasksService } from "../../../src/infrastructures/tasks/tasks.service";
 import { places } from "../../../src/modules/place/place.schema";
-import { WorkerAppModule } from "../../../src/worker-app.module";
 import { startApp } from "../../start-app";
 
 const POST_URL = "https://www.instagram.com/p/abc123/";
@@ -49,24 +48,17 @@ const enqueued: string[] = [];
 const enqueuePlaceExtraction = jest.fn(async (url: string) => {
   enqueued.push(url);
 });
-let apiApp: INestApplication;
-let workerApp: INestApplication;
+let app: INestApplication;
 let baseUrl: string;
-let workerBaseUrl: string;
 let db: DatabaseService;
 
 beforeAll(async () => {
-  ({ app: apiApp, baseUrl } = await startApp(
+  ({ app, baseUrl } = await startApp(
     Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(TasksService)
       .useValue({
         enqueuePlaceExtraction,
       })
-      .overrideProvider(SentryErrorReporter)
-      .useValue({ report: () => undefined }),
-  ));
-  ({ app: workerApp, baseUrl: workerBaseUrl } = await startApp(
-    Test.createTestingModule({ imports: [WorkerAppModule] })
       .overrideProvider(InstagramProvider)
       .useValue(instagram)
       .overrideProvider(AiService)
@@ -88,7 +80,7 @@ beforeAll(async () => {
       .overrideProvider(SentryErrorReporter)
       .useValue({ report: () => undefined }),
   ));
-  db = workerApp.get(DatabaseService);
+  db = app.get(DatabaseService);
 });
 
 beforeEach(async () => {
@@ -113,8 +105,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await apiApp.close();
-  await workerApp.close();
+  await app.close();
 });
 
 function postPlaces(body: unknown) {
@@ -125,8 +116,8 @@ function postPlaces(body: unknown) {
   });
 }
 
-function runWorker() {
-  return fetch(`${workerBaseUrl}/internal/tasks/pin-extraction`, {
+function runInternalExtraction() {
+  return fetch(`${baseUrl}/internal/tasks/pin-extraction`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -151,8 +142,8 @@ describe("장소 추출 enqueue + 최종 DB 저장", () => {
     expect(geocoder.search).not.toHaveBeenCalled();
   });
 
-  it("worker는 장소를 추출하고 최종 후보를 places에 저장한다", async () => {
-    const response = await runWorker();
+  it("internal endpoint는 장소를 추출하고 최종 후보를 places에 저장한다", async () => {
+    const response = await runInternalExtraction();
 
     expect(response.status).toBe(201);
     expect(await response.text()).toBe("");
@@ -173,15 +164,12 @@ describe("장소 추출 enqueue + 최종 DB 저장", () => {
     });
   });
 
-  it("인가되지 않은 worker 호출은 추출하지 않는다", async () => {
-    const response = await fetch(
-      `${workerBaseUrl}/internal/tasks/pin-extraction`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url: POST_URL }),
-      },
-    );
+  it("인가되지 않은 internal 호출은 추출하지 않는다", async () => {
+    const response = await fetch(`${baseUrl}/internal/tasks/pin-extraction`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: POST_URL }),
+    });
 
     expect(response.status).toBe(401);
     expect(instagram.fetchPost).not.toHaveBeenCalled();
@@ -192,7 +180,7 @@ describe("장소 추출 enqueue + 최종 DB 저장", () => {
       new AppException("POST_NOT_FOUND", "게시글을 찾을 수 없습니다.", 404),
     );
 
-    const response = await runWorker();
+    const response = await runInternalExtraction();
 
     expect(response.status).toBe(201);
     expect(await response.text()).toBe("");
@@ -202,7 +190,7 @@ describe("장소 추출 enqueue + 최종 DB 저장", () => {
   it("재시도 가능한 추출 실패는 non-2xx로 반환한다", async () => {
     geocoder.search.mockRejectedValue(new Error("provider down"));
 
-    const response = await runWorker();
+    const response = await runInternalExtraction();
 
     expect(response.status).toBe(502);
     expect(await response.json()).toMatchObject({
@@ -220,7 +208,7 @@ describe("장소 추출 enqueue + 최종 DB 저장", () => {
     expect(enqueued).toEqual([]);
   });
 
-  it("enqueue 실패는 502로 반환하고 worker를 실행하지 않는다", async () => {
+  it("enqueue 실패는 502로 반환하고 Internal extraction을 실행하지 않는다", async () => {
     enqueuePlaceExtraction.mockRejectedValueOnce(
       new Error("queue unavailable"),
     );

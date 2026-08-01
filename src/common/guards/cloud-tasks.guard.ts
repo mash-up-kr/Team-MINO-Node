@@ -14,10 +14,10 @@ interface CloudTasksRequest {
 }
 
 /**
- * worker Cloud Run 서비스는 공개 라우트가 없더라도 요청 경계에서 OIDC를
+ * API Cloud Run 서비스는 공개 라우트가 있더라도 요청 경계에서 OIDC를
  * 직접 검증해 /internal/* 접근을 명시적으로 제한한다.
  *
- * audience는 worker 서비스 URL을 사용한다. 태스크 생성 시 oidcToken.audience에도
+ * audience는 API 서비스 URL을 사용한다. 태스크 생성 시 oidcToken.audience에도
  * 동일한 값을 넣어야 한다.
  */
 @Injectable()
@@ -28,7 +28,7 @@ export class CloudTasksGuard implements CanActivate {
   constructor(private readonly configService: ConfigService<Env>) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    if (this.isLocalWorkerBypassEnabled()) return true;
+    if (this.isLocalBypassEnabled()) return true;
 
     const request = context.switchToHttp().getRequest<CloudTasksRequest>();
     const authHeader = request.headers.authorization;
@@ -61,7 +61,7 @@ export class CloudTasksGuard implements CanActivate {
     return true;
   }
 
-  private isLocalWorkerBypassEnabled(): boolean {
+  private isLocalBypassEnabled(): boolean {
     return (
       this.configService.get("APP_ENV", { infer: true }) === "local" &&
       this.configService.get("CLOUD_TASKS_MODE", { infer: true }) === "local" &&

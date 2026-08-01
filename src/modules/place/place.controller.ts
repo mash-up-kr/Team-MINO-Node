@@ -20,7 +20,7 @@ export class PlaceController {
   @ApiOperation({
     summary: "인스타그램 URL에서 장소 추출을 enqueue한다",
     description:
-      "장소 추출을 Cloud Tasks에 enqueue하고 본문 없이 202를 반환한다. 추출과 최종 결과 저장은 worker에서 수행한다.",
+      "장소 추출을 Cloud Tasks에 enqueue하고 본문 없이 202를 반환한다. 추출과 최종 결과 저장은 Internal endpoint에서 수행한다.",
   })
   @ApiBody({ schema: createPlaceRequestApiSchema })
   @ApiResponse({

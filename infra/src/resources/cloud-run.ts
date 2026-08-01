@@ -48,36 +48,3 @@ new gcp.cloudrunv2.ServiceIamMember(`${prefix}-api-public-invoker`, {
   role: "roles/run.invoker",
   member: "allUsers",
 });
-
-/** Cloud Tasks가 호출하는 장소 추출 전용 서비스. public API 서비스와 런타임을 분리한다. */
-export const workerService = new gcp.cloudrunv2.Service(
-  `${prefix}-place-worker`,
-  {
-    name: `${prefix}-place-worker`,
-    location: region,
-    deletionProtection: false,
-    ingress: "INGRESS_TRAFFIC_ALL",
-    template: {
-      serviceAccount: serverServiceAccount.email,
-      timeout: `${CLOUD_RUN_REQUEST_TIMEOUT_SECONDS}s`,
-      scaling: { minInstanceCount: 0, maxInstanceCount: 5 },
-      containers: [
-        {
-          image: "us-docker.pkg.dev/cloudrun/container/hello",
-          ports: { containerPort: 3000 },
-          resources: {
-            cpuIdle: true,
-            limits: { cpu: "0.08", memory: "128Mi" },
-          },
-        },
-      ],
-    },
-  },
-  {
-    dependsOn: enabledServices,
-    ignoreChanges: [
-      "template.containers[0].image",
-      "template.containers[0].envs",
-    ],
-  },
-);

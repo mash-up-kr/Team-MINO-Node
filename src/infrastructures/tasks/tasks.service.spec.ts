@@ -55,7 +55,7 @@ function stubClient(
 }
 
 describe("TasksService.enqueuePlaceExtraction", () => {
-  it("URL payload와 worker endpoint를 사용해 태스크를 만든다", async () => {
+  it("URL payload와 internal endpoint를 사용해 태스크를 만든다", async () => {
     const service = new TasksService(createConfigService());
     let captured: CreateTaskArg | undefined;
     stubClient(service, async (arg) => {
@@ -85,7 +85,7 @@ describe("TasksService.enqueuePlaceExtraction", () => {
     });
   });
 
-  it("APP_BASE_URL 끝 슬래시가 있어도 worker url이 깨지지 않는다", async () => {
+  it("APP_BASE_URL 끝 슬래시가 있어도 internal url이 깨지지 않는다", async () => {
     const service = new TasksService(
       createConfigService({ APP_BASE_URL: "https://api.team-mino.example/" }),
     );

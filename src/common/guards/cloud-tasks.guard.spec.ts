@@ -6,7 +6,7 @@ import { CloudTasksGuard } from "./cloud-tasks.guard";
 
 const EXPECTED_EMAIL =
   "team-mino-prod-tasks-invoker@team-mino-prod.iam.gserviceaccount.com";
-const AUDIENCE = "https://place-worker.team-mino.example";
+const AUDIENCE = "https://api.team-mino.example";
 
 type GuardWithClient = {
   client: { verifyIdToken: (...args: unknown[]) => unknown };

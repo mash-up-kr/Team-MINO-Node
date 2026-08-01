@@ -6,13 +6,13 @@ import { ValibotPipe } from "../../common/pipes/valibot.pipe";
 import { PlaceService } from "./place.service";
 import { PlaceResultRepository } from "./place-result.repository";
 
-const workerRequestSchema = v.object({
+const internalRequestSchema = v.object({
   url: v.pipe(v.string(), v.url(), v.regex(/instagram\.com/)),
 });
 
-type WorkerRequest = v.InferOutput<typeof workerRequestSchema>;
+type InternalRequest = v.InferOutput<typeof internalRequestSchema>;
 
-/** Cloud Tasks 전용 worker endpoint. 중간 상태나 결과를 HTTP 응답으로 반환하지 않는다. */
+/** Cloud Tasks 전용 Internal endpoint. 중간 상태나 결과를 HTTP 응답으로 반환하지 않는다. */
 @Controller("internal/tasks")
 @UseGuards(CloudTasksGuard)
 export class PlaceWorkerController {
@@ -25,7 +25,7 @@ export class PlaceWorkerController {
 
   @Post("pin-extraction")
   async process(
-    @Body(new ValibotPipe(workerRequestSchema)) body: WorkerRequest,
+    @Body(new ValibotPipe(internalRequestSchema)) body: InternalRequest,
   ): Promise<void> {
     try {
       const matches = await this.placeService.extractFromUrl(body.url);

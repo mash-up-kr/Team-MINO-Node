@@ -3,8 +3,8 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Env } from "../../config/env.schema";
 
-/* Cloud Tasks가 worker 응답을 기다리는 최대 시간입니다. */
-const WORKER_DISPATCH_DEADLINE_SECONDS = 9 * 60;
+/* Cloud Tasks가 Internal endpoint 응답을 기다리는 최대 시간입니다. */
+const TASK_DISPATCH_DEADLINE_SECONDS = 9 * 60;
 
 @Injectable()
 export class TasksService {
@@ -16,7 +16,7 @@ export class TasksService {
    * 첫 사용자 요청이 아니라 부팅 시점에 바로 드러난다(fail-fast).
    */
   private readonly queueParent: string;
-  private readonly workerBaseUrl: string;
+  private readonly targetBaseUrl: string;
   private readonly oidcToken: { serviceAccountEmail: string; audience: string };
   private readonly isLocalMode: boolean;
 
@@ -38,14 +38,14 @@ export class TasksService {
 
     this.queueParent = this.client.queuePath(project, location, queue);
     // APP_BASE_URL 끝에 슬래시가 붙어 있어도 경로가 //internal 로 깨지지 않게 정규화.
-    this.workerBaseUrl = baseUrl.replace(/\/+$/, "");
+    this.targetBaseUrl = baseUrl.replace(/\/+$/, "");
     this.oidcToken = {
       serviceAccountEmail: configService.getOrThrow(
         "CLOUD_TASKS_INVOKER_EMAIL",
         { infer: true },
       ),
       // Cloud Run IAM은 수신 서비스 URL을 audience로 요구한다.
-      audience: this.workerBaseUrl,
+      audience: this.targetBaseUrl,
     };
   }
 
@@ -56,10 +56,10 @@ export class TasksService {
     await this.client.createTask({
       parent: this.queueParent,
       task: {
-        dispatchDeadline: { seconds: WORKER_DISPATCH_DEADLINE_SECONDS },
+        dispatchDeadline: { seconds: TASK_DISPATCH_DEADLINE_SECONDS },
         httpRequest: {
           httpMethod: "POST",
-          url: `${this.workerBaseUrl}/internal/tasks/pin-extraction`,
+          url: `${this.targetBaseUrl}/internal/tasks/pin-extraction`,
           headers: { "Content-Type": "application/json" },
           body: Buffer.from(JSON.stringify({ url })),
           oidcToken: this.oidcToken,

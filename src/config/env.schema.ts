@@ -8,7 +8,6 @@ const envSchema = v.pipe(
       v.picklist(["development", "test", "production"]),
       "development",
     ),
-    SERVICE_ROLE: v.optional(v.picklist(["api", "worker"]), "api"),
     PORT: v.optional(
       v.pipe(
         v.string(),
@@ -48,7 +47,7 @@ const envSchema = v.pipe(
     // Cloud Tasks가 워커(/internal/*) 호출 시 쓰는 SA 이메일. OIDC 토큰의 email 클레임과 대조.
     CLOUD_TASKS_INVOKER_EMAIL: v.pipe(v.string(), v.minLength(1)),
     /*
-     * API가 Cloud Tasks에 넣을 worker 서비스 URL. OIDC 토큰은 worker의
+     * API가 Cloud Tasks에 넣을 대상 서비스 URL. OIDC 토큰은 API의
      * /internal/* 엔드포인트에서 검증한다.
      */
     APP_BASE_URL: v.pipe(v.string(), v.minLength(1), v.url()),
