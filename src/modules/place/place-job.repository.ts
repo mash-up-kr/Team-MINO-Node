@@ -17,6 +17,11 @@ const DEDUP_SHORTCODE_INDEX = "place_jobs_dedup_shortcode_idx";
  */
 const REUSABLE_STATUSES = ["pending", "processing", "succeeded"] as const;
 
+export type ReusableJob = Pick<
+  PlaceJob,
+  "id" | "status" | "updatedAt" | "processingLeaseExpiresAt"
+>;
+
 type ProcessingClaim = PlaceJob & {
   status: "processing";
   processingLeaseExpiresAt: Date;
@@ -53,15 +58,9 @@ export class PlaceJobRepository {
     }
   }
 
-  async findReusableByShortcode(shortcode: string): Promise<
-    | {
-        id: string;
-        status: PlaceJob["status"];
-        updatedAt: Date;
-        processingLeaseExpiresAt: Date | null;
-      }
-    | undefined
-  > {
+  async findReusableByShortcode(
+    shortcode: string,
+  ): Promise<ReusableJob | undefined> {
     const [job] = await this.db
       .select({
         id: placeJobs.id,

@@ -3,7 +3,10 @@ import { HttpStatus } from "@nestjs/common";
 import { AppException } from "../../common/exceptions/app.exception";
 import type { TasksService } from "../../infrastructures/tasks/tasks.service";
 import type { PlaceService } from "./place.service";
-import type { PlaceJobRepository } from "./place-job.repository";
+import {
+  type PlaceJobRepository,
+  type ReusableJob,
+} from "./place-job.repository";
 import type { PlaceJob } from "./place-job.schema";
 import { PlaceJobService } from "./place-job.service";
 
@@ -28,13 +31,6 @@ function makeJob(overrides: Partial<PlaceJob> = {}): PlaceJob {
   };
 }
 
-type Reusable = {
-  id: string;
-  status: PlaceJob["status"];
-  updatedAt: Date;
-  processingLeaseExpiresAt: Date | null;
-};
-
 function makeHarness(maxAttempts = 10) {
   const repository = {
     tryInsert: mock(
@@ -43,7 +39,7 @@ function makeHarness(maxAttempts = 10) {
       }),
     ),
     findReusableByShortcode: mock(
-      async (): Promise<Reusable | undefined> => undefined,
+      async (): Promise<ReusableJob | undefined> => undefined,
     ),
     tryReserveStaleRescue: mock(async (): Promise<boolean> => true),
     findById: mock(async (): Promise<PlaceJob | undefined> => makeJob()),

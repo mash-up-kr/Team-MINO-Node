@@ -4,7 +4,7 @@ import { extractInstagramShortcode } from "../../infrastructures/scraper/instagr
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
 import { PlaceService } from "./place.service";
 import type { PlaceMatch } from "./place.type";
-import { PlaceJobRepository } from "./place-job.repository";
+import { PlaceJobRepository, type ReusableJob } from "./place-job.repository";
 import type { PlaceJob } from "./place-job.schema";
 import { type PlaceJobResponse, toPlaceJobResponse } from "./place-job.type";
 
@@ -94,12 +94,7 @@ export class PlaceJobService {
    * processing job도 같은 방식으로 복구한다. DB에서 재enqueue 권한을 선점해 동시
    * 재요청 중 한 요청만 task를 만들며, 실패해도 기존 jobId 반환은 막지 않는다.
    */
-  private async rescueIfStale(reusable: {
-    id: string;
-    status: string;
-    updatedAt: Date;
-    processingLeaseExpiresAt: Date | null;
-  }): Promise<void> {
+  private async rescueIfStale(reusable: ReusableJob): Promise<void> {
     const now = new Date();
     const stalePendingBefore = new Date(now.getTime() - STALE_PENDING_MS);
     const isStalePending =
