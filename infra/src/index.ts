@@ -1,4 +1,4 @@
-import { service } from "@/resources/cloud-run";
+import { service, workerService } from "@/resources/cloud-run";
 import { developer, serverServiceAccount } from "@/resources/identity";
 import { healthPingJob } from "@/resources/scheduler";
 import { localEnvSecret, prodEnvSecret } from "@/resources/secrets";
@@ -14,6 +14,7 @@ export {
 export { repositoryUrl } from "@/resources/registry";
 
 export const serviceUrl = service.uri;
+export const workerServiceUrl = workerService.uri;
 export const developerEmail = developer.email;
 export const serverServiceAccountEmail = serverServiceAccount.email;
 export const prodEnvSecretId = prodEnvSecret.secretId;

@@ -8,10 +8,13 @@ import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 import type { Env } from "./config/env.schema";
 import { SentryErrorReporter } from "./infrastructures/sentry/sentry-reporter";
+import { WorkerAppModule } from "./worker-app.module";
 
 export async function bootstrap(): Promise<void> {
   const adapter = new BunHonoAdapter();
-  const app = await NestFactory.create(AppModule, adapter, {
+  const rootModule =
+    process.env.SERVICE_ROLE === "worker" ? WorkerAppModule : AppModule;
+  const app = await NestFactory.create(rootModule, adapter, {
     bufferLogs: true,
   });
   const configService = app.get(ConfigService<Env>);

@@ -15,6 +15,13 @@
       "when": 1785111172865,
       "tag": "0001_absurd_lyja",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785579034022,
+      "tag": "0002_thick_squadron_supreme",
+      "breakpoints": true
     }
   ]
 }

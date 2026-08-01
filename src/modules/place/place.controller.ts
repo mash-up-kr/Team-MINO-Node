@@ -1,41 +1,35 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { AppException } from "../../common/exceptions/app.exception";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
+import { TasksService } from "../../infrastructures/tasks/tasks.service";
 import {
   type CreatePlaceRequest,
   createPlaceRequestApiSchema,
   createPlaceRequestSchema,
-  createPlaceResponseApiSchema,
   errorResponseApiSchema,
 } from "./place.dto";
-import { PlaceJobService } from "./place-job.service";
 
 @ApiTags("place")
 @Controller("api/v1/place")
 export class PlaceController {
-  constructor(private readonly placeJobService: PlaceJobService) {}
+  constructor(private readonly tasksService: TasksService) {}
 
   @Post("places")
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
-    summary: "인스타그램 URL에서 장소 추출 job을 생성한다",
+    summary: "인스타그램 URL에서 장소 추출을 enqueue한다",
     description:
-      "비동기 job을 만들고 즉시 jobId를 반환한다. 추출(scrap → AI extraction → geocoding fan-out)은 워커에서 진행되며, GET /api/v1/place/jobs/:jobId로 폴링해 결과를 받는다. 동일 게시글 재요청은 진행 중/완료된 jobId를 재사용한다.",
+      "장소 추출을 Cloud Tasks에 enqueue하고 본문 없이 202를 반환한다. 추출과 최종 결과 저장은 worker에서 수행한다.",
   })
   @ApiBody({ schema: createPlaceRequestApiSchema })
   @ApiResponse({
     status: 202,
-    description: "생성되거나 재사용된 job의 id",
-    schema: createPlaceResponseApiSchema,
+    description: "Cloud Tasks enqueue 완료",
   })
   @ApiResponse({
     status: 400,
     description: "요청 형식 오류 (VALIDATION_ERROR / INVALID_INSTAGRAM_URL)",
-    schema: errorResponseApiSchema,
-  })
-  @ApiResponse({
-    status: 409,
-    description: "job 생성 경합 (PLACE_JOB_CONFLICT, 재시도 필요)",
     schema: errorResponseApiSchema,
   })
   @ApiResponse({
@@ -45,10 +39,19 @@ export class PlaceController {
   })
   async createPlace(
     @Body(new ValibotPipe(createPlaceRequestSchema)) body: CreatePlaceRequest,
-  ): Promise<{ jobId: string }> {
+  ): Promise<void> {
     switch (body.method) {
       case "instagram_url":
-        return this.placeJobService.createJob(body.data.url);
+        try {
+          await this.tasksService.enqueuePlaceExtraction(body.data.url);
+        } catch {
+          throw new AppException(
+            "ENQUEUE_FAILED",
+            "작업을 큐에 등록하지 못했습니다.",
+            HttpStatus.BAD_GATEWAY,
+          );
+        }
+        return;
       default:
         throw new Error(`Unsupported method: ${body.method}`);
     }

@@ -8,10 +8,9 @@ import type { GeocoderService } from "../../infrastructures/geocoder/geocoder.se
 import type { GeoCandidate } from "../../infrastructures/geocoder/geocoder.type";
 import type { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
-import { PlaceController } from "./place.controller";
-import { PlaceModule } from "./place.module";
 import { PlaceService } from "./place.service";
 import { type PlaceQuery, placeExtractionSchema } from "./place.type";
+import { PlaceWorkerModule } from "./place-worker.module";
 
 describe("PlaceService", () => {
   const URL = "https://www.instagram.com/p/abc123/";
@@ -338,7 +337,7 @@ describe("PlaceService", () => {
     expect(result[0].matches[0]?.placeName).toBe("가까운 후보");
   });
 
-  it("PlaceModule이 PlaceService와 PlaceController를 해석한다", async () => {
+  it("PlaceWorkerModule이 PlaceService를 해석한다", async () => {
     // given
     /*
      * DatabaseService·TasksService가 생성자에서 읽는 최소 env만 주입한다.
@@ -356,21 +355,18 @@ describe("PlaceService", () => {
               CLOUD_TASKS_LOCATION: "asia-northeast3",
               CLOUD_TASKS_QUEUE: "test-queue",
               CLOUD_TASKS_INVOKER_EMAIL: "invoker@test.iam.gserviceaccount.com",
-              CLOUD_TASKS_OIDC_AUDIENCE: "test-audience",
               APP_BASE_URL: "http://localhost:3000",
             }),
           ],
         }),
-        PlaceModule,
+        PlaceWorkerModule,
       ],
     }).compile();
 
     // when
     const service = module.get(PlaceService);
-    const controller = module.get(PlaceController);
 
     // then
     expect(service).toBeInstanceOf(PlaceService);
-    expect(controller).toBeInstanceOf(PlaceController);
   });
 });

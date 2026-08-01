@@ -6,7 +6,7 @@ import { CloudTasksGuard } from "./cloud-tasks.guard";
 
 const EXPECTED_EMAIL =
   "team-mino-prod-tasks-invoker@team-mino-prod.iam.gserviceaccount.com";
-const AUDIENCE = "team-mino-place-extraction-worker";
+const AUDIENCE = "https://place-worker.team-mino.example";
 
 type GuardWithClient = {
   client: { verifyIdToken: (...args: unknown[]) => unknown };
@@ -17,8 +17,8 @@ function createConfigService(
 ): ConfigService {
   const env: Record<string, string> = {
     APP_ENV: "local",
+    APP_BASE_URL: AUDIENCE,
     CLOUD_TASKS_INVOKER_EMAIL: EXPECTED_EMAIL,
-    CLOUD_TASKS_OIDC_AUDIENCE: AUDIENCE,
     CLOUD_TASKS_MODE: "cloud",
     NODE_ENV: "development",
     ...overrides,

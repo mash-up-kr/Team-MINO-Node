@@ -14,12 +14,11 @@ interface CloudTasksRequest {
 }
 
 /**
- * Cloud Run 서비스 전체가 allUsers에 공개돼있어(공개 API 라우트와 같은 서비스),
- * IAM만으로는 /internal/* 을 막을 수 없다. 대신 Cloud Tasks가 붙여 보내는
- * OIDC 토큰(Authorization: Bearer ...)을 여기서 직접 검증해 접근을 제어한다.
+ * worker Cloud Run 서비스는 공개 라우트가 없더라도 요청 경계에서 OIDC를
+ * 직접 검증해 /internal/* 접근을 명시적으로 제한한다.
  *
- * audience는 요청 URL을 재구성하는 대신 고정 문자열(CLOUD_TASKS_OIDC_AUDIENCE)을 쓴다.
- * 태스크 생성 시 oidcToken.audience에도 동일한 값을 넣어야 한다.
+ * audience는 worker 서비스 URL을 사용한다. 태스크 생성 시 oidcToken.audience에도
+ * 동일한 값을 넣어야 한다.
  */
 @Injectable()
 export class CloudTasksGuard implements CanActivate {
@@ -45,10 +44,9 @@ export class CloudTasksGuard implements CanActivate {
       "CLOUD_TASKS_INVOKER_EMAIL",
       { infer: true },
     );
-    const audience = this.configService.getOrThrow(
-      "CLOUD_TASKS_OIDC_AUDIENCE",
-      { infer: true },
-    );
+    const audience = this.configService
+      .getOrThrow("APP_BASE_URL", { infer: true })
+      .replace(/\/+$/, "");
 
     const payload = await this.verify(idToken, audience);
 

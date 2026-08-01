@@ -75,12 +75,6 @@ describe("Cloud Tasks environment", () => {
     expect(() => validateEnv(requiredEnvironment)).not.toThrow();
   });
 
-  it("audience 미설정 시 기본값을 채운다", () => {
-    expect(validateEnv(requiredEnvironment).CLOUD_TASKS_OIDC_AUDIENCE).toBe(
-      "team-mino-place-extraction-worker",
-    );
-  });
-
   it("기본 Cloud Tasks 모드는 cloud다", () => {
     expect(validateEnv(requiredEnvironment).CLOUD_TASKS_MODE).toBe("cloud");
   });

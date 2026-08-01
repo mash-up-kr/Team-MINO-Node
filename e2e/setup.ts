@@ -36,7 +36,6 @@ Object.assign(process.env, {
   CLOUD_TASKS_INVOKER_EMAIL:
     "test-invoker@team-mino-test.iam.gserviceaccount.com",
   CLOUD_TASKS_LOCATION: "asia-northeast3",
-  CLOUD_TASKS_OIDC_AUDIENCE: "test-audience",
   CLOUD_TASKS_QUEUE: "test-queue",
   DATABASE_SCHEMA: "develop",
   DATABASE_URL: url,
