@@ -29,7 +29,7 @@ tags:
   - name: Invitation
     description: 초대 미리보기·방 합류
   - name: LinkAnalysis
-    description: 링크 분석 (비동기) ([000] 공유 유입)
+    description: 링크 분석 (비동기) ([000] 공유 유입 — TBD)
   - name: Pin
     description: 핀 조회·복제·접근 기록 ([002], [004], [005])
   - name: Comment
@@ -61,24 +61,18 @@ paths:
                   type: string
                 nickname:
                   $ref: "#/components/schemas/Nickname"
-                profileImageUrl:
-                  type: string
-                  nullable: true
+                avatar:
+                  $ref: "#/components/schemas/Avatar"
       responses:
         "201":
-          description: 등록 완료. 개인방 정보 포함 여부는 상세 PR에서 확정.
+          description: 등록 완료. 개인방은 함께 생성되지만 응답에는 포함하지 않는다.
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   data:
-                    type: object
-                    properties:
-                      user:
-                        $ref: "#/components/schemas/User"
-                      personalRoom:
-                        $ref: "#/components/schemas/Room"
+                    $ref: "#/components/schemas/User"
         "409":
           $ref: "#/components/responses/Conflict"
 
@@ -101,7 +95,7 @@ paths:
     patch:
       tags: [User]
       summary: 프로필 수정
-      description: 닉네임(공백 포함 한글/영문 2~15자, 특수문자 불가)·프로필 이미지 수정. 공통 프로필이라 모든 방에 즉시 반영된다.
+      description: 닉네임(공백 포함 한글/영문 2~15자, 특수문자 불가)·아바타 수정. 공통 프로필이라 모든 방에 즉시 반영된다.
       requestBody:
         required: true
         content:
@@ -111,9 +105,8 @@ paths:
               properties:
                 nickname:
                   $ref: "#/components/schemas/Nickname"
-                profileImageUrl:
-                  type: string
-                  nullable: true
+                avatar:
+                  $ref: "#/components/schemas/Avatar"
       responses:
         "200":
           description: 수정된 프로필
@@ -192,13 +185,19 @@ paths:
       summary: 내가 속한 방 목록
       description: 나간 방(멤버십 soft delete)은 제외한다. 공동방 생성 유도 바텀시트용 보유 이력 판별에도 쓰인다.
       parameters:
-        - name: savedPlaceId
+        - name: showHasPlaceId
           in: query
           required: false
           schema:
             type: string
             format: uuid
-          description: 지정 시 각 방에 해당 장소가 이미 저장되어 있는지(`hasPlace`)를 함께 반환 — "다른 방에 공유" 화면용
+          description: 지정 시 각 방에 해당 장소(placeId)가 이미 저장되어 있는지(`hasPlace`)를 함께 반환 — "다른 방에 공유" 화면용
+        - name: showUsers
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: true면 각 방의 멤버 목록(`users`)을 함께 반환
       responses:
         "200":
           description: OK
@@ -221,9 +220,8 @@ paths:
       tags: [Room]
       summary: 방 상세 조회
       description: |
-        방 정보 + 핀 리스트(지도뷰용 좌표 포함). 요청 유저의 멤버십을 검증한다.
-        지도에 표시하는 핀은 페이지네이션 없이 전체 반환한다(성능 저하 확인 시 리팩토링, PR 리뷰 확정).
-        핀 리스트의 정렬/필터(5종)·카드형/리스트형 뷰는 기획 TBD — 확정 후 파라미터를 추가한다.
+        방 정보 + 핀 수·멤버 수 메타. 요청 유저의 멤버십을 검증한다.
+        핀 목록은 포함하지 않는다 — `GET /api/v1/pins?roomId=`로 별도 조회한다.
       responses:
         "200":
           description: OK
@@ -241,7 +239,7 @@ paths:
     patch:
       tags: [Room]
       summary: 방 편집
-      description: 이름·색상 수정. **방장만** 가능.
+      description: 이름·설명·색상 수정. **방장만** 가능.
       requestBody:
         required: true
         content:
@@ -252,6 +250,10 @@ paths:
                 name:
                   type: string
                   maxLength: 15
+                description:
+                  type: string
+                  maxLength: 20
+                  nullable: true
                 color:
                   type: string
       responses:
@@ -366,21 +368,14 @@ paths:
                   type: string
                   maxLength: 16
       responses:
-        "200":
-          description: 합류 완료(또는 이미 멤버 — 멱등)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    $ref: "#/components/schemas/RoomSummary"
+        "204":
+          description: 합류 완료(또는 이미 멤버 — 멱등). 응답 본문 없음
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
     get:
-      tags: [Invitation]
+      tags: [Room]
       summary: 방 멤버 목록
       description: 방장 위임 대상 선택 모달용. 요청 유저의 멤버십을 검증한다.
       responses:
@@ -401,8 +396,9 @@ paths:
   /api/v1/link-analyses:
     post:
       tags: [LinkAnalysis]
-      summary: 링크 분석 요청 (비동기 접수)
+      summary: "[TBD] 링크 분석 요청 (비동기 접수)"
       description: |
+        **TBD — 링크 분석 계약은 기획/설계 변경 여지가 있어 잠정이다.**
         잡 생성 전에 `roomId`에 대한 요청 유저의 멤버십을 검증한다.
         `sources` 등록과 잡 생성까지만 동기로 수행하고 즉시 202를 반환한다.
         MVP 지원 출처는 인스타그램 링크뿐이며 그 외 URL은 명시적으로 거절한다.
@@ -444,8 +440,9 @@ paths:
   /api/v1/link-analyses/{jobId}:
     get:
       tags: [LinkAnalysis]
-      summary: 분석 잡 상태 조회
+      summary: "[TBD] 분석 잡 상태 조회"
       description: |
+        **TBD — 링크 분석 계약은 기획/설계 변경 여지가 있어 잠정이다.**
         푸시가 주 전달 수단이지만 앱이 포그라운드일 때 폴링/보정용으로 쓴다.
         **잡 생성 요청자(또는 해당 방 멤버)만 조회할 수 있다.**
       parameters:
@@ -473,8 +470,9 @@ paths:
   /internal/link-analyses/{jobId}/process:
     post:
       tags: [Internal]
-      summary: 링크 분석 워커 콜백 (외부 비공개)
+      summary: "[TBD] 링크 분석 워커 콜백 (외부 비공개)"
       description: |
+        **TBD — 링크 분석 계약은 기획/설계 변경 여지가 있어 잠정이다.**
         Cloud Tasks가 호출하는 워커 엔드포인트. OIDC 가드로 보호하며 외부에 공개하지 않는다.
         스크래핑 → AI 추출 → 지오코딩 → `places` dedup → `place_sources` 연결 → `pins` 생성을 수행하고,
         잡 종결 시 알림 레코드를 남긴다(푸시는 중복·실패 시에만 발송).
@@ -518,11 +516,50 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /api/v1/pins:
+    get:
+      tags: [Pin]
+      summary: 핀 목록 조회
+      description: |
+        `roomId`의 핀 목록(좌표 포함). 요청 유저의 해당 방 멤버십을 검증한다.
+        **`limit` 미지정 시 전체를 반환한다** — 지도 전체 보기는 페이지네이션 구분이 애매해 전체 조회를 보장한다(성능 저하 확인 시 리팩토링, PR 리뷰 확정). 리스트 뷰 등에서는 `cursor`/`limit`으로 페이지네이션한다.
+        정렬/필터(5종)·카드형/리스트형 뷰는 기획 TBD — 확정 후 파라미터를 추가한다.
+      parameters:
+        - name: roomId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Pin"
+                      nextCursor:
+                        type: string
+                        nullable: true
+                        description: 다음 페이지 커서. 마지막 페이지(또는 전체 조회)면 null
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/v1/pins/{pinId}:
     get:
       tags: [Pin]
       summary: 장소(핀) 상세 조회
-      description: 장소 정보 + 출처 링크 + 코멘트 수. 핀이 속한 방의 멤버만 조회할 수 있다.
+      description: 장소 정보(places 컬럼 전체) + 출처 링크 + 저장한 멤버 프로필. 핀이 속한 방의 멤버만 조회할 수 있다.
       parameters:
         - $ref: "#/components/parameters/PinId"
       responses:
@@ -540,39 +577,42 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/v1/rooms/{roomId}/pins:
+  /api/v1/pins/{pinId}/duplicate:
     post:
       tags: [Pin]
-      summary: 다른 방에서 핀 복제 ("다른 방에 공유")
+      summary: 다른 방에 핀 복제 ("다른 방에 공유")
       description: |
-        신규 저장 경로가 아니다(신규 저장은 링크 분석 잡이 처리). 원본 방·대상 방 **양쪽 멤버십**을 검증한다.
-        대상 방에 같은 장소가 이미 있으면 신규 생성 대신 기존 핀을 반환한다(상태 코드 200 vs 409는 구현 PR에서 확정).
+        원본 핀의 장소를 대상 방들에 복제한다. 신규 저장 경로가 아니다(신규 저장은 링크 분석 잡이 처리).
+        원본 핀의 방과 **모든 대상 방**의 멤버십을 검증한다.
+        **대상 방 중 하나라도 같은 장소가 이미 저장돼 있으면 `409`로 전체 거절한다.**
       parameters:
-        - $ref: "#/components/parameters/RoomId"
+        - $ref: "#/components/parameters/PinId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [pinId]
+              required: [roomIds]
               properties:
-                pinId:
-                  type: string
-                  format: uuid
-                  description: 복제할 원본 핀
+                roomIds:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    format: uuid
+                  description: 복제 대상 방 목록
       responses:
-        "201":
-          description: 복제된 핀 (이미 있으면 기존 핀 반환 — 상태 코드 미확정)
+        "204":
+          description: 복제 완료. 응답 본문 없음
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: 대상 방 중 하나 이상에 같은 장소가 이미 저장됨 — 전체 거절
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    $ref: "#/components/schemas/Pin"
-        "403":
-          $ref: "#/components/responses/Forbidden"
+                $ref: "#/components/schemas/Error"
 
   /api/v1/pins/{pinId}/accesses:
     post:
@@ -595,7 +635,10 @@ paths:
     get:
       tags: [Comment]
       summary: 코멘트 목록 조회
-      description: 방 멤버만 조회 가능.
+      description: 방 멤버만 조회 가능. 정렬은 `createdAt` 오름차순(ASC) — 최신 코멘트가 목록 맨 아래. cursor 기반 페이지네이션.
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
       responses:
         "200":
           description: OK
@@ -605,9 +648,15 @@ paths:
                 type: object
                 properties:
                   data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Comment"
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Comment"
+                      nextCursor:
+                        type: string
+                        nullable: true
         "403":
           $ref: "#/components/responses/Forbidden"
     post:
@@ -666,7 +715,10 @@ paths:
         **TBD — 알림 종류·알림함 구성이 프디팀 정리 중이라 계약이 잠정이다.**
         (예시 후보: 저장 중복 / 오류 / 친구 합류 / 친구 방 나가기 / 방장 위임)
         확정분: 푸시는 중복·실패·초대 합류 시 발송, 중복 저장 알림은 기존 핀 참조(`roomId`·`pinId`·`placeId`·최초 저장 시각)를
-        담아 딥링크로 이동시킨다. 페이지네이션 방식은 상세 PR에서 확정.
+        담아 딥링크로 이동시킨다. cursor 기반 페이지네이션.
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
       responses:
         "200":
           description: 알림 목록 (잠정)
@@ -676,9 +728,15 @@ paths:
                 type: object
                 properties:
                   data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Notification"
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Notification"
+                      nextCursor:
+                        type: string
+                        nullable: true
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -730,6 +788,22 @@ components:
       schema:
         type: string
         format: uuid
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+      description: 이전 응답의 `nextCursor` 값. 미지정 시 처음부터 조회
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+      description: 페이지 크기
 
   responses:
     BadRequest:
@@ -780,6 +854,14 @@ components:
       maxLength: 15
       description: 공백 포함 한글/영문 2~15자, 특수문자 불가 (PR 리뷰 확정)
 
+    Avatar:
+      type: object
+      description: 프로필 아바타. id 참조 방식으로 저장하며, 추후 url·color·sunglass 등 필드 확장 가능
+      required: [id]
+      properties:
+        id:
+          type: integer
+
     User:
       type: object
       properties:
@@ -788,9 +870,8 @@ components:
           format: uuid
         nickname:
           $ref: "#/components/schemas/Nickname"
-        profileImageUrl:
-          type: string
-          nullable: true
+        avatar:
+          $ref: "#/components/schemas/Avatar"
         createdAt:
           type: string
           format: date-time
@@ -820,7 +901,7 @@ components:
         inviteCode:
           type: string
           maxLength: 16
-          description: 초대 링크 gguk.org/r/{code}의 code. 개인방 코드는 초대에 사용 불가
+          description: 초대 링크 gguk.org/r/{code}의 code. 개인방 코드는 초대에 사용 불가. invitation 테이블/리소스로 분리되면 이 필드는 응답에서 빠질 수 있다
         createdAt:
           type: string
           format: date-time
@@ -837,18 +918,23 @@ components:
             hasPlace:
               type: boolean
               nullable: true
-              description: '`?savedPlaceId=` 지정 시에만 포함 — 해당 장소가 이 방에 이미 저장돼 있는지'
+              description: '`?showHasPlaceId=` 지정 시에만 포함 — 해당 장소가 이 방에 이미 저장돼 있는지'
+            users:
+              type: array
+              nullable: true
+              description: '`?showUsers=true` 지정 시에만 포함 — 방 멤버 목록'
+              items:
+                $ref: "#/components/schemas/RoomMember"
 
     RoomDetail:
       allOf:
-        - $ref: "#/components/schemas/RoomSummary"
+        - $ref: "#/components/schemas/Room"
         - type: object
           properties:
-            pins:
-              type: array
-              description: 지도뷰용 좌표 포함, 페이지네이션 없이 전체 반환. 정렬/필터는 TBD
-              items:
-                $ref: "#/components/schemas/Pin"
+            pinCount:
+              type: integer
+            memberCount:
+              type: integer
 
     RoomMember:
       type: object
@@ -858,9 +944,8 @@ components:
           format: uuid
         nickname:
           $ref: "#/components/schemas/Nickname"
-        profileImageUrl:
-          type: string
-          nullable: true
+        avatar:
+          $ref: "#/components/schemas/Avatar"
         isOwner:
           type: boolean
         joinedAt:
@@ -876,21 +961,48 @@ components:
           format: uuid
         name:
           type: string
-        color:
+        description:
           type: string
-        memberCount:
+          nullable: true
+          description: 방 설명
+        color:
+          type: object
+          description: 팔레트 색상 객체 (avatar와 같은 id 참조·확장 구조)
+          required: [id]
+          properties:
+            id:
+              type: integer
+        pinCount:
           type: integer
+        inviter:
+          type: object
+          description: 초대자 정보 (invitation 테이블 도입 시 초대자 참조에서 조회)
+          properties:
+            nickname:
+              $ref: "#/components/schemas/Nickname"
 
     Place:
       type: object
+      description: places 테이블 컬럼을 전부 내려준다. 단 images는 제외 — pins로 이동 예정(DB 변경)
       properties:
         id:
           type: string
           format: uuid
+        provider:
+          type: string
+          enum: [kakao, google]
+        providerPlaceId:
+          type: string
         name:
           type: string
         address:
           type: string
+        city:
+          type: string
+          nullable: true
+        district:
+          type: string
+          nullable: true
         lat:
           type: number
         lng:
@@ -902,9 +1014,16 @@ components:
         phone:
           type: string
           nullable: true
-        externalUrl:
+        mapUrl:
           type: string
           nullable: true
+          description: 외부 지도 상세 URL (스키마 컬럼 `external_url` → `map_url` 변경 예정)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
 
     Pin:
       type: object
@@ -917,11 +1036,24 @@ components:
           format: uuid
         place:
           $ref: "#/components/schemas/Place"
+        images:
+          type: array
+          description: 게시물 이미지 — places.images가 pins로 이동 예정(DB 변경)
+          items:
+            type: string
+            format: uri
         createdBy:
-          type: string
-          format: uuid
+          type: object
           nullable: true
-          description: 추가한 멤버 ("누가 추가한 곳" 표시용)
+          description: 핀을 저장한 멤버의 프로필 ("누가 추가한 곳" 표시용)
+          properties:
+            userId:
+              type: string
+              format: uuid
+            nickname:
+              $ref: "#/components/schemas/Nickname"
+            avatar:
+              $ref: "#/components/schemas/Avatar"
         createdAt:
           type: string
           format: date-time
@@ -931,22 +1063,16 @@ components:
         - $ref: "#/components/schemas/Pin"
         - type: object
           properties:
-            sourceUrls:
-              type: array
-              description: 출처 링크 (place_sources → sources.original_url)
-              items:
-                type: string
-                format: uri
-            commentCount:
-              type: integer
+            sourceUrl:
+              type: string
+              format: uri
+              nullable: true
+              description: 출처 링크 (sources.original_url, 단일)
 
     Comment:
       type: object
       properties:
         id:
-          type: string
-          format: uuid
-        pinId:
           type: string
           format: uuid
         author:
@@ -957,9 +1083,8 @@ components:
               format: uuid
             nickname:
               $ref: "#/components/schemas/Nickname"
-            profileImageUrl:
-              type: string
-              nullable: true
+            avatar:
+              $ref: "#/components/schemas/Avatar"
         content:
           type: string
         createdAt:
