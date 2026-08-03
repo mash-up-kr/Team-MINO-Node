@@ -1,1 +1,0 @@
-DROP TABLE "place_jobs" CASCADE;
