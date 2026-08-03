@@ -42,8 +42,15 @@ export class PlaceWorkerController {
     }
   }
 
+  /**
+   * Cloud Tasks는 retryable 값을 직접 읽지 않고 Internal API의 HTTP 상태로 재시도를 판단한다.
+   * retryable=true면 예외를 재전파해 non-2xx를 반환하고, false면 오류를 소비해 2xx로 acknowledge한다.
+   * 값이 없으면 5xx는 재시도하고 4xx는 acknowledge하는 기본 규칙을 따른다.
+   */
   private shouldAcknowledge(error: unknown): error is AppException {
     if (!(error instanceof AppException)) return false;
-    return error.retryable ?? error.getStatus() < 500;
+
+    const shouldRetry = error.retryable ?? error.getStatus() >= 500;
+    return !shouldRetry;
   }
 }

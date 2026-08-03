@@ -109,14 +109,11 @@ POST http://localhost:3000/api/v1/place/places
 Content-Type: application/json
 
 {
-  "method": "instagram_url",
-  "data": {
-    "url": "https://www.instagram.com/p/{shortcode}/"
-  }
+  "url": "https://www.instagram.com/p/{shortcode}/"
 }
 ```
 
-응답은 본문 없이 `202 Accepted`입니다. `start:local`에서는 여기서 GCP Cloud Tasks enqueue가 발생하지 않습니다.
+응답은 `{ "data": { "ok": true } }`와 함께 `202 Accepted`입니다. `start:local`에서는 여기서 GCP Cloud Tasks enqueue가 발생하지 않습니다.
 
 3. 같은 서버의 Internal endpoint를 직접 실행합니다.
 

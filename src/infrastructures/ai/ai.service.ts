@@ -8,7 +8,7 @@ import { AppException } from "../../common/exceptions/app.exception";
 import type { Env } from "../../config/env.schema";
 import type { AiServiceInterface, ContentPart } from "./ai.type";
 
-// Gemini 3.x는 global 엔드포인트 전용이라 location은 env 기본값 "global"을 사용한다.
+// Gemini 3.1 Flash-Lite는 global/us/eu를 지원하며, 이 앱은 global을 기본 location으로 사용한다.
 const MODEL = "gemini-3.1-flash-lite";
 const AI_TIMEOUT_MS = 30_000;
 

@@ -128,14 +128,13 @@ function runInternalExtraction() {
 }
 
 describe("장소 추출 enqueue + 최종 DB 저장", () => {
-  it("POST는 body 없이 202를 반환하고 추출은 실행하지 않는다", async () => {
+  it("POST는 ok 응답과 함께 202를 반환하고 추출은 실행하지 않는다", async () => {
     const response = await postPlaces({
-      method: "instagram_url",
-      data: { url: POST_URL },
+      url: POST_URL,
     });
 
     expect(response.status).toBe(202);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toEqual({ data: { ok: true } });
     expect(enqueued).toEqual([POST_URL]);
     expect(instagram.fetchPost).not.toHaveBeenCalled();
     expect(ai.extract).not.toHaveBeenCalled();
@@ -200,8 +199,7 @@ describe("장소 추출 enqueue + 최종 DB 저장", () => {
 
   it("잘못된 요청은 enqueue하지 않는다", async () => {
     const response = await postPlaces({
-      method: "unknown_method",
-      data: { url: "not-a-url" },
+      url: "not-a-url",
     });
 
     expect(response.status).toBe(400);
@@ -214,8 +212,7 @@ describe("장소 추출 enqueue + 최종 DB 저장", () => {
     );
 
     const response = await postPlaces({
-      method: "instagram_url",
-      data: { url: POST_URL },
+      url: POST_URL,
     });
 
     expect(response.status).toBe(502);

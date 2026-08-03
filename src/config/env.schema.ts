@@ -30,7 +30,7 @@ const envSchema = v.pipe(
     ),
     // GCP 프로젝트 ID(Vertex project 겸 Maps X-Goog-User-Project)
     GOOGLE_CLOUD_PROJECT: v.pipe(v.string(), v.minLength(1)),
-    // Gemini 3.x는 global 전용이므로 기본 "global" 사용
+    // Gemini 3.1 Flash-Lite 지원 location 중 이 앱의 기본값은 "global"이다.
     GOOGLE_VERTEX_LOCATION: v.optional(v.string(), "global"),
     KAKAO_REST_API_KEY: v.pipe(v.string(), v.minLength(1)),
     SENTRY_DSN: v.optional(v.pipe(v.string(), v.url(), v.regex(/^https:\/\//))),
