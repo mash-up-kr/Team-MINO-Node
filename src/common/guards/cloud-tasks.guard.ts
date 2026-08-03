@@ -3,6 +3,7 @@ import {
   type ExecutionContext,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -75,7 +76,12 @@ export class CloudTasksGuard implements CanActivate {
       return ticket.getPayload();
     } catch (error) {
       this.logger.warn({ err: error }, "Cloud Tasks OIDC verification failed");
-      throw new UnauthorizedException("Invalid Cloud Tasks OIDC token");
+      // 검증 실패의 원인(구글 인증서 fetch 일시 장애 등)을 확정할 수 없으므로
+      // Cloud Tasks가 재시도하는 503으로 응답해 유효한 task가 폐기되지 않게 한다.
+      // 401은 토큰 검증 후 주체가 어긋났을 때만 사용한다.
+      throw new ServiceUnavailableException(
+        "Cloud Tasks OIDC verification unavailable",
+      );
     }
   }
 }

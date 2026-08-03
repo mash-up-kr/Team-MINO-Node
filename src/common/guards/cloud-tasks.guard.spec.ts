@@ -1,6 +1,9 @@
 import { describe, expect, it, jest } from "bun:test";
 import type { ExecutionContext } from "@nestjs/common";
-import { UnauthorizedException } from "@nestjs/common";
+import {
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
 import { CloudTasksGuard } from "./cloud-tasks.guard";
 
@@ -68,7 +71,7 @@ describe("CloudTasksGuard", () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  it("OIDC 토큰 검증 자체가 실패하면 401", async () => {
+  it("OIDC 토큰 검증 자체가 실패하면 일시 장애로 보고 503 (Cloud Tasks 재시도 허용)", async () => {
     const guard = new CloudTasksGuard(createConfigService());
     stubVerifyIdToken(guard, () => {
       throw new Error("invalid signature");
@@ -76,7 +79,7 @@ describe("CloudTasksGuard", () => {
 
     await expect(
       guard.canActivate(createContext({ authorization: "Bearer bad-token" })),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it("email이 기대하는 SA와 다르면 401", async () => {
