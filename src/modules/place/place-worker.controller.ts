@@ -1,4 +1,12 @@
-import { Body, Controller, Logger, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  HttpStatus,
+  Logger,
+  Post,
+  ServiceUnavailableException,
+  UseGuards,
+} from "@nestjs/common";
 import * as v from "valibot";
 import { AppException } from "../../common/exceptions/app.exception";
 import { CloudTasksGuard } from "../../common/guards/cloud-tasks.guard";
@@ -38,7 +46,7 @@ export class PlaceWorkerController {
         );
         return;
       }
-      throw error;
+      throw this.toRetryableResponse(error);
     }
   }
 
@@ -52,5 +60,27 @@ export class PlaceWorkerController {
 
     const shouldRetry = error.retryable ?? error.getStatus() >= 500;
     return !shouldRetry;
+  }
+
+  /**
+   * Cloud Tasks는 5xx와 429만 재시도하고 그 외 4xx는 영구 실패로 폐기한다.
+   * retryable=true인데 4xx인 예외(예: AI_SCHEMA_MISMATCH 422)는 그대로 응답하면
+   * task가 폐기되므로, 재시도가 보장되는 503으로 변환해 돌려준다.
+   */
+  private toRetryableResponse(error: unknown): unknown {
+    if (error instanceof AppException) {
+      const status = error.getStatus();
+      const alreadyRetried =
+        status >= 500 || status === HttpStatus.TOO_MANY_REQUESTS;
+
+      if (!alreadyRetried) {
+        const response = error.getResponse() as {
+          errorCode: string;
+          message: string;
+        };
+        return new ServiceUnavailableException(response, { cause: error });
+      }
+    }
+    return error;
   }
 }
