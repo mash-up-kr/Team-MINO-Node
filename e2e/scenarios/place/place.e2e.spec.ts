@@ -9,7 +9,7 @@ import {
 } from "bun:test";
 import { type INestApplication, UnauthorizedException } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { sql } from "drizzle-orm";
+import { isNull, sql } from "drizzle-orm";
 import { AppModule } from "../../../src/app.module";
 import { AppException } from "../../../src/common/exceptions/app.exception";
 import { CloudTasksGuard } from "../../../src/common/guards/cloud-tasks.guard";
@@ -161,6 +161,37 @@ describe("장소 추출 enqueue + 최종 DB 저장", () => {
       name: "어니언 성수",
       address: "서울 성동구 아차산로 8",
     });
+  });
+
+  it("같은 payload가 중복 배달돼도 장소는 한 번만 저장한다", async () => {
+    const first = await runInternalExtraction();
+    const second = await runInternalExtraction();
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(instagram.fetchPost).toHaveBeenCalledTimes(2);
+
+    const rows = await db.db.select().from(places);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      provider: "kakao",
+      providerPlaceId: "kakao-1",
+    });
+  });
+
+  it("soft-delete된 장소는 되살리지 않고 새 active 행으로 다시 저장한다", async () => {
+    await runInternalExtraction();
+    await db.db
+      .update(places)
+      .set({ deletedAt: new Date() })
+      .where(isNull(places.deletedAt));
+
+    const response = await runInternalExtraction();
+
+    expect(response.status).toBe(201);
+    const rows = await db.db.select().from(places);
+    expect(rows).toHaveLength(2);
+    expect(rows.filter((row) => row.deletedAt === null)).toHaveLength(1);
   });
 
   it("인가되지 않은 internal 호출은 추출하지 않는다", async () => {
