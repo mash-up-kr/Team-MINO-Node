@@ -13,6 +13,7 @@ import { AppModule } from "../../../src/app.module";
 import { AiService } from "../../../src/infrastructures/ai/ai.service";
 import { GEOCODER_PROVIDERS } from "../../../src/infrastructures/geocoder/geocoder.service";
 import type { GeoCandidate } from "../../../src/infrastructures/geocoder/geocoder.type";
+import { PlaceImageService } from "../../../src/infrastructures/place-image/place-image.service";
 import { InstagramProvider } from "../../../src/infrastructures/scraper/providers/instagram.provider";
 import type { ScrapedPost } from "../../../src/infrastructures/scraper/scraper.type";
 import { SentryErrorReporter } from "../../../src/infrastructures/sentry/sentry-reporter";
@@ -44,6 +45,7 @@ const CANDIDATE: GeoCandidate = {
 const instagram = { fetchPost: jest.fn() };
 const ai = { extract: jest.fn() };
 const geocoder = { name: "kakao", search: jest.fn() };
+const placeImage = { storePostImages: jest.fn().mockResolvedValue([]) };
 let app: INestApplication;
 let baseUrl: string;
 
@@ -56,6 +58,8 @@ beforeAll(async () => {
       .useValue(ai)
       .overrideProvider(GEOCODER_PROVIDERS)
       .useValue([geocoder])
+      .overrideProvider(PlaceImageService)
+      .useValue(placeImage)
       .overrideProvider(SentryErrorReporter)
       .useValue({ report: () => undefined }),
   ));
