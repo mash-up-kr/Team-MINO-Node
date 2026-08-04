@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  HttpException,
   HttpStatus,
   Logger,
   Post,
@@ -46,7 +47,23 @@ export class PlaceWorkerController {
         );
         return;
       }
-      throw this.toRetryableResponse(error);
+      const response = this.toRetryableResponse(error);
+      this.logger.warn(
+        {
+          err: error,
+          url: body.url,
+          errorCode:
+            error instanceof AppException
+              ? error.errorCode
+              : "UNEXPECTED_ERROR",
+          responseStatus:
+            response instanceof HttpException
+              ? response.getStatus()
+              : HttpStatus.INTERNAL_SERVER_ERROR,
+        },
+        "Retryable place extraction failure; Cloud Tasks will redeliver",
+      );
+      throw response;
     }
   }
 
