@@ -3,6 +3,10 @@ import { developer, serverServiceAccount } from "@/resources/identity";
 import { healthPingJob } from "@/resources/scheduler";
 import { localEnvSecret, prodEnvSecret } from "@/resources/secrets";
 import {
+  placeImagesLocalBucket,
+  placeImagesProdBucket,
+} from "@/resources/storage";
+import {
   placeExtractionQueue,
   taskInvokerServiceAccount,
 } from "@/resources/tasks";
@@ -21,3 +25,5 @@ export const localEnvSecretId = localEnvSecret.secretId;
 export const healthPingJobName = healthPingJob.name;
 export const placeExtractionQueueId = placeExtractionQueue.id;
 export const taskInvokerServiceAccountEmail = taskInvokerServiceAccount.email;
+export const placeImagesLocalBucketName = placeImagesLocalBucket.name;
+export const placeImagesProdBucketName = placeImagesProdBucket.name;
