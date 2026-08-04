@@ -8,7 +8,7 @@ import { AppException } from "../../common/exceptions/app.exception";
 import type { Env } from "../../config/env.schema";
 import type { AiServiceInterface, ContentPart } from "./ai.type";
 
-// Gemini 3.x는 global 엔드포인트 전용이라 location은 env 기본값 "global"을 사용한다.
+// Gemini 3.1 Flash-Lite는 global/us/eu를 지원하며, 이 앱은 global을 기본 location으로 사용한다.
 const MODEL = "gemini-3.1-flash-lite";
 const AI_TIMEOUT_MS = 30_000;
 
@@ -37,10 +37,15 @@ export class AiService implements AiServiceInterface {
       return output;
     } catch (error) {
       if (NoObjectGeneratedError.isInstance(error)) {
+        /*
+         * 모델 출력은 비결정적이라 같은 입력도 재시도하면 스키마에 맞는 응답이
+         * 나올 수 있다. 4xx지만 백그라운드 재시도 대상으로 명시한다.
+         */
         throw new AppException(
           "AI_SCHEMA_MISMATCH",
           "AI 응답이 스키마와 일치하지 않습니다.",
           HttpStatus.UNPROCESSABLE_ENTITY,
+          { retryable: true },
         );
       }
       if (error instanceof Error && error.name === "TimeoutError") {
@@ -58,8 +63,10 @@ export class AiService implements AiServiceInterface {
     }
   }
 
-  // 자격증명은 ADC(Cloud Run 서비스 계정 / 로컬 gcloud)로 처리 — API 키 없음
-  // project는 SDK가 ADC로 자동 해석하지 않으므로 GOOGLE_CLOUD_PROJECT로 반드시 지정해야 함
+  /*
+   * 자격증명은 ADC(Cloud Run 서비스 계정 / 로컬 gcloud)로 처리 — API 키 없음.
+   * project는 SDK가 ADC로 자동 해석하지 않으므로 GOOGLE_CLOUD_PROJECT로 반드시 지정해야 한다.
+   */
   private get vertex() {
     this._client ??= createVertex({
       project: this.configService.get("GOOGLE_CLOUD_PROJECT", { infer: true }),

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { validateEnv } from "./env.schema";
 
+// 검증에 필요한 최소 유효 env. 개별 테스트가 필요한 값만 덮어쓴다.
 const requiredEnvironment = {
   DATABASE_URL: "postgres://postgres:postgres@localhost:5432/team_mino",
   GOOGLE_CLOUD_PROJECT: "test-project",
@@ -9,6 +10,10 @@ const requiredEnvironment = {
   INSTAGRAM_GRAPHQL_ENDPOINT: "https://www.instagram.com/graphql/query/",
   INSTAGRAM_USER_AGENT: "test",
   KAKAO_REST_API_KEY: "test",
+  CLOUD_TASKS_INVOKER_EMAIL: "invoker@x.iam.gserviceaccount.com",
+  APP_BASE_URL: "http://localhost:3000",
+  CLOUD_TASKS_LOCATION: "asia-northeast3",
+  CLOUD_TASKS_QUEUE: "team-mino-prod-place-extraction",
 };
 
 describe("Sentry environment", () => {
@@ -35,5 +40,65 @@ describe("Sentry environment", () => {
     expect(() =>
       validateEnv({ ...requiredEnvironment, ...sentryEnvironment }),
     ).toThrow("Invalid environment variables");
+  });
+});
+
+describe("Cloud Tasks environment", () => {
+  // production 검증용: APP_BASE_URL https 강제를 확인한다.
+  const productionEnvironment = {
+    ...requiredEnvironment,
+    APP_ENV: "prod",
+    NODE_ENV: "production",
+    APP_BASE_URL: "https://api.team-mino.example",
+  };
+
+  it("production에서 https APP_BASE_URL은 통과한다", () => {
+    expect(() => validateEnv({ ...productionEnvironment })).not.toThrow();
+  });
+
+  it("production에서 http APP_BASE_URL은 거부한다", () => {
+    expect(() =>
+      validateEnv({
+        ...productionEnvironment,
+        APP_BASE_URL: "http://api.team-mino.example",
+      }),
+    ).toThrow(/APP_BASE_URL/);
+  });
+
+  it("URL 형식이 아닌 APP_BASE_URL은 거부한다", () => {
+    expect(() =>
+      validateEnv({ ...productionEnvironment, APP_BASE_URL: "not-a-url" }),
+    ).toThrow(/APP_BASE_URL/);
+  });
+
+  it("로컬(개발)에서는 http APP_BASE_URL을 허용한다", () => {
+    expect(() => validateEnv(requiredEnvironment)).not.toThrow();
+  });
+
+  it("기본 Cloud Tasks 모드는 cloud다", () => {
+    expect(validateEnv(requiredEnvironment).CLOUD_TASKS_MODE).toBe("cloud");
+  });
+
+  it("로컬에서는 CLOUD_TASKS_MODE=local을 허용한다", () => {
+    expect(
+      validateEnv({ ...requiredEnvironment, CLOUD_TASKS_MODE: "local" })
+        .CLOUD_TASKS_MODE,
+    ).toBe("local");
+  });
+
+  it("production에서는 CLOUD_TASKS_MODE=local을 거부한다", () => {
+    expect(() =>
+      validateEnv({ ...productionEnvironment, CLOUD_TASKS_MODE: "local" }),
+    ).toThrow(/CLOUD_TASKS_MODE/);
+  });
+
+  it("APP_ENV=prod이면 NODE_ENV 누락도 fail closed 한다", () => {
+    expect(() =>
+      validateEnv({
+        ...requiredEnvironment,
+        APP_ENV: "prod",
+        CLOUD_TASKS_MODE: "local",
+      }),
+    ).toThrow(/APP_ENV=prod/);
   });
 });

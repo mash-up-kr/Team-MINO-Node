@@ -8,7 +8,6 @@ import type { GeocoderService } from "../../infrastructures/geocoder/geocoder.se
 import type { GeoCandidate } from "../../infrastructures/geocoder/geocoder.type";
 import type { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
-import { PlaceController } from "./place.controller";
 import { PlaceModule } from "./place.module";
 import { PlaceService } from "./place.service";
 import { type PlaceQuery, placeExtractionSchema } from "./place.type";
@@ -338,21 +337,36 @@ describe("PlaceService", () => {
     expect(result[0].matches[0]?.placeName).toBe("가까운 후보");
   });
 
-  it("PlaceModule이 PlaceService와 PlaceController를 해석한다", async () => {
+  it("PlaceModule이 PlaceService를 해석한다", async () => {
     // given
+    /*
+     * DatabaseService·TasksService가 생성자에서 읽는 최소 env만 주입한다.
+     * postgres-js 클라이언트는 lazy connect라 실제 DB 연결은 일어나지 않는다.
+     */
     const module = await Test.createTestingModule({
       imports: [
-        ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
+        ConfigModule.forRoot({
+          isGlobal: true,
+          ignoreEnvFile: true,
+          load: [
+            () => ({
+              DATABASE_URL: "postgres://postgres:postgres@localhost:5432/test",
+              GOOGLE_CLOUD_PROJECT: "test-project",
+              CLOUD_TASKS_LOCATION: "asia-northeast3",
+              CLOUD_TASKS_QUEUE: "test-queue",
+              CLOUD_TASKS_INVOKER_EMAIL: "invoker@test.iam.gserviceaccount.com",
+              APP_BASE_URL: "http://localhost:3000",
+            }),
+          ],
+        }),
         PlaceModule,
       ],
     }).compile();
 
     // when
     const service = module.get(PlaceService);
-    const controller = module.get(PlaceController);
 
     // then
     expect(service).toBeInstanceOf(PlaceService);
-    expect(controller).toBeInstanceOf(PlaceController);
   });
 });

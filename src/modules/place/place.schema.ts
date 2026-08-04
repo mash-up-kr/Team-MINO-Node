@@ -9,7 +9,6 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-
 export const PLACE_PROVIDERS = ["kakao", "google"] as const;
 export type PlaceProvider = (typeof PLACE_PROVIDERS)[number];
 

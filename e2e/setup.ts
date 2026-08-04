@@ -32,6 +32,11 @@ const db = drizzle({
 });
 
 Object.assign(process.env, {
+  APP_BASE_URL: "http://localhost:3000",
+  CLOUD_TASKS_INVOKER_EMAIL:
+    "test-invoker@team-mino-test.iam.gserviceaccount.com",
+  CLOUD_TASKS_LOCATION: "asia-northeast3",
+  CLOUD_TASKS_QUEUE: "test-queue",
   DATABASE_SCHEMA: "develop",
   DATABASE_URL: url,
   GOOGLE_CLOUD_PROJECT: "team-mino-test",

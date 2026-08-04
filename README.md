@@ -39,10 +39,10 @@ docker compose up -d postgres
 docker compose ps
 ```
 
-### 4. Start Development Server
+### 4. Start Local Server
 
 ```bash
-bun run start:dev
+bun run start:local
 ```
 
 서버 기본 포트는 `3000`입니다.
@@ -50,6 +50,8 @@ bun run start:dev
 ```text
 http://localhost:3000
 ```
+
+`start:local`은 `CLOUD_TASKS_MODE=local`을 주입합니다. 이 모드에서는 장소 추출 요청이 실제 GCP Cloud Tasks에 enqueue되지 않고, 로컬 non-production 서버에서만 Internal endpoint의 OIDC guard를 우회합니다. 운영(`NODE_ENV=production`)에서는 이 모드를 사용할 수 없습니다.
 
 ### 5. Check Health API
 
@@ -89,6 +91,45 @@ docker compose up -d postgres
 ```text
 http://localhost:3000/api-docs
 ```
+
+## Local Place Extraction with Postman
+
+로컬에서 enqueue 요청과 Internal endpoint의 최종 `places` 저장까지 하나의 서버에서 확인하는 흐름입니다.
+
+1. 서버를 한 번만 실행합니다.
+
+```bash
+bun run start:local
+```
+
+2. Postman에서 추출을 enqueue합니다.
+
+```http
+POST http://localhost:3000/api/v1/place/places
+Content-Type: application/json
+
+{
+  "url": "https://www.instagram.com/p/{shortcode}/"
+}
+```
+
+응답은 `{ "data": { "ok": true } }`와 함께 `202 Accepted`입니다. `start:local`에서는 여기서 GCP Cloud Tasks enqueue가 발생하지 않습니다.
+
+3. 같은 서버의 Internal endpoint를 직접 실행합니다.
+
+```http
+POST http://localhost:3000/internal/tasks/pin-extraction
+
+Content-Type: application/json
+
+{
+  "url": "https://www.instagram.com/p/{shortcode}/"
+}
+```
+
+`start:local`의 local 모드에서만 OIDC guard가 우회됩니다. 운영에서는 기존 API Cloud Run 서비스에 Cloud Tasks OIDC 토큰이 필요합니다.
+
+Internal endpoint가 추출한 최종 후보는 `places` 테이블에 저장됩니다. 클라이언트용 job ID나 polling API는 제공하지 않습니다.
 
 ## Database
 

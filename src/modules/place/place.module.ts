@@ -1,15 +1,24 @@
 import { Module } from "@nestjs/common";
+import { CloudTasksGuard } from "../../common/guards/cloud-tasks.guard";
 import { AiModule } from "../../infrastructures/ai/ai.module";
+import { DatabaseModule } from "../../infrastructures/db/database.module";
 import { GeocoderModule } from "../../infrastructures/geocoder/geocoder.module";
 import { ScraperModule } from "../../infrastructures/scraper/scraper.module";
+import { TasksModule } from "../../infrastructures/tasks/tasks.module";
 import { PlaceController } from "./place.controller";
-// TODO(임시): 클라 개발 언블록용 mock. 실제 파이프라인 연동되면 제거.
-import { PlaceMockController } from "./place.mock.controller";
 import { PlaceService } from "./place.service";
+import { PlaceResultRepository } from "./place-result.repository";
+import { PlaceWorkerController } from "./place-worker.controller";
 
 @Module({
-  imports: [AiModule, GeocoderModule, ScraperModule],
-  controllers: [PlaceController, PlaceMockController],
-  providers: [PlaceService],
+  imports: [
+    AiModule,
+    DatabaseModule,
+    GeocoderModule,
+    ScraperModule,
+    TasksModule,
+  ],
+  controllers: [PlaceController, PlaceWorkerController],
+  providers: [CloudTasksGuard, PlaceResultRepository, PlaceService],
 })
 export class PlaceModule {}
