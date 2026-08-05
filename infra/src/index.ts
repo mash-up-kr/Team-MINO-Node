@@ -1,4 +1,5 @@
 import { service } from "@/resources/cloud-run";
+import { customDomain } from "@/resources/hosting";
 import { developer, serverServiceAccount } from "@/resources/identity";
 import { healthPingJob } from "@/resources/scheduler";
 import { localEnvSecret, prodEnvSecret } from "@/resources/secrets";
@@ -27,3 +28,4 @@ export const placeExtractionQueueId = placeExtractionQueue.id;
 export const taskInvokerServiceAccountEmail = taskInvokerServiceAccount.email;
 export const placeImagesLocalBucketName = placeImagesLocalBucket.name;
 export const placeImagesProdBucketName = placeImagesProdBucket.name;
+export const customDomainDnsUpdates = customDomain.requiredDnsUpdates;
