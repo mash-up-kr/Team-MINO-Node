@@ -12,8 +12,7 @@ import { validateEnv } from "./config/env.schema";
 import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
 import { DatabaseModule } from "./infrastructures/db/database.module";
-import { SentryLifecycleService } from "./infrastructures/sentry/sentry-lifecycle.service";
-import { SentryErrorReporter } from "./infrastructures/sentry/sentry-reporter";
+import { SentryModule } from "./infrastructures/sentry/sentry.module";
 import { PlaceModule } from "./modules/place/place.module";
 
 @Module({
@@ -37,14 +36,11 @@ import { PlaceModule } from "./modules/place/place.module";
     }),
     DatabaseModule,
     TerminusModule,
+    SentryModule,
     PlaceModule,
   ],
   controllers: [HealthController],
-  providers: [
-    DrizzleHealthIndicator,
-    SentryErrorReporter,
-    SentryLifecycleService,
-  ],
+  providers: [DrizzleHealthIndicator],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

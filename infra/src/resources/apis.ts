@@ -7,6 +7,7 @@ const REQUIRED_APIS = [
   "cloudscheduler.googleapis.com",
   "aiplatform.googleapis.com",
   "cloudtasks.googleapis.com",
+  "storage.googleapis.com",
 ];
 
 export const enabledServices = REQUIRED_APIS.map(

@@ -6,6 +6,7 @@ import { AppException } from "../../common/exceptions/app.exception";
 import type { AiService } from "../../infrastructures/ai/ai.service";
 import type { GeocoderService } from "../../infrastructures/geocoder/geocoder.service";
 import type { GeoCandidate } from "../../infrastructures/geocoder/geocoder.type";
+import type { PlaceImageService } from "../../infrastructures/place-image/place-image.service";
 import type { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import { PlaceController } from "./place.controller";
@@ -50,12 +51,14 @@ describe("PlaceService", () => {
     const instagram = { fetchPost: jest.fn() };
     const ai = { extract: jest.fn() };
     const geocoder = { searchAll: jest.fn() };
+    const placeImage = { storePostImages: jest.fn().mockResolvedValue([]) };
     const service = new PlaceService(
       instagram as unknown as ScraperService,
       ai as unknown as AiService,
       geocoder as unknown as GeocoderService,
+      placeImage as unknown as PlaceImageService,
     );
-    return { service, instagram, ai, geocoder };
+    return { service, instagram, ai, geocoder, placeImage };
   }
 
   it("scrape → extract → geocode → rank 순서로 파이프라인을 실행한다", async () => {
@@ -202,9 +205,9 @@ describe("PlaceService", () => {
     });
   });
 
-  it("프롬프트 + 캡션 + 태그 위치 + 이미지로 멀티모달 content를 구성한다", async () => {
+  it("프롬프트 + 캡션 + 태그 위치 + 저장된 이미지(gs://)로 멀티모달 content를 구성한다", async () => {
     // given
-    const { service, instagram, ai, geocoder } = createService();
+    const { service, instagram, ai, geocoder, placeImage } = createService();
     instagram.fetchPost.mockResolvedValue(
       makePost({
         caption: "성수동 카페",
@@ -215,9 +218,12 @@ describe("PlaceService", () => {
           hasPublicPage: true,
           address: null,
         },
-        imageUrls: ["https://img.example/a.jpg"],
+        imageUrls: ["https://scontent.cdninstagram.com/a.jpg"],
       }),
     );
+    placeImage.storePostImages.mockResolvedValue([
+      { gsUri: "gs://bucket/abc123/0", mediaType: "image/jpeg" },
+    ]);
     ai.extract.mockResolvedValue({ places: [QUERY] });
     geocoder.searchAll.mockResolvedValue([makeCandidate()]);
 
@@ -227,7 +233,7 @@ describe("PlaceService", () => {
     // then
     const [schema, content] = ai.extract.mock.calls[0] as [
       unknown,
-      Array<{ type: string; text?: string; url?: string }>,
+      Array<{ type: string; text?: string; url?: string; mediaType?: string }>,
     ];
     const texts = content.flatMap((p) => (p.type === "text" ? [p.text] : []));
     const images = content.filter((p) => p.type === "image");
@@ -236,6 +242,8 @@ describe("PlaceService", () => {
     expect(texts.some((t) => t?.includes("성수동 카페"))).toBe(true);
     expect(texts.some((t) => t?.includes("어니언 성수"))).toBe(true);
     expect(images).toHaveLength(1);
+    expect(images[0].url).toBe("gs://bucket/abc123/0");
+    expect(images[0].mediaType).toBe("image/jpeg");
   });
 
   it("지오코딩 결과가 없으면 해당 장소를 빈 후보로 반환한다(에러 아님)", async () => {
@@ -342,7 +350,12 @@ describe("PlaceService", () => {
     // given
     const module = await Test.createTestingModule({
       imports: [
-        ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
+        ConfigModule.forRoot({
+          isGlobal: true,
+          ignoreEnvFile: true,
+          // PlaceImageService 생성자가 요구하는 최소 env.
+          load: [() => ({ GOOGLE_CLOUD_PROJECT: "test" })],
+        }),
         PlaceModule,
       ],
     }).compile();

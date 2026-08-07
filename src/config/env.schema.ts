@@ -26,6 +26,16 @@ const envSchema = v.object({
   GOOGLE_CLOUD_PROJECT: v.pipe(v.string(), v.minLength(1)),
   // Gemini 3.x는 global 전용이므로 기본 "global" 사용
   GOOGLE_VERTEX_LOCATION: v.optional(v.string(), "global"),
+  /*
+   * 실행 환경. Secret Manager 번들(team-mino-env-{local,prod}) 선택 기준과 같은 값으로,
+   * Cloud Run 배포만 prod를 주입하고 로컬은 기본값 local을 쓴다.
+   */
+  APP_ENV: v.optional(v.picklist(["local", "prod"]), "local"),
+  /*
+   * 인스타 이미지를 올려 gs://로 Vertex에 넘기는 버킷. 미지정 시 APP_ENV로 유도해
+   * 로컬 실행이 운영 버킷에 쌓이지 않도록 한다.
+   */
+  GCS_PLACE_IMAGES_BUCKET: v.optional(v.pipe(v.string(), v.minLength(1))),
   KAKAO_REST_API_KEY: v.pipe(v.string(), v.minLength(1)),
   SENTRY_DSN: v.optional(v.pipe(v.string(), v.url(), v.regex(/^https:\/\//))),
   SENTRY_RELEASE: v.optional(v.pipe(v.string(), v.minLength(1))),

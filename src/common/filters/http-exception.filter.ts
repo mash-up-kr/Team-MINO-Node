@@ -10,7 +10,10 @@ import { AppException } from "../exceptions/app.exception";
 
 export type ErrorReportContext = {
   readonly errorCode: string;
-  readonly httpStatusCode: number;
+  /** HTTP 응답에서 비롯된 에러만 채운다. 서비스 내부 리포트는 대응하는 상태가 없다. */
+  readonly httpStatusCode?: number;
+  /** 그룹핑을 깨지 않도록 가변 정보는 메시지 대신 여기에 싣는다. */
+  readonly extra?: Record<string, unknown>;
 };
 
 export interface ErrorReporter {

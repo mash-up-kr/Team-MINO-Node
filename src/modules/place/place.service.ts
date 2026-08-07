@@ -4,6 +4,8 @@ import { AiService } from "../../infrastructures/ai/ai.service";
 import type { ContentPart } from "../../infrastructures/ai/ai.type";
 import { GeocoderService } from "../../infrastructures/geocoder/geocoder.service";
 import type { GeoCandidate } from "../../infrastructures/geocoder/geocoder.type";
+import { PlaceImageService } from "../../infrastructures/place-image/place-image.service";
+import type { StoredImage } from "../../infrastructures/place-image/place-image.type";
 import { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import {
@@ -32,6 +34,7 @@ Respond in the same language as the source content (use Korean when the content 
     private readonly scraperService: ScraperService,
     private readonly aiService: AiService,
     private readonly geocoderService: GeocoderService,
+    private readonly placeImageService: PlaceImageService,
   ) {}
 
   /** Instagram URL → scrape → AI extraction → geocoding fan-out → ranking. */
@@ -83,7 +86,12 @@ Respond in the same language as the source content (use Korean when the content 
   }
 
   private async extractQueries(post: ScrapedPost): Promise<PlaceQuery[]> {
-    const content = this.buildContent(post);
+    // 인스타 이미지는 Vertex가 URL로 못 읽으므로(robots 차단), GCS에 올려 gs://로 넘긴다.
+    const images = await this.placeImageService.storePostImages(
+      post.shortcode,
+      post.imageUrls,
+    );
+    const content = this.buildContent(post, images);
     const { places } = await this.aiService.extract(
       placeExtractionSchema,
       content,
@@ -91,7 +99,10 @@ Respond in the same language as the source content (use Korean when the content 
     return places;
   }
 
-  private buildContent(post: ScrapedPost): ContentPart[] {
+  private buildContent(
+    post: ScrapedPost,
+    images: StoredImage[],
+  ): ContentPart[] {
     const parts: ContentPart[] = [
       { type: "text", text: PlaceService.EXTRACTION_PROMPT },
     ];
@@ -105,8 +116,12 @@ Respond in the same language as the source content (use Korean when the content 
         text: `Tagged location: ${post.location.name}`,
       });
     }
-    for (const imageUrl of post.imageUrls) {
-      parts.push({ type: "image", url: imageUrl });
+    for (const image of images) {
+      parts.push({
+        type: "image",
+        url: image.gsUri,
+        mediaType: image.mediaType,
+      });
     }
 
     return parts;

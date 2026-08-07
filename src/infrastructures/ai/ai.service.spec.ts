@@ -53,7 +53,7 @@ describe("AiService", () => {
     // when
     const result = await makeService().extract(schema, [
       { type: "text", text: "hello" },
-      { type: "image", url: "https://img.example/a.jpg" },
+      { type: "image", url: "gs://bucket/abc123/0", mediaType: "image/png" },
     ]);
 
     // then
@@ -61,7 +61,9 @@ describe("AiService", () => {
     const content = generateText.mock.calls[0][0].messages[0].content;
     expect(content[0]).toEqual({ type: "text", text: "hello" });
     expect(content[1].type).toBe("image");
-    expect(String(content[1].image)).toBe("https://img.example/a.jpg");
+    // url은 URL 인스턴스로 넘겨 SDK가 fileData.fileUri로 매핑한다(gs://는 Vertex가 직접 읽음).
+    expect(String(content[1].image)).toBe("gs://bucket/abc123/0");
+    expect(content[1].mediaType).toBe("image/png");
   });
 
   it("NoObjectGeneratedError는 AI_SCHEMA_MISMATCH(422)로 변환한다", async () => {

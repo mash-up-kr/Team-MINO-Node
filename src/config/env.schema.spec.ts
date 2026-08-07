@@ -11,6 +11,21 @@ const requiredEnvironment = {
   KAKAO_REST_API_KEY: "test",
 };
 
+describe("GCS 버킷 환경변수", () => {
+  it("미지정이면 undefined로 두어 APP_ENV가 버킷을 유도하게 한다", () => {
+    expect(
+      validateEnv(requiredEnvironment).GCS_PLACE_IMAGES_BUCKET,
+    ).toBeUndefined();
+  });
+
+  it("빈 문자열을 거부한다", () => {
+    // ""는 ?? 기본값으로 걸러지지 않아 gs:///... 형태로 조용히 실패한다.
+    expect(() =>
+      validateEnv({ ...requiredEnvironment, GCS_PLACE_IMAGES_BUCKET: "" }),
+    ).toThrow("Invalid environment variables");
+  });
+});
+
 describe("Sentry environment", () => {
   it("Sentry 환경변수는 선택 사항이다", () => {
     expect(validateEnv(requiredEnvironment).SENTRY_DSN).toBeUndefined();
