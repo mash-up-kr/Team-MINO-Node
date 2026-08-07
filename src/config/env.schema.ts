@@ -35,7 +35,7 @@ const envSchema = v.object({
    * 인스타 이미지를 올려 gs://로 Vertex에 넘기는 버킷. 미지정 시 APP_ENV로 유도해
    * 로컬 실행이 운영 버킷에 쌓이지 않도록 한다.
    */
-  GCS_PLACE_IMAGES_BUCKET: v.optional(v.string()),
+  GCS_PLACE_IMAGES_BUCKET: v.optional(v.pipe(v.string(), v.minLength(1))),
   KAKAO_REST_API_KEY: v.pipe(v.string(), v.minLength(1)),
   SENTRY_DSN: v.optional(v.pipe(v.string(), v.url(), v.regex(/^https:\/\//))),
   SENTRY_RELEASE: v.optional(v.pipe(v.string(), v.minLength(1))),

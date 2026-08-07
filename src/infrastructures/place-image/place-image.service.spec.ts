@@ -45,13 +45,15 @@ function mockFetch(
   contentType: string,
   bytes = new Uint8Array([1, 2, 3]),
 ) {
-  globalThis.fetch = jest.fn(
-    async () =>
+  const spy = jest.fn(
+    async (_url: string, _init?: RequestInit) =>
       new Response(status === 200 ? bytes : null, {
         status,
         headers: { "content-type": contentType },
       }),
-  ) as unknown as typeof fetch;
+  );
+  globalThis.fetch = spy as unknown as typeof fetch;
+  return spy;
 }
 
 describe("PlaceImageService", () => {
@@ -131,6 +133,31 @@ describe("PlaceImageService", () => {
     expect(indexes).toEqual([...indexes].sort());
     expect(indexes[0]).toBe("000");
     expect(indexes[10]).toBe("010");
+  });
+
+  it("리다이렉트를 따라가지 않도록 요청한다", async () => {
+    exists.mockResolvedValue([false]);
+    save.mockResolvedValue(undefined);
+    const fetchSpy = mockFetch(200, "image/jpeg");
+
+    await makeService().storePostImages("abc123", [`${CDN}/a.jpg`]);
+
+    // 허용 호스트가 임의 주소로 리다이렉트하면 allowlist가 무력화된다(SSRF).
+    expect(fetchSpy.mock.calls[0][1]?.redirect).toBe("error");
+  });
+
+  it("리다이렉트 응답은 다운로드 실패로 스킵한다", async () => {
+    exists.mockResolvedValue([false]);
+    globalThis.fetch = jest.fn(async () => {
+      throw new TypeError("unexpected redirect");
+    }) as unknown as typeof fetch;
+
+    const result = await makeService().storePostImages("abc123", [
+      `${CDN}/a.jpg`,
+    ]);
+
+    expect(result).toEqual([]);
+    expect(save).not.toHaveBeenCalled();
   });
 
   it("이미 존재하면 재다운로드 없이 저장된 타입으로 재사용한다", async () => {

@@ -111,8 +111,13 @@ export class PlaceImageService {
   private async download(
     imageUrl: string,
   ): Promise<{ bytes: Uint8Array; mediaType: string } | null> {
+    /*
+     * 리다이렉트를 따라가면 허용 호스트가 임의 주소로 넘길 수 있어(SSRF) allowlist가 무력화된다.
+     * 인스타 CDN은 이미지를 직접 응답하므로 리다이렉트를 거부한다.
+     */
     const response = await fetch(imageUrl, {
       signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+      redirect: "error",
     });
     if (!response.ok) {
       this.logger.warn(
