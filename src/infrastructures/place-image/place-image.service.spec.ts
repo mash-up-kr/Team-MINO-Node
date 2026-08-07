@@ -10,6 +10,7 @@ import {
 } from "bun:test";
 import type { ConfigService } from "@nestjs/config";
 import type { Env } from "../../config/env.schema";
+import type { SentryErrorReporter } from "../sentry/sentry-reporter";
 
 const save = jest.fn();
 const exists = jest.fn();
@@ -32,12 +33,15 @@ beforeAll(async () => {
 const CDN = "https://scontent.cdninstagram.com";
 const originalFetch = globalThis.fetch;
 
+const report = jest.fn();
+
 function makeService() {
   const config = {
     getOrThrow: () => "test-project",
     get: () => undefined,
   } as unknown as ConfigService<Env>;
-  return new PlaceImageService(config);
+  const reporter = { report } as unknown as SentryErrorReporter;
+  return new PlaceImageService(config, reporter);
 }
 
 function mockFetch(
@@ -62,6 +66,7 @@ describe("PlaceImageService", () => {
     save.mockReset();
     exists.mockReset();
     getMetadata.mockReset();
+    report.mockReset();
   });
 
   it("허용되지 않은 호스트는 다운로드 없이 스킵한다", async () => {
@@ -75,6 +80,38 @@ describe("PlaceImageService", () => {
 
     expect(result).toEqual([]);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("허용되지 않은 호스트는 게시글당 한 번만 리포트한다", async () => {
+    globalThis.fetch = jest.fn() as unknown as typeof fetch;
+
+    await makeService().storePostImages("abc123", [
+      "https://evil.example/a.jpg?token=secret",
+      "https://evil.example/b.jpg",
+      "https://other.example/c.jpg",
+    ]);
+
+    expect(report).toHaveBeenCalledTimes(1);
+    const [error, context] = report.mock.calls[0];
+    // 메시지가 고정이라 호스트가 바뀌어도 Sentry에서 한 이슈로 묶인다.
+    expect(error.message).toBe("허용되지 않은 이미지 호스트");
+    expect(context.errorCode).toBe("IMAGE_HOST_NOT_ALLOWED");
+    // 서명 URL의 토큰이 새지 않도록 호스트만 싣는다.
+    expect(context.extra).toEqual({
+      hosts: ["evil.example", "other.example"],
+      disallowed: 3,
+      total: 3,
+    });
+  });
+
+  it("허용된 호스트만 있으면 리포트하지 않는다", async () => {
+    exists.mockResolvedValue([false]);
+    save.mockResolvedValue(undefined);
+    mockFetch(200, "image/jpeg");
+
+    await makeService().storePostImages("abc123", [`${CDN}/a.jpg`]);
+
+    expect(report).not.toHaveBeenCalled();
   });
 
   it("지원하지 않는 이미지 타입은 스킵한다", async () => {

@@ -2,6 +2,7 @@ import { Storage } from "@google-cloud/storage";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Env } from "../../config/env.schema";
+import { SentryErrorReporter } from "../sentry/sentry-reporter";
 import type { StoredImage } from "./place-image.type";
 
 const DOWNLOAD_TIMEOUT_MS = 10_000;
@@ -46,7 +47,10 @@ export class PlaceImageService {
   private readonly storage: Storage;
   private readonly bucketName: string;
 
-  constructor(configService: ConfigService<Env>) {
+  constructor(
+    configService: ConfigService<Env>,
+    private readonly reporter: SentryErrorReporter,
+  ) {
     const project = configService.getOrThrow("GOOGLE_CLOUD_PROJECT", {
       infer: true,
     });
@@ -65,23 +69,73 @@ export class PlaceImageService {
     shortcode: string,
     imageUrls: string[],
   ): Promise<StoredImage[]> {
+    const allowed = this.selectAllowedImages(imageUrls);
+
     const results = await Promise.all(
-      imageUrls.map((url, index) => this.storeOne(shortcode, index, url)),
+      allowed.map(({ url, index }) => this.storeOne(shortcode, index, url)),
     );
     return results.filter((image): image is StoredImage => image !== null);
   }
 
+  /**
+   * 허용 호스트만 통과시키고, 거부된 것은 게시글 단위로 한 번 리포트한다.
+   *
+   * 인스타가 CDN 도메인을 바꾸면 모든 URL이 걸려 이미지 0장으로 "성공"한다. 캡션만으로
+   * 추출이 계속되므로 에러 없이 품질만 떨어져 아무도 눈치채지 못한다. 이미지 수만큼 이벤트가
+   * 쌓이지 않도록 게시글당 한 번만 보낸다.
+   *
+   * index는 원본 배열 기준을 유지한다. 객체 경로에 쓰이므로 거른 뒤 다시 매기면 같은
+   * 게시글이 다른 경로에 쌓여 멱등성이 깨진다.
+   */
+  private selectAllowedImages(
+    imageUrls: string[],
+  ): { url: string; index: number }[] {
+    const allowed: { url: string; index: number }[] = [];
+    // 서명 URL에는 토큰이 붙으므로 전체 URL 대신 호스트만 남긴다.
+    const rejectedHosts = new Set<string>();
+    let rejected = 0;
+
+    imageUrls.forEach((url, index) => {
+      if (this.isAllowedHost(url)) {
+        allowed.push({ url, index });
+        return;
+      }
+      rejectedHosts.add(this.hostOf(url));
+      rejected += 1;
+    });
+
+    if (rejected > 0) {
+      const extra = {
+        hosts: [...rejectedHosts],
+        disallowed: rejected,
+        total: imageUrls.length,
+      };
+      this.logger.error(extra, "허용되지 않은 이미지 호스트 — 스킵");
+      this.reporter.report(
+        // 호스트가 바뀌어도 Sentry에서 한 이슈로 묶이도록 메시지를 고정한다.
+        new Error("허용되지 않은 이미지 호스트"),
+        { errorCode: "IMAGE_HOST_NOT_ALLOWED", extra },
+      );
+    }
+
+    return allowed;
+  }
+
+  private hostOf(imageUrl: string): string {
+    try {
+      return new URL(imageUrl).hostname.toLowerCase();
+    } catch {
+      return "invalid-url";
+    }
+  }
+
+  /** 호스트 검증을 통과한 URL만 받는다(selectAllowedImages 참고). */
   private async storeOne(
     shortcode: string,
     index: number,
     imageUrl: string,
   ): Promise<StoredImage | null> {
     try {
-      if (!this.isAllowedHost(imageUrl)) {
-        this.logger.warn({ imageUrl }, "허용되지 않은 이미지 호스트 — 스킵");
-        return null;
-      }
-
       const paddedIndex = String(index).padStart(INDEX_DIGITS, "0");
       const objectName = `${SOURCE_PREFIX}/${shortcode}/${paddedIndex}`;
       const file = this.storage.bucket(this.bucketName).file(objectName);
