@@ -8,6 +8,8 @@ const REQUIRED_APIS = [
   "aiplatform.googleapis.com",
   "cloudtasks.googleapis.com",
   "storage.googleapis.com",
+  "firebase.googleapis.com",
+  "firebasehosting.googleapis.com",
 ];
 
 export const enabledServices = REQUIRED_APIS.map(
