@@ -39,6 +39,14 @@ const envSchema = v.object({
   KAKAO_REST_API_KEY: v.pipe(v.string(), v.minLength(1)),
   SENTRY_DSN: v.optional(v.pipe(v.string(), v.url(), v.regex(/^https:\/\//))),
   SENTRY_RELEASE: v.optional(v.pipe(v.string(), v.minLength(1))),
+  /*
+   * DB keep-alive용. 제공자가 유휴 프로젝트를 pause하지 않도록 API 게이트웨이를 주기적으로
+   * 찌른다. 미설정 시 keep-alive만 비활성화되고 서버는 그대로 뜬다.
+   */
+  SUPABASE_KEEP_ALIVE_URL: v.optional(
+    v.pipe(v.string(), v.url(), v.startsWith("https://")),
+  ),
+  SUPABASE_API_KEY: v.optional(v.pipe(v.string(), v.minLength(1))),
   // Instagram 비공개 GraphQL 호출용 값들. 인스타가 토큰/구조를 바꾸면 env만 갱신하면 됨.
   INSTAGRAM_GRAPHQL_ENDPOINT: v.pipe(
     v.string(),
