@@ -13,6 +13,7 @@ import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
 import { DatabaseModule } from "./infrastructures/db/database.module";
 import { SentryModule } from "./infrastructures/sentry/sentry.module";
+import { PinModule } from "./modules/pin/pin.module";
 import { PlaceModule } from "./modules/place/place.module";
 
 @Module({
@@ -38,6 +39,7 @@ import { PlaceModule } from "./modules/place/place.module";
     TerminusModule,
     SentryModule,
     PlaceModule,
+    PinModule,
   ],
   controllers: [HealthController],
   providers: [DrizzleHealthIndicator],
