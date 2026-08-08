@@ -15,6 +15,7 @@ import { DatabaseModule } from "./infrastructures/db/database.module";
 import { SentryLifecycleService } from "./infrastructures/sentry/sentry-lifecycle.service";
 import { SentryErrorReporter } from "./infrastructures/sentry/sentry-reporter";
 import { PlaceModule } from "./modules/place/place.module";
+import { RoomModule } from "./modules/room/room.module";
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { PlaceModule } from "./modules/place/place.module";
     DatabaseModule,
     TerminusModule,
     PlaceModule,
+    RoomModule,
   ],
   controllers: [HealthController],
   providers: [
