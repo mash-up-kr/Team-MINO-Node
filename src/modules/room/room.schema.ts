@@ -28,8 +28,9 @@ export const rooms = pgTable(
     description: text(),
     // 팔레트 5색 중 하나의 hex 값 (예: "#FF6B6B")
     color: varchar({ length: 7 }).notNull(),
-    // 초대 링크(ssokpin.app/r/{code})의 code 부분
-    inviteCode: varchar({ length: 16 }).notNull(),
+    // 초대 링크(gguk.org/r/{code})의 code 부분.
+    // 초대 기획이 TBD라 발급 로직이 없어 nullable — invitations 리소스 분리 확정 시 함께 정리한다.
+    inviteCode: varchar({ length: 16 }),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp({ withTimezone: true })
       .defaultNow()

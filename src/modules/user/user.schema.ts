@@ -1,5 +1,6 @@
 import { isNull } from "drizzle-orm";
 import {
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -8,14 +9,21 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+/** 프로필 아바타. id 외 표현 필드(url·color·sunglass 등)는 기획 확정에 따라 확장된다. */
+export type UserAvatar = {
+  id: number;
+};
+
 export const users = pgTable(
   "users",
   {
     id: uuid().primaryKey().defaultRandom(),
     // MVP는 별도 로그인 없이 디바이스 식별자로 사용자를 구분합니다.
     deviceId: text().notNull(),
-    nickname: varchar({ length: 10 }).notNull(),
-    profileImageUrl: text(),
+    // 공백 포함 한글/영문 2~15자, 특수문자 불가 (PR 리뷰 확정 정책)
+    nickname: varchar({ length: 15 }).notNull(),
+    // 프로필 아바타 객체. 확장 필드를 수용하도록 jsonb로 보관합니다.
+    avatar: jsonb().$type<UserAvatar>(),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp({ withTimezone: true })
       .defaultNow()
