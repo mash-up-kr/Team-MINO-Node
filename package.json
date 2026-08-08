@@ -17,9 +17,9 @@
     "start:local": "APP_ENV=local nest start --watch --exec bun",
     "start:prod": "./dist/server",
     "test": "bun run test:unit && bun run test:e2e",
-    "test:e2e": "bun test --preload ./e2e/setup.ts e2e/",
-    "test:unit": "bun test src/",
-    "test:watch": "bun test --watch src/",
+    "test:e2e": "bun test --preload ./e2e/setup.ts .e2e.spec",
+    "test:unit": "bun test src/ --path-ignore-patterns '**/*.e2e.spec.ts'",
+    "test:watch": "bun test --watch src/ --path-ignore-patterns '**/*.e2e.spec.ts'",
     "typecheck": "tsgo --noEmit",
     "typecheck:tsc": "tsc --noEmit"
   },
