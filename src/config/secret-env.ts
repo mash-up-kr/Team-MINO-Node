@@ -1,19 +1,14 @@
-import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
-
 /**
- * 부팅 시 GCP Secret Manager에서 env 묶음을 가져와 process.env에 주입합니다.
+ * 주입된 dotenv 원문(APP_ENV_DOTENV)을 파싱해 process.env에 채웁니다.
+ * prod는 Cloud Run `--set-secrets`, 로컬은 `scripts/with-env.ts`가 주입합니다.
  *
- * env의 단일 출처를 Secret Manager로 두고, 로컬·Cloud Run 모두 부팅 시 fetch합니다.
- * 환경은 APP_ENV(`local` | `prod`)로 고르며 시크릿 `team-mino-env-${APP_ENV}`에 매핑됩니다.
- * APP_CONFIG_SOURCE=env 이면 SM을 건너뛰고 기존 process.env/.env 를 씁니다(오프라인/전환기용).
- *
- * 부팅 최초 단계(ConfigModule 검증 이전)라 ConfigService가 없으므로,
- * "env는 ConfigService로만" 규칙의 의도적 예외로 process.env를 직접 다룹니다.
+ * 시크릿 포맷은 한 줄 = 한 키(여러 줄 값은 base64로 인코딩).
+ * ConfigModule 검증 이전에 도는 부팅 최초 단계라 process.env를 직접 다룹니다.
  */
 
-const SECRET_FETCH_TIMEOUT_MS = 5000;
+export const ENV_DOTENV_VAR = "APP_ENV_DOTENV";
 
-function parseDotenv(src: string): Record<string, string> {
+export function parseDotenv(src: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const line of src.split("\n")) {
     if (/^\s*(#|$)/.test(line)) continue;
@@ -26,27 +21,15 @@ function parseDotenv(src: string): Record<string, string> {
   return result;
 }
 
-function resolveSecretName(): string {
-  if (process.env.GCP_ENV_SECRET) return process.env.GCP_ENV_SECRET;
-  return `team-mino-env-${process.env.APP_ENV ?? "local"}`;
-}
+export function loadSecretEnv(): void {
+  const payload = process.env[ENV_DOTENV_VAR];
+  if (!payload) return;
 
-export async function loadSecretEnv(): Promise<void> {
-  if (process.env.APP_CONFIG_SOURCE === "env") return;
-
-  const project = process.env.GCP_PROJECT ?? "team-mino-prod";
-  const secret = resolveSecretName();
-
-  // fallback: true → gRPC 네이티브 의존성 대신 REST 사용(bun --compile 단일 바이너리 번들 안전).
-  const client = new SecretManagerServiceClient({ fallback: true });
-  const [version] = await client.accessSecretVersion(
-    { name: `projects/${project}/secrets/${secret}/versions/latest` },
-    { timeout: SECRET_FETCH_TIMEOUT_MS },
-  );
-
-  const payload = version.payload?.data?.toString() ?? "";
   for (const [key, value] of Object.entries(parseDotenv(payload))) {
-    // 이미 설정된 값은 보존 → OS env로 개별 오버라이드 허용.
+    // 배포·셸이 넣은 값이 주입값보다 우선.
     if (process.env[key] === undefined) process.env[key] = value;
   }
+
+  // 원문이 env에 통째로 남지 않도록 정리.
+  delete process.env[ENV_DOTENV_VAR];
 }
