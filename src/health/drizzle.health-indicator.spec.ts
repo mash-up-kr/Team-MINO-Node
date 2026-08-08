@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { beforeEach, describe, expect, it, jest } from "bun:test";
+import { Logger } from "@nestjs/common";
 import { HealthIndicatorService } from "@nestjs/terminus";
 import { Test } from "@nestjs/testing";
 import { DatabaseService } from "../infrastructures/db/database.service";
@@ -55,5 +56,28 @@ describe("DrizzleHealthIndicator", () => {
     const failIndicator = module.get(DrizzleHealthIndicator);
     const result = await failIndicator.pingCheck("database");
     expect(result.database.status).toBe("down");
+  });
+
+  it("DB 실패 원인을 로그로 남긴다", async () => {
+    const errorSpy = jest
+      .spyOn(Logger.prototype, "error")
+      .mockImplementation(() => {});
+    const cause = new Error("connection refused");
+
+    const module = await Test.createTestingModule({
+      providers: [
+        DrizzleHealthIndicator,
+        HealthIndicatorService,
+        {
+          provide: DatabaseService,
+          useValue: { db: { execute: jest.fn().mockRejectedValue(cause) } },
+        },
+      ],
+    }).compile();
+
+    await module.get(DrizzleHealthIndicator).pingCheck("database");
+
+    expect(errorSpy).toHaveBeenCalledWith({ err: cause }, "DB ping 실패");
+    errorSpy.mockRestore();
   });
 });
