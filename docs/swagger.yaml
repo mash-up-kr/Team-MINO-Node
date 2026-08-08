@@ -330,14 +330,52 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/v1/rooms/{roomId}/invitations:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    post:
+      tags: [Invitation]
+      summary: 내 초대 링크 발급
+      description: |
+        **초대는 멤버당 1개다.** 이미 발급했다면 같은 `code`를 돌려준다(멱등).
+        만료·재발급·거절이 없으므로 링크는 계속 유효하다.
+        미리보기에 "OO님이 초대했어요"로 표시되는 초대자가 곧 이 API를 호출한 멤버다.
+
+        클라이언트가 `gguk.org/r/{code}` 형태로 링크를 조립한다 — 서버는 도메인을 알지 않는다.
+        **개인방은 초대할 수 없다.**
+      responses:
+        "200":
+          description: 초대 코드 (기존 초대가 있으면 같은 값)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        minLength: 6
+                        maxLength: 6
+                        pattern: "^[A-Z0-9]{6}$"
+                        example: "K7Q2MZ"
+                        description: 초대 링크 gguk.org/r/{code}의 code (대문자 영문 + 숫자 6자 고정)
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/v1/invitations/{code}:
     get:
       tags: [Invitation]
       summary: 초대 코드로 방 미리보기
       description: |
         **인증 불필요** (앱 설치 전/온보딩 전 진입). 초대 링크(`gguk.org/r/{code}`)의 code로 조회한다.
-        응답에 `roomId`를 포함한다 — 합류 API의 path `roomId`를 얻는 유일한 경로 (PR 리뷰 확정).
-        초대 링크 유효기간은 무제한이며 거절 개념이 없다. **개인방 코드는 거절한다**(거절 방식 상세는 피쳐 PR에서).
+        응답의 `room.id`가 합류 API의 path `roomId`를 얻는 유일한 경로다 (PR 리뷰 확정).
+        초대 링크 유효기간은 무제한이며 거절 개념이 없다. **개인방 코드는 거절한다.**
       security: []
       parameters:
         - name: code
@@ -345,7 +383,10 @@ paths:
           required: true
           schema:
             type: string
-            maxLength: 16
+            minLength: 6
+            maxLength: 6
+            pattern: "^[A-Z0-9]{6}$"
+            example: "K7Q2MZ"
       responses:
         "200":
           description: 방 미리보기 (노출 정보 최소화)
@@ -356,6 +397,8 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/InvitationPreview"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -366,9 +409,13 @@ paths:
       tags: [Invitation]
       summary: 방 합류
       description: |
-        body의 `inviteCode`가 path의 `{roomId}`에 속한 활성 코드인지 검증하고, 불일치·무효 코드는 거절한다.
+        body의 `inviteCode`로 `invitations`에서 활성 초대를 찾고, 그 초대의 방이 path의 `{roomId}`와
+        같은지 검증한다. 불일치·무효 코드는 멤버 추가 전에 거절한다.
         **개인방(`type: personal`)의 코드는 거절한다.** 이미 멤버면 오류 대신 멱등 응답을 준다.
+        나갔던 방에는 같은 코드로 다시 합류할 수 있다(이전 멤버십 행은 `deleted_at`을 유지).
+
         합류 완료 시 방 멤버 전원에게 푸시 알림을 발송한다. (PR 리뷰 확정)
+        — **푸시 발송은 미구현이다.** FCM/APNs 인프라가 도입되면 연결한다.
       requestBody:
         required: true
         content:
@@ -379,7 +426,10 @@ paths:
               properties:
                 inviteCode:
                   type: string
-                  maxLength: 16
+                  minLength: 6
+                  maxLength: 6
+                  pattern: "^[A-Z0-9]{6}$"
+                  example: "K7Q2MZ"
       responses:
         "200":
           description: 합류 완료(또는 이미 멤버 — 멱등)
@@ -391,6 +441,10 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
     get:
       tags: [Room]
       summary: 방 멤버 목록
@@ -889,10 +943,6 @@ components:
         ownerId:
           type: string
           format: uuid
-        inviteCode:
-          type: string
-          maxLength: 16
-          description: 초대 링크 gguk.org/r/{code}의 code. 개인방 코드는 초대에 사용 불가. invitation 테이블/리소스로 분리되면 이 필드는 응답에서 빠질 수 있다
         createdAt:
           type: string
           format: date-time
@@ -945,32 +995,60 @@ components:
 
     InvitationPreview:
       type: object
-      description: 인증 없이 노출되므로 정보 최소화. roomId는 합류 API 호출에 필요 (PR 리뷰 확정)
+      description: |
+        인증 없이 노출되므로 정보 최소화. `room.id`는 합류 API 호출에 필요 (PR 리뷰 확정).
+        초대자는 invitations.invited_by에서 조회한다. 링크를 공유한 멤버가 그대로 표시된다.
+
+        엔티티 단위로 묶어 클라이언트가 Room/User 타입을 그대로 재사용할 수 있게 한다.
+
+        현재 구현과의 차이: `users.avatar`(jsonb)와 팔레트 색상 객체가 아직 스키마에 없어,
+        구현은 `avatar` 대신 `profileImageUrl`(string, nullable)을, `color`는 hex 문자열을 반환한다.
+        해당 스키마 변경이 반영되면 이 문서 형태로 맞춘다.
       properties:
-        roomId:
-          type: string
-          format: uuid
-        name:
-          type: string
-        description:
-          type: string
-          nullable: true
-          description: 방 설명
-        color:
+        room:
           type: object
-          description: 팔레트 색상 객체 (avatar와 같은 id 참조·확장 구조)
-          required: [id]
           properties:
             id:
+              type: string
+              format: uuid
+            type:
+              type: string
+              enum: [personal, shared]
+            name:
+              type: string
+            description:
+              type: string
+              nullable: true
+              description: 방 설명
+            color:
+              type: object
+              description: 팔레트 색상 객체 (avatar와 같은 id 참조 구조)
+              required: [id]
+              properties:
+                id:
+                  type: integer
+            pinCount:
               type: integer
-        pinCount:
-          type: integer
+              description: 방에 저장된 장소 수. "999+" 같은 절삭 표기는 클라이언트가 담당한다
+            memberCount:
+              type: integer
+              description: 방의 활성 멤버 수
+            members:
+              type: array
+              description: 겹쳐 보여줄 멤버 아바타. 인증 없이 열리는 응답이라 최대 5명까지만 내려간다
+              items:
+                type: object
+                properties:
+                  avatar:
+                    $ref: "#/components/schemas/Avatar"
         inviter:
           type: object
-          description: 초대자 정보 (invitation 테이블 도입 시 초대자 참조에서 조회)
+          description: 초대를 만든 멤버 (invitations.invited_by)
           properties:
             nickname:
               $ref: "#/components/schemas/Nickname"
+            avatar:
+              $ref: "#/components/schemas/Avatar"
 
     Place:
       type: object
