@@ -1,3 +1,4 @@
+import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import type { SchemaObject } from "../../common/swagger/schema";
 import {
@@ -13,6 +14,16 @@ export const invitationCodeParamSchema = v.pipe(
   v.string(),
   v.regex(INVITATION_CODE_PATTERN),
 );
+
+export const joinRoomRequestSchema = v.object({
+  inviteCode: invitationCodeParamSchema,
+});
+
+export type JoinRoomRequest = v.InferOutput<typeof joinRoomRequestSchema>;
+
+export const joinRoomRequestApiSchema = toJsonSchema(joinRoomRequestSchema, {
+  errorMode: "ignore",
+}) as SchemaObject;
 
 export const invitationCodeResponseApiSchema: SchemaObject = {
   type: "object",
@@ -81,6 +92,16 @@ export const invitationPreviewResponseApiSchema: SchemaObject = {
           },
         },
       },
+    },
+  },
+};
+
+export const okResponseApiSchema: SchemaObject = {
+  type: "object",
+  properties: {
+    data: {
+      type: "object",
+      properties: { ok: { type: "boolean", example: true } },
     },
   },
 };

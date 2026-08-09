@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Headers,
@@ -7,13 +8,23 @@ import {
   Param,
   Post,
 } from "@nestjs/common";
-import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBody,
+  ApiHeader,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
 import {
   errorResponseApiSchema,
   invitationCodeParamSchema,
   invitationCodeResponseApiSchema,
   invitationPreviewResponseApiSchema,
+  type JoinRoomRequest,
+  joinRoomRequestApiSchema,
+  joinRoomRequestSchema,
+  okResponseApiSchema,
   roomIdParamSchema,
 } from "./invitation.dto";
 import { InvitationService } from "./invitation.service";
@@ -95,5 +106,54 @@ export class InvitationController {
     @Param("code", new ValibotPipe(invitationCodeParamSchema)) code: string,
   ): Promise<InvitationPreviewResponse> {
     return this.invitationService.preview(code);
+  }
+
+  @Post("rooms/:roomId/members")
+  // 멱등이라 매번 생성되지 않으므로 201이 아닌 200을 준다.
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "방 합류",
+    description:
+      "body의 inviteCode가 path의 roomId에 속한 활성 코드인지 검증한다. " +
+      "이미 멤버면 오류 대신 멱등 응답을 준다. 나갔던 방에는 다시 합류할 수 있다.",
+  })
+  @ApiHeader({
+    name: "X-Device-Id",
+    description: "요청 유저 식별용 deviceId (인증 정책 TBD — 임시 계약)",
+    required: true,
+  })
+  @ApiBody({ schema: joinRoomRequestApiSchema })
+  @ApiResponse({
+    status: 200,
+    description: "합류 완료(또는 이미 멤버 — 멱등)",
+    schema: okResponseApiSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "코드가 요청한 방의 것이 아님 (INVALID_INVITE_CODE)",
+    schema: errorResponseApiSchema,
+  })
+  @ApiResponse({
+    status: 401,
+    description: "요청 유저 식별 불가 (UNIDENTIFIED_USER)",
+    schema: errorResponseApiSchema,
+  })
+  @ApiResponse({
+    status: 403,
+    description: "개인방 (PERSONAL_ROOM_NOT_ALLOWED)",
+    schema: errorResponseApiSchema,
+  })
+  @ApiResponse({
+    status: 404,
+    description: "초대 없음 (INVITATION_NOT_FOUND)",
+    schema: errorResponseApiSchema,
+  })
+  async joinRoom(
+    @Headers("x-device-id") deviceId: string | undefined,
+    @Param("roomId", new ValibotPipe(roomIdParamSchema)) roomId: string,
+    @Body(new ValibotPipe(joinRoomRequestSchema)) body: JoinRoomRequest,
+  ): Promise<{ ok: true }> {
+    await this.invitationService.join(deviceId, roomId, body.inviteCode);
+    return { ok: true };
   }
 }

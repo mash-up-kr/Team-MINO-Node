@@ -173,4 +173,13 @@ export class InvitationRepository {
       .orderBy(roomMembers.joinedAt)
       .limit(limit);
   }
+
+  // 동시 요청으로 활성 유니크에 걸리면 이미 멤버이므로 그대로 둡니다.
+  async addMember(roomId: string, userId: string): Promise<void> {
+    try {
+      await this.db.insert(roomMembers).values({ roomId, userId });
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+    }
+  }
 }
