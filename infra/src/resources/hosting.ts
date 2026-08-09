@@ -24,7 +24,7 @@ const version = new gcp.firebase.HostingVersion(
     config: {
       headers: [
         {
-          regex: "^/api-docs.*$",
+          glob: "**",
           headers: { "Cache-Control": "no-cache, no-store" },
         },
       ],

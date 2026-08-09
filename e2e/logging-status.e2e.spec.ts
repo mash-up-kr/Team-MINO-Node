@@ -91,4 +91,10 @@ describe("LoggingMiddleware HTTP status", () => {
     const status = await hit(path);
     expect(loggedStatus[path]).toBe(status);
   });
+
+  it.each(["/ok", "/missing"])("%s 응답을 캐시하지 않는다", async (path) => {
+    const response = await fetch(`${baseUrl}${path}`);
+
+    expect(response.headers.get("cache-control")).toBe("no-cache, no-store");
+  });
 });
