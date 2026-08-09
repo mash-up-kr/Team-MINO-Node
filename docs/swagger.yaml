@@ -153,7 +153,7 @@ paths:
     post:
       tags: [Room]
       summary: 공동방 생성
-      description: 생성자가 방장(`owner_id`)이 되고 `invite_code`가 발급된다.
+      description: 생성자가 방장(`owner_id`)이 된다. 초대 코드는 `invitations`가 별도로 관리한다.
       requestBody:
         required: true
         content:
@@ -889,10 +889,6 @@ components:
         ownerId:
           type: string
           format: uuid
-        inviteCode:
-          type: string
-          maxLength: 16
-          description: 초대 링크 gguk.org/r/{code}의 code. 개인방 코드는 초대에 사용 불가. invitation 테이블/리소스로 분리되면 이 필드는 응답에서 빠질 수 있다
         createdAt:
           type: string
           format: date-time
