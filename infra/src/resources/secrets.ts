@@ -2,7 +2,7 @@ import * as gcp from "@pulumi/gcp";
 import * as pulumi from "@pulumi/pulumi";
 import { project } from "@/config";
 import { enabledServices } from "@/resources/apis";
-import { serverServiceAccount } from "@/resources/identity";
+import { developer, serverServiceAccount } from "@/resources/identity";
 
 /**
  * 앱 env를 담는 시크릿(local·prod). Pulumi는 "컨테이너"만 선언하고, 실제 값(버전)은
@@ -36,4 +36,32 @@ new gcp.secretmanager.SecretIamMember("team-mino-env-prod-runtime", {
   project,
   role: "roles/secretmanager.secretAccessor",
   member: pulumi.interpolate`serviceAccount:${serverServiceAccount.email}`,
+});
+
+// 개발자 SA가 로컬 실행 시 두 env를 읽고(secretAccessor)·갱신(secretVersionManager)할 수 있도록.
+const developerMember = pulumi.interpolate`serviceAccount:${developer.email}`;
+
+new gcp.secretmanager.SecretIamMember("team-mino-env-local-developer-read", {
+  secretId: localEnvSecret.secretId,
+  project,
+  role: "roles/secretmanager.secretAccessor",
+  member: developerMember,
+});
+new gcp.secretmanager.SecretIamMember("team-mino-env-local-developer-write", {
+  secretId: localEnvSecret.secretId,
+  project,
+  role: "roles/secretmanager.secretVersionManager",
+  member: developerMember,
+});
+new gcp.secretmanager.SecretIamMember("team-mino-env-prod-developer-read", {
+  secretId: prodEnvSecret.secretId,
+  project,
+  role: "roles/secretmanager.secretAccessor",
+  member: developerMember,
+});
+new gcp.secretmanager.SecretIamMember("team-mino-env-prod-developer-write", {
+  secretId: prodEnvSecret.secretId,
+  project,
+  role: "roles/secretmanager.secretVersionManager",
+  member: developerMember,
 });

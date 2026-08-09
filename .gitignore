@@ -9,6 +9,7 @@ skills-lock.json
 .env.*
 !.env.example
 !.env.*.example
+!.env.test
 [._]*.s[a-v][a-z]
 [._]*.sw[a-p]
 [._]s[a-rt-v][a-z]

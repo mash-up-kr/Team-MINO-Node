@@ -17,6 +17,7 @@ import { AiService } from "../../../src/infrastructures/ai/ai.service";
 import { DatabaseService } from "../../../src/infrastructures/db/database.service";
 import { GEOCODER_PROVIDERS } from "../../../src/infrastructures/geocoder/geocoder.service";
 import type { GeoCandidate } from "../../../src/infrastructures/geocoder/geocoder.type";
+import { PlaceImageService } from "../../../src/infrastructures/place-image/place-image.service";
 import { InstagramProvider } from "../../../src/infrastructures/scraper/providers/instagram.provider";
 import type { ScrapedPost } from "../../../src/infrastructures/scraper/scraper.type";
 import { SentryErrorReporter } from "../../../src/infrastructures/sentry/sentry-reporter";
@@ -48,6 +49,7 @@ const enqueued: string[] = [];
 const enqueuePlaceExtraction = jest.fn(async (url: string) => {
   enqueued.push(url);
 });
+const placeImage = { storePostImages: jest.fn().mockResolvedValue([]) };
 let app: INestApplication;
 let baseUrl: string;
 let db: DatabaseService;
@@ -77,6 +79,8 @@ beforeAll(async () => {
           throw new UnauthorizedException("missing OIDC token");
         },
       })
+      .overrideProvider(PlaceImageService)
+      .useValue(placeImage)
       .overrideProvider(SentryErrorReporter)
       .useValue({ report: () => undefined }),
   ));

@@ -81,7 +81,11 @@ export class AiService implements AiServiceInterface {
     return content.map((part) => {
       return part.type === "text"
         ? { type: "text" as const, text: part.text }
-        : { type: "image" as const, image: this.toImageUrl(part.url) };
+        : {
+            type: "image" as const,
+            image: this.toImageUrl(part.url),
+            mediaType: part.mediaType,
+          };
     });
   }
 

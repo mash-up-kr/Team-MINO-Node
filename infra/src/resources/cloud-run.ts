@@ -35,11 +35,12 @@ export const service = new gcp.cloudrunv2.Service(
   },
   {
     dependsOn: enabledServices,
-    // 이미지·env는 배포(deploy.yml)가 관리. Pulumi가 건드리면 구 이미지 위에 리비전을
-    // 새로 만들어 up이 실패하므로 분리. 배포가 APP_ENV=prod를 주입 → prod 시크릿 fetch.
+    // 이미지·env·client는 배포(deploy.yml)가 관리하므로 Pulumi가 건드리지 않는다.
     ignoreChanges: [
       "template.containers[0].image",
       "template.containers[0].envs",
+      "client",
+      "clientVersion",
     ],
   },
 );

@@ -3,6 +3,7 @@ import { CloudTasksGuard } from "../../common/guards/cloud-tasks.guard";
 import { AiModule } from "../../infrastructures/ai/ai.module";
 import { DatabaseModule } from "../../infrastructures/db/database.module";
 import { GeocoderModule } from "../../infrastructures/geocoder/geocoder.module";
+import { PlaceImageModule } from "../../infrastructures/place-image/place-image.module";
 import { ScraperModule } from "../../infrastructures/scraper/scraper.module";
 import { TasksModule } from "../../infrastructures/tasks/tasks.module";
 import { PlaceController } from "./place.controller";
@@ -15,6 +16,7 @@ import { PlaceWorkerController } from "./place-worker.controller";
     AiModule,
     DatabaseModule,
     GeocoderModule,
+    PlaceImageModule,
     ScraperModule,
     TasksModule,
   ],

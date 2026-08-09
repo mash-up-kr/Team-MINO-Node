@@ -6,7 +6,7 @@ import {
 } from "./config/sentry.config";
 
 async function main(): Promise<void> {
-  await loadSecretEnv();
+  loadSecretEnv();
   initializeSentry(process.env, Sentry.init);
   const { bootstrap } = await import("./bootstrap");
   await bootstrap();

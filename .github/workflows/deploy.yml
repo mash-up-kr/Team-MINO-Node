@@ -181,5 +181,6 @@ jobs:
           gcloud run services update team-mino-prod-api \
             --image "$IMAGE" \
             --set-env-vars "APP_ENV=prod,NODE_ENV=production,SENTRY_RELEASE=$SENTRY_RELEASE" \
+            --set-secrets "APP_ENV_DOTENV=team-mino-env-prod:latest" \
             --region "asia-northeast3" \
             --project "team-mino-prod"
