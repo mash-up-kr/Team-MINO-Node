@@ -192,6 +192,62 @@ describe("POST /api/v1/rooms/:roomId/invitations", () => {
   });
 });
 
+describe("GET /api/v1/invitations/:code", () => {
+  it("인증 헤더 없이도 방과 초대자를 보여준다", async () => {
+    // given
+    const code = await createdCode(sharedRoomId, ownerDeviceId);
+
+    // when
+    const response = await api(`/api/v1/invitations/${code}`, null);
+
+    // then
+    expect(response.status).toBe(200);
+    const { data } = await response.json();
+    expect(data).toMatchObject({
+      room: {
+        id: sharedRoomId,
+        type: "shared",
+        name: "5월의 약속 : 우리끼리",
+        pinCount: 1,
+      },
+      inviter: { nickname: "지은" },
+    });
+  });
+
+  it("초대자가 다르면 미리보기의 초대자도 다르다", async () => {
+    // given
+    const memberCode = await createdCode(sharedRoomId, memberDeviceId);
+
+    // when
+    const response = await api(`/api/v1/invitations/${memberCode}`, null);
+
+    // then
+    const { data } = await response.json();
+    expect(data.inviter.nickname).toBe("민호");
+  });
+
+  it("없는 코드는 404를 반환한다", async () => {
+    // when
+    const response = await api("/api/v1/invitations/ZZZZZZ", null);
+
+    // then
+    expect(response.status).toBe(404);
+    expect((await response.json()).errorCode).toBe("INVITATION_NOT_FOUND");
+  });
+
+  it("개인방 코드는 거절한다", async () => {
+    // when
+    const response = await api(
+      `/api/v1/invitations/${personalInviteCode}`,
+      null,
+    );
+
+    // then
+    expect(response.status).toBe(403);
+    expect((await response.json()).errorCode).toBe("PERSONAL_ROOM_NOT_ALLOWED");
+  });
+});
+
 describe("초대 코드 충돌", () => {
   // 36^6 공간에서는 충돌을 자연 발생시킬 수 없어, 리포지토리를 직접 호출하며
   // 생성기만 결정적인 것으로 바꿔 끼웁니다.

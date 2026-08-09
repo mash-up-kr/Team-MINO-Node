@@ -6,3 +6,6 @@ export const INVITATION_CODE_LENGTH = 6;
 export const INVITATION_CODE_PATTERN = new RegExp(
   `^[${INVITATION_CODE_CHARS}]{${INVITATION_CODE_LENGTH}}$`,
 );
+
+// 인증 없이 열리는 응답이라 방 전체 멤버를 내려주지 않습니다.
+export const PREVIEW_MEMBER_LIMIT = 5;

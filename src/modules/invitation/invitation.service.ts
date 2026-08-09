@@ -1,8 +1,12 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { AppException } from "../../common/exceptions/app.exception";
 import type { RoomType } from "../room/room.schema";
+import { PREVIEW_MEMBER_LIMIT } from "./invitation.constant";
 import { InvitationRepository } from "./invitation.repository";
-import type { InvitationCodeResponse } from "./invitation.type";
+import type {
+  InvitationCodeResponse,
+  InvitationPreviewResponse,
+} from "./invitation.type";
 
 @Injectable()
 export class InvitationService {
@@ -24,6 +28,54 @@ export class InvitationService {
     if (existing) return existing;
 
     return this.invitationRepository.createInvitation(roomId, user.id);
+  }
+
+  async preview(code: string): Promise<InvitationPreviewResponse> {
+    const invitation = await this.requireInvitation(code);
+
+    // 개인방에는 초대를 발급하지 않지만, 남아 있는 코드로 방이 노출되지 않도록 막습니다.
+    this.assertNotPersonal(invitation.roomType);
+
+    const [pinCount, memberCount, members] = await Promise.all([
+      this.invitationRepository.countActivePins(invitation.roomId),
+      this.invitationRepository.countActiveMembers(invitation.roomId),
+      this.invitationRepository.findMemberAvatars(
+        invitation.roomId,
+        PREVIEW_MEMBER_LIMIT,
+      ),
+    ]);
+
+    return {
+      room: {
+        id: invitation.roomId,
+        type: invitation.roomType,
+        name: invitation.name,
+        description: invitation.description,
+        color: invitation.color,
+        pinCount,
+        memberCount,
+        members,
+      },
+      inviter: {
+        nickname: invitation.inviterNickname,
+        avatar: invitation.inviterAvatar,
+      },
+    };
+  }
+
+  private async requireInvitation(code: string) {
+    const invitation =
+      await this.invitationRepository.findActiveInvitationByCode(code);
+
+    if (!invitation) {
+      throw new AppException(
+        "INVITATION_NOT_FOUND",
+        "초대를 찾을 수 없습니다.",
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return invitation;
   }
 
   private async requireUser(
