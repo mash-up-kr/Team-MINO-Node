@@ -233,15 +233,18 @@ Figma **새 보드**(node `1512:70762`)의 섹션 번호 [000]~[007]을 기준�
 - **초대 링크 유효기간은 무제한**이고, **거절 개념은 없다.** (PR 리뷰 확정)
 - **합류 완료 시 방 멤버 전원에게 푸시 알림을 발송한다.** (PR 리뷰 확정)
 - 중복 참여는 불가 (`room_members (room_id, user_id)` 살아있는 행 유니크)
+- 초대 화면에서 **"친구 초대하기"(시스템 공유 시트)와 "초대 링크 복사"** 는 같은 링크를 쓴다.
 
 **백엔드 관점**
 
 - 초대 코드로 방을 미리보기하는 조회는 **인증 없이** 가능해야 한다(앱 설치 전/온보딩 전 진입). 노출 범위는 방 이름·색상·멤버 수에 더해 **`roomId`를 포함한다** — 합류 API가 path로 `roomId`를 요구하므로, 미리보기 응답이 초대받은 사람의 유일한 `roomId` 획득 경로다. (PR 리뷰 확정)
-- 초대는 **`invitations` 테이블**(방 참조 + 초대자 참조 `invited_by`)로 관리한다. `(room_id, invited_by)` 유니크라 **초대는 멤버당 1개**다.
-- **개인방은 초대 불가다.** 개인방 초대 코드로의 미리보기/합류 요청은 거절한다(거절 방식 상세는 피쳐 PR에서). (PR 리뷰 확정)
+- 초대는 **`invitations` 테이블**(방 참조 + 초대자 참조 `invited_by`)로 관리한다. `(room_id, invited_by)` 유니크라 **초대는 멤버당 1개**다. 링크를 공유한 멤버가 그대로 초대자로 표시되며, 방당 1개로 두면 초대자가 최초 생성자로 고정돼 화면과 어긋난다.
+- **개인방은 초대 불가다.** 개인방 초대 코드로의 미리보기/합류 요청은 거절한다. 개인방에는 초대를 발급하지 않으므로 링크 자체가 생기지 않는다. (PR 리뷰 확정)
 - 합류는 인증 후 처리하며, 이미 멤버면 오류 대신 멱등 응답을 준다.
 - 나갔던 방에 같은 초대 코드로 재합류하면 새 `room_members` 행이 생긴다(이전 행은 `deleted_at` 유지).
-- 초대 코드는 `invitations.code`(6자)에 보관하며 **멤버당 1개**다. **수명주기는 없다 — 만료·재발급을 두지 않는다.** (PR 리뷰 확정)
+- 초대 코드는 `invitations.code`에 보관하며 **대문자 영문 + 숫자 6자 고정**이다. 경우의 수가 36^6 ≈ 21.8억이라 발급 시 유니크 충돌이 나면 새 코드로 재시도한다.
+- 발급은 멱등하다. 이미 있으면 같은 코드를 돌려주고 재발급하지 않는다. **수명주기는 없다 — 만료·재발급을 두지 않는다.** (PR 리뷰 확정)
+- 링크 조립(`gguk.org/r/{code}`)은 클라이언트가 한다. 서버는 코드만 반환하고 도메인을 알지 않는다.
 
 ### [006] 알림함
 
@@ -283,7 +286,7 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 | `users` | device_id 기반 사용자 | 닉네임(varchar 15)·아바타 객체(`avatar` jsonb, `{id}`+확장 필드). `device_id`는 살아있는 행끼리만 유니크 |
 | `rooms` | 방 | `type`: `personal` / `shared`, **`owner_id`(방장)**, 이름(`varchar(20)` — 정책상 최대 15자)·설명(정책 20자)·색상(hex 7자). 초대 코드는 `invitations`로 분리됐다 |
 | `room_members` | 방 멤버십 | `(room_id, user_id)` 활성 유니크. `deleted_at` = **방을 나간 시점** |
-| `invitations` | 초대 링크 | 방 참조 + **초대자 참조(`invited_by`)**, `code`(6자, 유니크). `(room_id, invited_by)` 유니크 = **멤버당 초대 1개** |
+| `invitations` | 초대 링크 | 방 참조 + **초대자 참조(`invited_by`)**, `code`(대문자 영문 + 숫자 **6자 고정**, 유니크). `(room_id, invited_by)` 유니크 = **멤버당 초대 1개** |
 | `sources` | 출처 링크 | `type`: instagram / naver_map / google_map / manual, `original_url` 활성 유니크, `metadata`(스크랩 원문 jsonb) |
 | `places` | 장소 마스터 | `(provider, provider_place_id)` 유니크로 dedup (provider: kakao / google) |
 | `place_sources` | 장소↔출처 N:M | `(place_id, source_id)` 활성 유니크로 재유입 시 기존 연결 재사용 |
@@ -393,6 +396,7 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 
 | Method | Path | 설명 | 화면 |
 |---|---|---|---|
+| `POST` | `/api/v1/rooms/{roomId}/invitations` | **내 초대 링크 발급** (멤버당 1개, 이미 있으면 같은 코드 — 멱등) | 초대 |
 | `GET` | `/api/v1/invitations/{code}` | 초대 코드로 방 미리보기 (**인증 불필요**) — 노출: 방 이름·색상·멤버 수 + **`roomId`** | 초대 |
 | `POST` | `/api/v1/rooms/{roomId}/members` | 방 합류 (body에 `inviteCode`). 이미 멤버면 멱등 처리 | 초대 |
 | `GET` | `/api/v1/rooms/{roomId}/members` | 방 멤버 목록 (방장 위임 대상 선택 모달용) | [004] |
@@ -401,6 +405,7 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 
 **세부 계약 메모**
 
+- `POST /rooms/{roomId}/invitations`: 요청 유저의 멤버십을 검증하고 그 유저 이름으로 초대를 발급한다. `(room_id, invited_by)` 유니크라 재요청 시 같은 코드가 돌아온다. 응답은 `code`뿐이고 링크 조립은 클라이언트가 한다. 생성이 아니라 get-or-create라 `201`이 아닌 `200`을 반환한다.
 - `GET /invitations/{code}`: 미리보기 응답에 `roomId`를 포함한다 — 초대받은 사람이 합류 API의 path `roomId`를 얻는 유일한 경로다. (PR 리뷰 확정)
 - `POST /rooms/{roomId}/members`: body의 `inviteCode`가 **path의 `{roomId}`에 속한 활성 코드인지 검증**하고, 불일치하거나 무효한 코드는 멤버 추가 전에 거절한다. **개인방(`type: personal`)의 코드는 거절한다.** (PR 리뷰 확정)
 - 합류 완료 시 방 멤버 전원에게 푸시 알림을 발송한다. (PR 리뷰 확정)
@@ -491,9 +496,10 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 ### [001] 온보딩 · 친구 초대
 
 - **방 > API > 방 생성** — `POST /rooms`
-  - 공동방 생성(이름 15자·설명 20자·색상, 생성자가 `owner_id`). 초대 코드 발급은 초대 TBD로 보류. 개인방 색상 정책은 미결 6 확정 후 반영.
-- **초대 > DB > invite 테이블** — 방 참조 + 초대자 유저 참조 (PR 리뷰 결론)
-- **방 > API > 초대 코드로 방 참여** — `GET /invitations/{code}`, `POST /rooms/{roomId}/members`
+  - 공동방 생성(이름 15자·설명 20자·색상, 생성자가 `owner_id`). 초대 코드는 방 생성과 분리돼 `POST /rooms/{roomId}/invitations`가 발급한다. 개인방 색상 정책은 미결 6 확정 후 반영.
+- ~~**초대 > DB > invitations 테이블**~~ — *완료.* 방 참조 + 초대자 참조, `(room_id, invited_by)` 유니크
+- ~~**초대 > API > 내 초대 링크 발급**~~ — *완료.* `POST /rooms/{roomId}/invitations`. 멤버당 1개, 멱등, 개인방 거절
+- **초대 > API > 미리보기·합류** — `GET /invitations/{code}`, `POST /rooms/{roomId}/members`
   - 미리보기(인증 불필요, `roomId` 포함) + `room_members` 합류. 개인방 코드 거절, 중복 참여 멱등 처리, 합류 시 전원 푸시.
 
 ### [002] 홈 탭 *(TBD — 큐레이션 확정 후 착수)*
