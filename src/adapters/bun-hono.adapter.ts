@@ -15,6 +15,7 @@ export class BunHonoAdapter extends HonoAdapter {
 
     // Inject Express-style `type`/`send` onto every Hono context
     this.instance.use(async (ctx, next) => {
+      ctx.header("Cache-Control", "no-cache, no-store");
       Object.assign(ctx, {
         type: (value: string) => {
           ctx.header("Content-Type", value);
