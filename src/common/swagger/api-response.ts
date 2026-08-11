@@ -1,24 +1,48 @@
-import { type Type } from "@nestjs/common";
-import { ApiProperty } from "@nestjs/swagger";
+import type { SchemaObject } from "./schema";
 
-export function DataResponse<T>(type: Type<T>) {
-  class DataResponseClass {
-    @ApiProperty({ type })
-    data!: T;
-  }
-  Object.defineProperty(DataResponseClass, "name", {
-    value: `DataResponse${type.name}`,
-  });
-  return DataResponseClass;
+export function dataSchema(s: SchemaObject): SchemaObject {
+  return { type: "object", properties: { data: s } };
 }
 
-export function DataArrayResponse<T>(type: Type<T>) {
-  class DataArrayResponseClass {
-    @ApiProperty({ type, isArray: true })
-    data!: T[];
-  }
-  Object.defineProperty(DataArrayResponseClass, "name", {
-    value: `DataArrayResponse${type.name}`,
-  });
-  return DataArrayResponseClass;
+export function dataArraySchema(
+  s: SchemaObject,
+  opts?: { paginated?: boolean },
+): SchemaObject {
+  return {
+    type: "object",
+    properties: {
+      data: { type: "array", items: s },
+      ...(opts?.paginated ? { pagination: PAGINATION_SCHEMA } : {}),
+    },
+  };
 }
+
+export const OK_RESPONSE_SCHEMA: SchemaObject = {
+  type: "object",
+  properties: {
+    data: {
+      type: "object",
+      required: ["ok"],
+      properties: { ok: { type: "boolean", example: true } },
+    },
+  },
+};
+
+export const ERROR_RESPONSE_SCHEMA: SchemaObject = {
+  type: "object",
+  required: ["errorCode", "message"],
+  properties: {
+    errorCode: { type: "string", example: "FORBIDDEN" },
+    message: { type: "string" },
+  },
+};
+
+export const PAGINATION_SCHEMA: SchemaObject = {
+  type: "object",
+  required: ["pageSize", "page", "hasNext"],
+  properties: {
+    pageSize: { type: "integer", example: 20 },
+    page: { type: "integer", description: "0부터 시작", example: 0 },
+    hasNext: { type: "boolean" },
+  },
+};

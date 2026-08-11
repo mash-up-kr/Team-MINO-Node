@@ -13,7 +13,11 @@ import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
 import { DatabaseModule } from "./infrastructures/db/database.module";
 import { SentryModule } from "./infrastructures/sentry/sentry.module";
+import { NotificationModule } from "./modules/notification/notification.module";
+import { PinModule } from "./modules/pin/pin.module";
 import { PlaceModule } from "./modules/place/place.module";
+import { RoomModule } from "./modules/room/room.module";
+import { UserModule } from "./modules/user/user.module";
 
 @Module({
   imports: [
@@ -38,6 +42,10 @@ import { PlaceModule } from "./modules/place/place.module";
     TerminusModule,
     SentryModule,
     PlaceModule,
+    UserModule,
+    RoomModule,
+    PinModule,
+    NotificationModule,
   ],
   controllers: [HealthController],
   providers: [DrizzleHealthIndicator],

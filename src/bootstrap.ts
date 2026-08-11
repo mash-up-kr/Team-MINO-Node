@@ -23,13 +23,16 @@ export async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle("Team MINO API")
+    .setTitle("꾹(GGUK) API")
     .setDescription("Team MINO backend API documentation")
-    .setVersion("1.0.0")
+    .setVersion("0.1.0-draft")
+    .addBearerAuth()
     .build();
 
   SwaggerModule.setup("api-docs", app, () =>
-    SwaggerModule.createDocument(app, swaggerConfig),
+    SwaggerModule.createDocument(app, swaggerConfig, {
+      autoTagControllers: false,
+    }),
   );
 
   await app.listen(configService.getOrThrow("PORT", { infer: true }));
