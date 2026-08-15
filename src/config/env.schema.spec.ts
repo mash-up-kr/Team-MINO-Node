@@ -9,7 +9,22 @@ const requiredEnvironment = {
   INSTAGRAM_GRAPHQL_ENDPOINT: "https://www.instagram.com/graphql/query/",
   INSTAGRAM_USER_AGENT: "test",
   KAKAO_REST_API_KEY: "test",
+  GOOGLE_MAPS_API_KEY: "test",
 };
+
+// 키가 없으면 해당 국가의 장소가 조용히 0건이 되므로 부팅에서 막는다.
+describe("지오코더 키 환경변수", () => {
+  it.each([
+    "KAKAO_REST_API_KEY",
+    "GOOGLE_MAPS_API_KEY",
+  ])("%s가 없으면 부팅을 막는다", (key) => {
+    const { [key]: _omitted, ...withoutKey } = requiredEnvironment;
+
+    expect(() => validateEnv(withoutKey)).toThrow(
+      "Invalid environment variables",
+    );
+  });
+});
 
 describe("GCS 버킷 환경변수", () => {
   it("미지정이면 undefined로 두어 APP_ENV가 버킷을 유도하게 한다", () => {

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, jest } from "bun:test";
 import { ConfigModule } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { GeocoderModule } from "./geocoder.module";
-import { GeocoderService } from "./geocoder.service";
+import { GEOCODER_PROVIDERS, GeocoderService } from "./geocoder.service";
 import type { GeoCandidate, GeocoderProvider, GeoQuery } from "./geocoder.type";
 import { KakaoProvider } from "./providers/kakao.provider";
 
@@ -23,6 +23,7 @@ const overseasQuery: GeoQuery = {
 describe("Geocoder", () => {
   let service: GeocoderService;
   let kakao: KakaoProvider;
+  let providers: GeocoderProvider[];
 
   function makeCandidate(overrides: Partial<GeoCandidate> = {}): GeoCandidate {
     return {
@@ -55,6 +56,7 @@ describe("Geocoder", () => {
     }).compile();
     service = module.get(GeocoderService);
     kakao = module.get(KakaoProvider);
+    providers = module.get(GEOCODER_PROVIDERS);
   });
 
   it("DI 컨테이너에서 GeocoderService를 해석한다", () => {
@@ -63,6 +65,16 @@ describe("Geocoder", () => {
 
   it("KakaoProvider는 DI 컨테이너에서 해석된다", () => {
     expect(kakao.name).toBe("kakao");
+  });
+
+  it("provider 주입 순서가 라우팅 정책을 표현한다", () => {
+    expect(providers.map((provider) => provider.name)).toEqual([
+      "kakao",
+      "google",
+    ]);
+    expect(providers[0].supports(domesticQuery)).toBe(true);
+    expect(providers[0].supports(overseasQuery)).toBe(false);
+    expect(providers[1].supports(overseasQuery)).toBe(true);
   });
 
   it("질의를 지원하는 provider로 검색한다", async () => {
