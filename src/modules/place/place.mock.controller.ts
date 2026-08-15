@@ -17,6 +17,7 @@ const MOCK_PLACES: PlaceMatch[] = [
       placeName: "어니언 성수",
       areaName: "성수동",
       areaType: "landmark",
+      countryCode: "KR",
       relation: "카페 방문 후기",
     },
     matches: [
@@ -37,6 +38,7 @@ const MOCK_PLACES: PlaceMatch[] = [
       placeName: "대림창고",
       areaName: "성수동",
       areaType: "landmark",
+      countryCode: "KR",
       relation: "다음 코스",
     },
     matches: [
@@ -57,6 +59,7 @@ const MOCK_PLACES: PlaceMatch[] = [
       placeName: "블루보틀 성수",
       areaName: "성수동",
       areaType: "landmark",
+      countryCode: "KR",
       relation: "커피 맛집",
     },
     matches: [
@@ -77,6 +80,7 @@ const MOCK_PLACES: PlaceMatch[] = [
       placeName: "이름만 언급된 가게",
       areaName: "성수동",
       areaType: "region",
+      countryCode: "KR",
       relation: "지나가며 언급",
     },
     matches: [],

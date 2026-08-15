@@ -23,6 +23,13 @@ export const placeQuerySchema = v.object({
       'How area_name is expressed: "landmark" for a well-known place, "address" for a street address, "region" for a broad area such as a district or city.',
     ),
   ),
+  country_code: v.pipe(
+    v.string(),
+    v.length(2),
+    v.description(
+      'The ISO 3166-1 alpha-2 country code of the place in uppercase, e.g. "KR" for South Korea, "JP" for Japan, "FR" for France. When the content does not make the country clear, use "KR".',
+    ),
+  ),
   relation: v.pipe(
     v.string(),
     v.description(
@@ -49,6 +56,7 @@ export interface ExtractedPlace {
   placeName: string;
   areaName: string;
   areaType: AreaType;
+  countryCode: string;
   relation: string;
 }
 

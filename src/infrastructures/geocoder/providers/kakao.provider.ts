@@ -24,11 +24,21 @@ const KAKAO_SEARCH_SIZE = "15";
 const KAKAO_ADDRESS_BIAS_RADIUS = "1000";
 const KAKAO_REQUEST_TIMEOUT_MS = 5000;
 
+/*
+ * 카카오 로컬 API는 국내 장소만 색인한다. 해외 질의를 보내면 0건이 아니라 이름이 겹치는
+ * 국내 장소가 걸릴 수 있어("파리 에펠탑" → 상호에 에펠탑이 든 국내 업소) 국가로 먼저 거른다.
+ */
+const KAKAO_SUPPORTED_COUNTRY_CODE = "KR";
+
 @Injectable()
 export class KakaoProvider implements GeocoderProvider {
   readonly name = "kakao" as const;
 
   constructor(private readonly configService: ConfigService<Env>) {}
+
+  supports(query: GeoQuery): boolean {
+    return query.countryCode === KAKAO_SUPPORTED_COUNTRY_CODE;
+  }
 
   async search(query: GeoQuery): Promise<GeoCandidate[]> {
     const apiKey = this.configService.getOrThrow("KAKAO_REST_API_KEY", {

@@ -10,6 +10,7 @@ export interface GeoQuery {
   areaName: string;
   areaType?: AreaType;
   placeName: string;
+  countryCode: string;
 }
 
 export interface GeoCandidate {
@@ -26,5 +27,6 @@ export interface GeoCandidate {
 
 export interface GeocoderProvider {
   readonly name: GeoCandidate["provider"];
+  supports(query: GeoQuery): boolean;
   search(query: GeoQuery): Promise<GeoCandidate[]>;
 }

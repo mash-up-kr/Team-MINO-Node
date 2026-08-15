@@ -32,6 +32,7 @@ const PLACE_QUERY = {
   place_name: "어니언 성수",
   area_name: "성수동",
   area_type: "landmark" as const,
+  country_code: "KR",
   relation: "카페",
 };
 const CANDIDATE: GeoCandidate = {
@@ -44,7 +45,7 @@ const CANDIDATE: GeoCandidate = {
 
 const instagram = { fetchPost: jest.fn() };
 const ai = { extract: jest.fn() };
-const geocoder = { name: "kakao", search: jest.fn() };
+const geocoder = { name: "kakao", supports: () => true, search: jest.fn() };
 const placeImage = { storePostImages: jest.fn().mockResolvedValue([]) };
 let app: INestApplication;
 let baseUrl: string;
@@ -101,6 +102,7 @@ describe("POST /api/v1/place/places", () => {
             placeName: "어니언 성수",
             areaName: "성수동",
             areaType: "landmark",
+            countryCode: "KR",
             relation: "카페",
           },
           matches: [CANDIDATE],
@@ -112,6 +114,7 @@ describe("POST /api/v1/place/places", () => {
       placeName: "어니언 성수",
       areaName: "성수동",
       areaType: "landmark",
+      countryCode: "KR",
     });
   });
 

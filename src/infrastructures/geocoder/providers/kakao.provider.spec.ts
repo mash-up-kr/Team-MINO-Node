@@ -10,16 +10,19 @@ const regionQuery: GeoQuery = {
   areaName: "서울 강남구",
   areaType: "region",
   placeName: "카카오프렌즈",
+  countryCode: "KR",
 };
 const addressQuery: GeoQuery = {
   areaName: "서울 강남구 영동대로 513",
   areaType: "address",
   placeName: "카카오프렌즈",
+  countryCode: "KR",
 };
 const landmarkQuery: GeoQuery = {
   areaName: "코엑스",
   areaType: "landmark",
   placeName: "카카오프렌즈",
+  countryCode: "KR",
 };
 
 function createProvider() {
@@ -128,6 +131,19 @@ async function expectAppException(
 describe("KakaoProvider", () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
+  });
+
+  it("국내 질의만 지원한다", () => {
+    const provider = createProvider();
+
+    expect(provider.supports(regionQuery)).toBe(true);
+    // 해외 질의를 보내면 0건이 아니라 이름이 겹치는 국내 장소가 걸릴 수 있어 먼저 거른다.
+    expect(provider.supports({ ...regionQuery, countryCode: "FR" })).toBe(
+      false,
+    );
+    expect(provider.supports({ ...regionQuery, countryCode: "JP" })).toBe(
+      false,
+    );
   });
 
   it("keyword search API를 올바른 query와 인증 헤더로 호출한다", async () => {
