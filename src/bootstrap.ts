@@ -22,17 +22,15 @@ export async function bootstrap(): Promise<void> {
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.enableShutdownHooks();
 
-  if (configService.getOrThrow("NODE_ENV", { infer: true }) !== "production") {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle("Team MINO API")
-      .setDescription("Team MINO backend API documentation")
-      .setVersion("1.0.0")
-      .build();
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle("Team MINO API")
+    .setDescription("Team MINO backend API documentation")
+    .setVersion("1.0.0")
+    .build();
 
-    SwaggerModule.setup("api-docs", app, () =>
-      SwaggerModule.createDocument(app, swaggerConfig),
-    );
-  }
+  SwaggerModule.setup("api-docs", app, () =>
+    SwaggerModule.createDocument(app, swaggerConfig),
+  );
 
   await app.listen(configService.getOrThrow("PORT", { infer: true }));
 }

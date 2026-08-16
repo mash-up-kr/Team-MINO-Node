@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import {
   type HealthIndicatorResult,
   HealthIndicatorService,
@@ -8,6 +8,8 @@ import { DatabaseService } from "../infrastructures/db/database.service";
 
 @Injectable()
 export class DrizzleHealthIndicator {
+  private readonly logger = new Logger(DrizzleHealthIndicator.name);
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly healthIndicatorService: HealthIndicatorService,
@@ -18,7 +20,8 @@ export class DrizzleHealthIndicator {
     try {
       await this.databaseService.db.execute(sql`SELECT 1`);
       return indicator.up();
-    } catch {
+    } catch (error) {
+      this.logger.error({ err: error }, "DB ping 실패");
       return indicator.down("Database ping failed");
     }
   }

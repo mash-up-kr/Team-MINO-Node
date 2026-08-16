@@ -21,6 +21,7 @@ FROM gcr.io/distroless/base-debian13:nonroot AS runtime
 WORKDIR /app
 COPY --link --from=builder /app/dist/server /app/server
 COPY --link --from=builder /app/dist/main.js.map /app/main.js.map
+COPY --link --from=builder /app/node_modules/swagger-ui-dist /app/node_modules/swagger-ui-dist
 
 ENV NODE_ENV=production \
     PORT=3000

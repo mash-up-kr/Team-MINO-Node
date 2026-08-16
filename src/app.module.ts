@@ -9,6 +9,7 @@ import { TerminusModule } from "@nestjs/terminus";
 import { LoggerModule } from "nestjs-pino";
 import { LoggingMiddleware } from "./common/middlewares/logging.middleware";
 import { validateEnv } from "./config/env.schema";
+import { DbKeepAliveService } from "./health/db-keep-alive.service";
 import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
 import { DatabaseModule } from "./infrastructures/db/database.module";
@@ -40,7 +41,7 @@ import { PlaceModule } from "./modules/place/place.module";
     PlaceModule,
   ],
   controllers: [HealthController],
-  providers: [DrizzleHealthIndicator],
+  providers: [DrizzleHealthIndicator, DbKeepAliveService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

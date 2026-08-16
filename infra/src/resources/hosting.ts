@@ -22,6 +22,12 @@ const version = new gcp.firebase.HostingVersion(
   {
     siteId: project,
     config: {
+      headers: [
+        {
+          glob: "**",
+          headers: { "Cache-Control": "no-cache, no-store" },
+        },
+      ],
       rewrites: [{ glob: "**", run: { serviceId: service.name, region } }],
     },
   },
