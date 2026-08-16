@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable } from "@nestjs/common";
 import { and, eq, isNull } from "drizzle-orm";
+import { AppException } from "../../common/exceptions/app.exception";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
 import { sources } from "./source.schema";
 
@@ -39,7 +40,11 @@ export class SourceRepository extends BaseRepository {
       )
       .limit(1);
     if (!source) {
-      throw new Error("Active Instagram source was not created");
+      throw new AppException(
+        "SOURCE_UPSERT_FAILED",
+        "출처를 저장하지 못했습니다.",
+        HttpStatus.BAD_GATEWAY,
+      );
     }
     return source.id;
   }
