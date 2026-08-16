@@ -137,7 +137,7 @@ export class PinService {
    */
   async recordAccess(userId: string, pinId: string): Promise<void> {
     await this.findActivePinForUser(pinId, userId);
-    await this.pinRepository.insertAccessAndTouchPin(pinId, userId);
+    await this.pinRepository.insertAccess(pinId, userId);
   }
 
   private async findActivePinForUser(pinId: string, userId: string) {

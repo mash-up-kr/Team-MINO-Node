@@ -202,14 +202,8 @@ export class PinRepository extends BaseRepository {
     await this.db.insert(pins).values(values);
   }
 
-  /** 접근 로그 추가(append-only) + 방 단위 최근 접근 시점 갱신을 한 트랜잭션으로. */
-  async insertAccessAndTouchPin(pinId: string, userId: string): Promise<void> {
-    await this.db.transaction(async (tx) => {
-      await tx.insert(pinAccesses).values({ pinId, userId });
-      await tx
-        .update(pins)
-        .set({ lastAccessedAt: new Date() })
-        .where(eq(pins.id, pinId));
-    });
+  /** 접근 로그 추가(append-only). */
+  async insertAccess(pinId: string, userId: string): Promise<void> {
+    await this.db.insert(pinAccesses).values({ pinId, userId });
   }
 }
