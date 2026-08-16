@@ -21,10 +21,15 @@ const roomDescriptionSchema = v.nullable(
   ),
 );
 
-/** 팔레트 5색의 실제 값이 디자인 확정 전이라, 우선 hex 형식만 검증한다. */
+/**
+ * 색상은 서버가 hex를 내려주지 않고 enum 키로만 관리하며, 실제 색 매핑은
+ * 클라이언트가 담당한다(리뷰 방향 픽스). 키셋이 디자인 확정 전이라
+ * 우선 rooms.color(varchar(7)) 한도의 길이만 검증한다.
+ */
 const roomColorSchema = v.pipe(
   v.string(),
-  v.regex(/^#[0-9A-Fa-f]{6}$/, "색상은 #RRGGBB hex 형식이어야 합니다."),
+  v.minLength(1, "색상 키가 필요합니다."),
+  v.maxLength(7, "색상 키는 7자 이하여야 합니다."),
 );
 
 export const createRoomRequestSchema = v.object({
@@ -96,7 +101,7 @@ const roomSchema: SchemaObject = {
     type: { type: "string", enum: ["personal", "shared"] },
     name: { type: "string", example: "맛집 탐방" },
     description: { type: "string", nullable: true },
-    color: { type: "string", example: "#FF6B6B" },
+    color: { type: "string", example: "black" },
     ownerId: { type: "string", format: "uuid" },
     createdAt: { type: "string", format: "date-time" },
   },
