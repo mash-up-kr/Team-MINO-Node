@@ -8,20 +8,11 @@ import {
   Post,
   Put,
   Query,
-  UseGuards,
 } from "@nestjs/common";
-import {
-  ApiBody,
-  ApiHeader,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from "@nestjs/swagger";
-import { CurrentUser } from "../../common/guards/current-user.decorator";
-import {
-  CurrentUserGuard,
-  type RequestUser,
-} from "../../common/guards/current-user.guard";
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
+import type { RequestUser } from "../../common/guards/current-user.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
 import {
   type CreateRoomRequest,
@@ -54,12 +45,7 @@ import type {
 const OK = { ok: true } as const;
 
 @ApiTags("room")
-@ApiHeader({
-  name: "X-Device-Id",
-  description: "요청 유저 식별용 deviceId (인증 정책 TBD — 임시 계약)",
-  required: true,
-})
-@UseGuards(CurrentUserGuard)
+@RequireCurrentUser()
 @Controller("api/v1/rooms")
 export class RoomController {
   constructor(private readonly roomService: RoomService) {}
