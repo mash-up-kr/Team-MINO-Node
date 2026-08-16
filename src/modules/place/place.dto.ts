@@ -34,7 +34,6 @@ const geoCandidateSchema: SchemaObject = {
     coordinate: coordinateSchema,
     distance: { type: "number", nullable: true },
     mapUrl: { type: "string", nullable: true },
-    phone: { type: "string", nullable: true },
     category: { type: "string", nullable: true },
   },
 };

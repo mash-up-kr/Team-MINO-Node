@@ -334,7 +334,6 @@ describe("PlaceService", () => {
         placeName: "정보 많은 곳",
         coordinate: { lat: 37.2, lng: 127.2 },
         mapUrl: "https://x",
-        phone: "02-000",
         category: "카페",
       }),
     ]);

@@ -18,7 +18,6 @@ export const googleSearchTextResponseSchema = v.object({
           longitude: v.number(),
         }),
         googleMapsUri: v.optional(v.string()),
-        internationalPhoneNumber: v.optional(v.string()),
         primaryTypeDisplayName: v.optional(localizedTextSchema),
       }),
     ),

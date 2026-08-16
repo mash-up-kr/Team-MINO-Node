@@ -21,7 +21,6 @@ export interface GeoCandidate {
   coordinate: Coordinate;
   distance?: number;
   mapUrl?: string;
-  phone?: string;
   category?: string;
 }
 

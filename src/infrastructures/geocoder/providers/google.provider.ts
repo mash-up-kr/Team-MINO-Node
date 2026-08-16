@@ -17,8 +17,7 @@ const GOOGLE_SEARCH_TEXT_URL =
   "https://places.googleapis.com/v1/places:searchText";
 
 /*
- * FieldMask가 곧 과금 티어라 실제로 쓰는 필드만 요청한다. GeoCandidate로 매핑하지 않는
- * 값을 추가하면 응답도 커지고, 요금 티어가 올라간다.
+ * FieldMask가 곧 과금 티어라 실제로 쓰는 필드만 요청한다.
  */
 const GOOGLE_FIELD_MASK = [
   "places.id",
@@ -26,7 +25,6 @@ const GOOGLE_FIELD_MASK = [
   "places.formattedAddress",
   "places.location",
   "places.googleMapsUri",
-  "places.internationalPhoneNumber",
   "places.primaryTypeDisplayName",
 ].join(",");
 
@@ -139,7 +137,6 @@ export class GoogleProvider implements GeocoderProvider {
         lng: document.location.longitude,
       },
       mapUrl: document.googleMapsUri,
-      phone: document.internationalPhoneNumber,
       category: document.primaryTypeDisplayName?.text,
     };
   }

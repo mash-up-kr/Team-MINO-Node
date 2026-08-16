@@ -23,7 +23,6 @@ export const kakaoKeywordSearchResponseSchema = v.object({
       id: v.string(),
       place_name: v.string(),
       category_name: v.string(),
-      phone: v.string(),
       address_name: v.string(),
       road_address_name: v.string(),
       x: v.string(),

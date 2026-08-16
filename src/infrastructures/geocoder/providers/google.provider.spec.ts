@@ -30,7 +30,6 @@ function createGoogleResponse(overrides: Record<string, unknown> = {}) {
         formattedAddress: "Av. Gustave Eiffel, 75007 Paris, France",
         location: { latitude: 48.85837, longitude: 2.294481 },
         googleMapsUri: "https://maps.google.com/?cid=1",
-        internationalPhoneNumber: "+33 892 70 12 39",
         primaryTypeDisplayName: { text: "관광 명소", languageCode: "ko" },
         ...overrides,
       },
@@ -103,9 +102,20 @@ describe("GoogleProvider", () => {
       "places.formattedAddress",
       "places.location",
       "places.googleMapsUri",
-      "places.internationalPhoneNumber",
       "places.primaryTypeDisplayName",
     ]);
+  });
+
+  it("전화번호는 상위 요금 티어 필드라 요청하지 않는다", async () => {
+    // 한 필드 때문에 월 무료 한도가 5,000건에서 1,000건으로 줄어든다.
+    const fetchMock = mockFetchJson(createGoogleResponse());
+    const provider = createProvider();
+
+    await provider.search(overseasQuery);
+
+    expect(readRequest(fetchMock).headers["X-Goog-FieldMask"]).not.toContain(
+      "internationalPhoneNumber",
+    );
   });
 
   it("지역·언어·후보 수를 담아 단일 textQuery로 요청한다", async () => {
@@ -137,7 +147,6 @@ describe("GoogleProvider", () => {
         address: "Av. Gustave Eiffel, 75007 Paris, France",
         coordinate: { lat: 48.85837, lng: 2.294481 },
         mapUrl: "https://maps.google.com/?cid=1",
-        phone: "+33 892 70 12 39",
         category: "관광 명소",
       },
     ]);
@@ -178,7 +187,6 @@ describe("GoogleProvider", () => {
 
     expect(candidate.address).toBe("");
     expect(candidate.mapUrl).toBeUndefined();
-    expect(candidate.phone).toBeUndefined();
     expect(candidate.category).toBeUndefined();
   });
 

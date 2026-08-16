@@ -208,7 +208,6 @@ export class KakaoProvider implements GeocoderProvider {
       },
       distance: this.parseDistance(document.distance),
       mapUrl: document.place_url,
-      phone: document.phone || undefined,
       category: document.category_name || undefined,
     };
   }

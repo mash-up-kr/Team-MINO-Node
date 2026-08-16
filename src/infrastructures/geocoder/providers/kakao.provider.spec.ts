@@ -52,7 +52,6 @@ function createKakaoResponse(overrides: Record<string, unknown> = {}) {
         category_name: "가정,생활 > 문구,사무용품 > 디자인문구 > 카카오프렌즈",
         category_group_code: "",
         category_group_name: "",
-        phone: "02-6002-1880",
         address_name: "서울 강남구 삼성동 159",
         road_address_name: "서울 강남구 영동대로 513",
         x: "127.05902969025047",
@@ -299,7 +298,6 @@ describe("KakaoProvider", () => {
         },
         distance: 418,
         mapUrl: "http://place.map.kakao.com/26338954",
-        phone: "02-6002-1880",
         category: "가정,생활 > 문구,사무용품 > 디자인문구 > 카카오프렌즈",
       },
     ]);

@@ -145,7 +145,6 @@ Write relation in the same language as the source content (use Korean when the c
   private completeness(candidate: GeoCandidate): number {
     let score = 0;
     if (candidate.mapUrl) score++;
-    if (candidate.phone) score++;
     if (candidate.category) score++;
     if (candidate.distance !== undefined) score++;
     return score;
