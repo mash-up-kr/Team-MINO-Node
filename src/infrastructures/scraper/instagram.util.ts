@@ -3,7 +3,7 @@ import { AppException } from "../../common/exceptions/app.exception";
 
 // 인스타 경로(/p, /reel, /reels, /tv)에서 shortcode 추출. shortcode는 대소문자를 구분한다.
 // 이 정규식은 이 파일에만 존재해야 한다(호스트 검증·파싱의 단일 경계).
-const SHORTCODE_PATH_REGEX = /\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/;
+const SHORTCODE_PATH_REGEX = /^\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)\/?$/;
 
 /**
  * 인스타그램 게시글 URL을 검증하고 shortcode(게시글 식별자)를 추출하는 순수 함수.
@@ -32,6 +32,17 @@ export function extractInstagramShortcode(url: string): string {
     throw invalidInstagramUrl();
   }
   return match[1];
+}
+
+export function isInstagramUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    extractInstagramShortcode(value);
+    return true;
+  } catch (error) {
+    if (error instanceof AppException) return false;
+    throw error;
+  }
 }
 
 function invalidInstagramUrl(): AppException {

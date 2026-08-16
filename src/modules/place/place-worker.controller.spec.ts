@@ -17,19 +17,26 @@ const TASK = {
 
 function createController() {
   const extractFromUrl = jest.fn();
+  const isActiveTaskTarget = jest.fn().mockResolvedValue(true);
   const save = jest.fn().mockResolvedValue({
     retryableFailures: 0,
     persistedPlaces: 0,
   });
-  const placeService = { extractFromUrl } as unknown as PlaceService;
-  const placeResultRepository = {
-    isActiveTaskTarget: jest.fn().mockResolvedValue(true),
+  const placeService: Pick<PlaceService, "extractFromUrl"> = {
+    extractFromUrl,
+  };
+  const placeResultRepository: Pick<
+    PlaceResultRepository,
+    "isActiveTaskTarget" | "save"
+  > = {
+    isActiveTaskTarget,
     save,
-  } as unknown as PlaceResultRepository;
+  };
 
   return {
     controller: new PlaceWorkerController(placeService, placeResultRepository),
     extractFromUrl,
+    isActiveTaskTarget,
     save,
   };
 }
@@ -91,11 +98,9 @@ describe("PlaceWorkerController retry policy", () => {
   });
 
   it("stale task는 추출하지 않고 acknowledge한다", async () => {
-    const { controller, extractFromUrl } = createController();
-    const target = controller["placeResultRepository"] as unknown as {
-      isActiveTaskTarget: ReturnType<typeof jest.fn>;
-    };
-    target.isActiveTaskTarget.mockResolvedValue(false);
+    const { controller, extractFromUrl, isActiveTaskTarget } =
+      createController();
+    isActiveTaskTarget.mockResolvedValue(false);
 
     await expect(controller.process(TASK)).resolves.toBeUndefined();
     expect(extractFromUrl).not.toHaveBeenCalled();
@@ -130,7 +135,7 @@ describe("PlaceWorkerController retry policy", () => {
     expect(exception.getResponse()).toMatchObject({
       errorCode: "AI_SCHEMA_MISMATCH",
     });
-    expect((exception as unknown as { cause?: unknown }).cause).toBe(error);
+    expect(exception.cause).toBe(error);
     expect(save).not.toHaveBeenCalled();
   });
 

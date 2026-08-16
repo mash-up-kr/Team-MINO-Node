@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable } from "@nestjs/common";
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { AppException } from "../../common/exceptions/app.exception";
 import { DatabaseService } from "../../infrastructures/db/database.service";
 import type { PinExtractionTask } from "../pin/pin.dto";
 import { pins } from "../pin/pin.schema";
@@ -95,7 +96,13 @@ export class PlaceResultRepository {
             },
           })
           .returning({ id: places.id });
-        if (!place) throw new Error("Place upsert did not return an id");
+        if (!place) {
+          throw new AppException(
+            "PLACE_UPSERT_FAILED",
+            "장소를 저장하지 못했습니다.",
+            HttpStatus.BAD_GATEWAY,
+          );
+        }
 
         await tx
           .insert(placeSources)
