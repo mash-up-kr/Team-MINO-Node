@@ -1,16 +1,8 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from "@nestjs/common";
-import {
-  ApiBody,
-  ApiHeader,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from "@nestjs/swagger";
-import { CurrentUser } from "../../common/guards/current-user.decorator";
-import {
-  CurrentUserGuard,
-  type RequestUser,
-} from "../../common/guards/current-user.guard";
+import { Body, Controller, Get, Patch, Post } from "@nestjs/common";
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
+import type { RequestUser } from "../../common/guards/current-user.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
 import {
   errorResponseApiSchema,
@@ -24,13 +16,6 @@ import {
 } from "./user.dto";
 import { UserService } from "./user.service";
 import type { UserProfileResponse } from "./user.type";
-
-/** 요청 유저 식별 헤더 문서화 — 인증 정책 확정 전 임시 계약 (TBD) */
-const DEVICE_ID_API_HEADER = {
-  name: "X-Device-Id",
-  description: "요청 유저 식별용 deviceId (인증 정책 TBD — 임시 계약)",
-  required: true,
-} as const;
 
 @ApiTags("user")
 @Controller("api/v1/users")
@@ -58,8 +43,7 @@ export class UserController {
   }
 
   @Get("me")
-  @UseGuards(CurrentUserGuard)
-  @ApiHeader(DEVICE_ID_API_HEADER)
+  @RequireCurrentUser()
   @ApiOperation({ summary: "내 프로필 조회" })
   @ApiResponse({ status: 200, schema: userResponseApiSchema })
   getMe(@CurrentUser() user: RequestUser): Promise<UserProfileResponse> {
@@ -67,8 +51,7 @@ export class UserController {
   }
 
   @Patch("me")
-  @UseGuards(CurrentUserGuard)
-  @ApiHeader(DEVICE_ID_API_HEADER)
+  @RequireCurrentUser()
   @ApiOperation({
     summary: "프로필 수정",
     description: "닉네임(공백 포함 한글/영문 2~15자)·아바타 수정",
