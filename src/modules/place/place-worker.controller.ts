@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  HttpCode,
   HttpException,
   HttpStatus,
   Logger,
@@ -11,18 +12,15 @@ import {
 import * as v from "valibot";
 import { AppException } from "../../common/exceptions/app.exception";
 import { CloudTasksGuard } from "../../common/guards/cloud-tasks.guard";
-import { ValibotPipe } from "../../common/pipes/valibot.pipe";
+import {
+  type PinExtractionTask,
+  pinExtractionTaskSchema,
+} from "../pin/pin.dto";
 import { PlaceService } from "./place.service";
 import { PlaceResultRepository } from "./place-result.repository";
 
-const internalRequestSchema = v.object({
-  url: v.pipe(v.string(), v.url(), v.regex(/instagram\.com/)),
-});
-
-type InternalRequest = v.InferOutput<typeof internalRequestSchema>;
-
-/** Cloud Tasks 전용 Internal endpoint. 중간 상태나 결과를 HTTP 응답으로 반환하지 않는다. */
-@Controller("internal/tasks")
+/** Cloud Tasks 전용 장소 추출 worker. 모든 영구 실패는 204로 소비한다. */
+@Controller("api-internal/v1/tasks")
 @UseGuards(CloudTasksGuard)
 export class PlaceWorkerController {
   private readonly logger = new Logger(PlaceWorkerController.name);
@@ -32,18 +30,41 @@ export class PlaceWorkerController {
     private readonly placeResultRepository: PlaceResultRepository,
   ) {}
 
-  @Post("pin-extraction")
-  async process(
-    @Body(new ValibotPipe(internalRequestSchema)) body: InternalRequest,
-  ): Promise<void> {
+  @Post("pins")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async process(@Body() rawBody: unknown): Promise<void> {
+    const parsed = v.safeParse(pinExtractionTaskSchema, rawBody);
+    if (!parsed.success) {
+      this.logger.warn("Malformed pin extraction task acknowledged");
+      return;
+    }
+    const task: PinExtractionTask = parsed.output;
+
+    if (!(await this.placeResultRepository.isActiveTaskTarget(task))) {
+      this.logger.warn(
+        {
+          roomId: task.roomId,
+          sourceId: task.sourceId,
+          createdBy: task.createdBy,
+        },
+        "Stale pin extraction task acknowledged",
+      );
+      return;
+    }
+
     try {
-      const matches = await this.placeService.extractFromUrl(body.url);
-      await this.placeResultRepository.save(matches);
+      const matches = await this.placeService.extractFromUrl(task.url);
+      const result = await this.placeResultRepository.save(task, matches);
+      if (result.retryableFailures > 0) {
+        throw new ServiceUnavailableException(
+          "일부 장소 검색이 일시적으로 실패했습니다.",
+        );
+      }
     } catch (error) {
       if (this.shouldAcknowledge(error)) {
         this.logger.warn(
           { err: error },
-          "Non-retryable place extraction failure",
+          "Non-retryable place extraction failure acknowledged",
         );
         return;
       }
@@ -51,15 +72,14 @@ export class PlaceWorkerController {
       this.logger.warn(
         {
           err: error,
-          url: body.url,
+          roomId: task.roomId,
+          sourceId: task.sourceId,
+          createdBy: task.createdBy,
           errorCode:
             error instanceof AppException
               ? error.errorCode
               : "UNEXPECTED_ERROR",
-          responseStatus:
-            response instanceof HttpException
-              ? response.getStatus()
-              : HttpStatus.INTERNAL_SERVER_ERROR,
+          responseStatus: response.getStatus(),
         },
         "Retryable place extraction failure; Cloud Tasks will redeliver",
       );
@@ -67,37 +87,24 @@ export class PlaceWorkerController {
     }
   }
 
-  /**
-   * Cloud Tasks는 retryable 값을 직접 읽지 않고 Internal API의 HTTP 상태로 재시도를 판단한다.
-   * retryable=true면 예외를 재전파해 non-2xx를 반환하고, false면 오류를 소비해 2xx로 acknowledge한다.
-   * 값이 없으면 5xx는 재시도하고 4xx는 acknowledge하는 기본 규칙을 따른다.
-   */
-  private shouldAcknowledge(error: unknown): error is AppException {
+  private shouldAcknowledge(error: unknown): boolean {
     if (!(error instanceof AppException)) return false;
-
     const shouldRetry = error.retryable ?? error.getStatus() >= 500;
     return !shouldRetry;
   }
 
-  /**
-   * Cloud Tasks는 5xx와 429만 재시도하고 그 외 4xx는 영구 실패로 폐기한다.
-   * retryable=true인데 4xx인 예외(예: AI_SCHEMA_MISMATCH 422)는 그대로 응답하면
-   * task가 폐기되므로, 재시도가 보장되는 503으로 변환해 돌려준다.
-   */
-  private toRetryableResponse(error: unknown): unknown {
+  private toRetryableResponse(error: unknown): ServiceUnavailableException {
     if (error instanceof AppException) {
-      const status = error.getStatus();
-      const alreadyRetried =
-        status >= 500 || status === HttpStatus.TOO_MANY_REQUESTS;
-
-      if (!alreadyRetried) {
-        const response = error.getResponse() as {
-          errorCode: string;
-          message: string;
-        };
-        return new ServiceUnavailableException(response, { cause: error });
-      }
+      const response = error.getResponse();
+      return new ServiceUnavailableException(response, { cause: error });
     }
-    return error;
+    if (error instanceof HttpException) {
+      return new ServiceUnavailableException(error.getResponse(), {
+        cause: error,
+      });
+    }
+    return new ServiceUnavailableException("장소 추출 작업을 재시도합니다.", {
+      cause: error,
+    });
   }
 }
