@@ -5,7 +5,13 @@ import {
   DEFAULT_PAGE_SIZE,
 } from "../../common/pagination/pagination.constant";
 import { isUniqueViolation } from "../../infrastructures/db/db.error";
-import type { DuplicatePinRequest, ListPinsQuery } from "./pin.dto";
+import { TasksService } from "../../infrastructures/tasks/tasks.service";
+import { SourceRepository } from "../source/source.repository";
+import type {
+  CreateRoomPinRequest,
+  DuplicatePinRequest,
+  ListPinsQuery,
+} from "./pin.dto";
 import { PinRepository } from "./pin.repository";
 import {
   type PinDetailResponse,
@@ -15,7 +21,31 @@ import {
 
 @Injectable()
 export class PinService {
-  constructor(private readonly pinRepository: PinRepository) {}
+  constructor(
+    private readonly pinRepository: PinRepository,
+    private readonly sourceRepository: SourceRepository,
+    private readonly tasksService: TasksService,
+  ) {}
+
+  async enqueueRoomPin(
+    userId: string,
+    roomId: string,
+    input: CreateRoomPinRequest,
+  ): Promise<void> {
+    if (!(await this.pinRepository.isActiveMemberOfRoom(roomId, userId))) {
+      throw this.notRoomMember();
+    }
+
+    const sourceId = await this.sourceRepository.ensureActiveInstagramSource(
+      input.url,
+    );
+    await this.tasksService.enqueuePinExtraction({
+      roomId,
+      sourceId,
+      createdBy: userId,
+      url: input.url,
+    });
+  }
 
   /**
    * 방의 핀 목록. page/pageSize 둘 다 미지정이면 전체 반환(지도 전체 보기 보장 — PR 리뷰 확정),

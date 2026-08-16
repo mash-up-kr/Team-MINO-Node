@@ -9,6 +9,23 @@ import type { SchemaObject } from "../../common/swagger/schema";
 
 export const uuidParamSchema = v.pipe(v.string(), v.uuid());
 
+export const createRoomPinRequestSchema = v.object({
+  url: v.pipe(v.string(), v.url(), v.regex(/instagram\.com/)),
+});
+
+export type CreateRoomPinRequest = v.InferOutput<
+  typeof createRoomPinRequestSchema
+>;
+
+export const pinExtractionTaskSchema = v.object({
+  roomId: uuidParamSchema,
+  sourceId: uuidParamSchema,
+  createdBy: uuidParamSchema,
+  url: v.pipe(v.string(), v.url(), v.regex(/instagram\.com/)),
+});
+
+export type PinExtractionTask = v.InferOutput<typeof pinExtractionTaskSchema>;
+
 /**
  * page/pageSize 둘 다 미지정이면 전체를 반환한다(지도 전체 보기 보장 — PR 리뷰 확정).
  * 하나라도 지정되면 offset 기반 페이지네이션한다.
@@ -34,6 +51,11 @@ export type DuplicatePinRequest = v.InferOutput<
 
 export const duplicatePinRequestApiSchema = toJsonSchema(
   duplicatePinRequestSchema,
+  { errorMode: "ignore" },
+) as SchemaObject;
+
+export const createRoomPinRequestApiSchema = toJsonSchema(
+  createRoomPinRequestSchema,
   { errorMode: "ignore" },
 ) as SchemaObject;
 
