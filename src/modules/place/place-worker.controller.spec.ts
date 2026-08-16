@@ -7,7 +7,7 @@ import type { PlaceMatch } from "./place.type";
 import type { PlaceResultRepository } from "./place-result.repository";
 import { PlaceWorkerController } from "./place-worker.controller";
 
-const URL = "https://www.instagram.com/p/abc123/";
+const URL = "https://instagram.com/p/abc123/";
 const TASK = {
   roomId: "11111111-1111-4111-8111-111111111111",
   sourceId: "22222222-2222-4222-8222-222222222222",
