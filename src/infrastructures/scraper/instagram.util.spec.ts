@@ -65,9 +65,9 @@ describe("extractInstagramShortcode", () => {
       extractInstagramShortcode(url);
       throw new Error("should have thrown");
     } catch (error) {
-      expect(error).toBeInstanceOf(AppException);
+      if (!(error instanceof AppException)) throw error;
       expect(error).toMatchObject({ errorCode: "INVALID_INSTAGRAM_URL" });
-      expect((error as AppException).getStatus()).toBe(400);
+      expect(error.getStatus()).toBe(400);
     }
   });
 
