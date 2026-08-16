@@ -6,11 +6,21 @@ import {
   paginationApiSchema,
 } from "../../common/pagination/pagination.dto";
 import type { SchemaObject } from "../../common/swagger/schema";
+import { isInstagramUrl } from "../../infrastructures/scraper/instagram.util";
 
 export const uuidParamSchema = v.pipe(v.string(), v.uuid());
 
+const instagramUrlSchema = v.pipe(
+  v.string(),
+  v.url(),
+  v.check(
+    (value: string) => isInstagramUrl(value),
+    "지원하지 않는 인스타그램 URL입니다.",
+  ),
+);
+
 export const createRoomPinRequestSchema = v.object({
-  url: v.pipe(v.string(), v.url(), v.regex(/instagram\.com/)),
+  url: instagramUrlSchema,
 });
 
 export type CreateRoomPinRequest = v.InferOutput<
@@ -21,7 +31,7 @@ export const pinExtractionTaskSchema = v.object({
   roomId: uuidParamSchema,
   sourceId: uuidParamSchema,
   createdBy: uuidParamSchema,
-  url: v.pipe(v.string(), v.url(), v.regex(/instagram\.com/)),
+  url: instagramUrlSchema,
 });
 
 export type PinExtractionTask = v.InferOutput<typeof pinExtractionTaskSchema>;

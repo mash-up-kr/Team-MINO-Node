@@ -48,10 +48,7 @@ export class RoomPinController {
     try {
       await this.pinService.enqueueRoomPin(user.id, roomId, body);
     } catch (error) {
-      if (
-        error instanceof AppException &&
-        error.errorCode === "NOT_ROOM_MEMBER"
-      ) {
+      if (error instanceof AppException && error.getStatus() < 500) {
         throw error;
       }
       throw new AppException(

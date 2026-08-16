@@ -4,6 +4,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Inject,
   Logger,
   Post,
   ServiceUnavailableException,
@@ -16,8 +17,25 @@ import {
   type PinExtractionTask,
   pinExtractionTaskSchema,
 } from "../pin/pin.dto";
-import { PlaceService } from "./place.service";
-import { PlaceResultRepository } from "./place-result.repository";
+import type { PlaceMatch } from "./place.type";
+
+interface PlaceExtractor {
+  extractFromUrl(url: string): Promise<PlaceMatch[]>;
+}
+
+interface PlaceResultStore {
+  isActiveTaskTarget(task: PinExtractionTask): Promise<boolean>;
+  save(
+    task: PinExtractionTask,
+    matches: PlaceMatch[],
+  ): Promise<{
+    readonly retryableFailures: number;
+    readonly persistedPlaces: number;
+  }>;
+}
+
+export const PLACE_EXTRACTOR = Symbol("PLACE_EXTRACTOR");
+export const PLACE_RESULT_STORE = Symbol("PLACE_RESULT_STORE");
 
 /** Cloud Tasks 전용 장소 추출 worker. 모든 영구 실패는 204로 소비한다. */
 @Controller("api-internal/v1/tasks")
@@ -26,8 +44,10 @@ export class PlaceWorkerController {
   private readonly logger = new Logger(PlaceWorkerController.name);
 
   constructor(
-    private readonly placeService: PlaceService,
-    private readonly placeResultRepository: PlaceResultRepository,
+    @Inject(PLACE_EXTRACTOR)
+    private readonly placeService: PlaceExtractor,
+    @Inject(PLACE_RESULT_STORE)
+    private readonly placeResultRepository: PlaceResultStore,
   ) {}
 
   @Post("pins")

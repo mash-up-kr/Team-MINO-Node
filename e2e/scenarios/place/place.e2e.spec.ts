@@ -8,7 +8,7 @@ import {
   jest,
 } from "bun:test";
 import { randomUUID } from "node:crypto";
-import type { INestApplication } from "@nestjs/common";
+import { type INestApplication, UnauthorizedException } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { AppModule } from "../../../src/app.module";
@@ -93,9 +93,15 @@ beforeAll(async () => {
           switchToHttp: () => {
             getRequest: () => { headers: Record<string, string | undefined> };
           };
-        }) =>
-          ctx.switchToHttp().getRequest().headers["x-test-authorized"] ===
-          "yes",
+        }) => {
+          if (
+            ctx.switchToHttp().getRequest().headers["x-test-authorized"] ===
+            "yes"
+          ) {
+            return true;
+          }
+          throw new UnauthorizedException("missing OIDC token");
+        },
       })
       .overrideProvider(PlaceImageService)
       .useValue(placeImage)
@@ -248,6 +254,58 @@ describe("방 핀 추출 enqueue와 worker", () => {
     ).toHaveLength(2);
   });
 
+  it("partial transient는 성공분을 commit하고 503 후 재배달에서 누락분만 추가한다", async () => {
+    await postPin();
+    geocoder.search.mockImplementation(async (query: { placeName: string }) => {
+      if (query.placeName === "대림창고") throw new Error("provider down");
+      return [CANDIDATES[0]];
+    });
+
+    const first = await runTask();
+    const sourceId = capturedTask?.sourceId ?? "";
+    const firstLinks = await db
+      .select({ placeId: placeSources.placeId })
+      .from(placeSources)
+      .where(
+        and(
+          eq(placeSources.sourceId, sourceId),
+          isNull(placeSources.deletedAt),
+        ),
+      );
+
+    expect(first.status).toBe(503);
+    expect(firstLinks).toHaveLength(1);
+    expect(
+      await db
+        .select()
+        .from(pins)
+        .where(and(eq(pins.roomId, roomId), isNull(pins.deletedAt))),
+    ).toHaveLength(1);
+
+    geocoder.search.mockImplementation(async (query: { placeName: string }) =>
+      query.placeName === "어니언 성수" ? [CANDIDATES[0]] : [CANDIDATES[1]],
+    );
+    const second = await runTask();
+    const secondLinks = await db
+      .select({ placeId: placeSources.placeId })
+      .from(placeSources)
+      .where(
+        and(
+          eq(placeSources.sourceId, sourceId),
+          isNull(placeSources.deletedAt),
+        ),
+      );
+
+    expect(second.status).toBe(204);
+    expect(secondLinks).toHaveLength(2);
+    expect(
+      await db
+        .select()
+        .from(pins)
+        .where(and(eq(pins.roomId, roomId), isNull(pins.deletedAt))),
+    ).toHaveLength(2);
+  });
+
   it("동일 task 중복 배달은 누락 데이터만 추가하고 중복하지 않는다", async () => {
     await postPin();
     await runTask();
@@ -281,6 +339,21 @@ describe("방 핀 추출 enqueue와 worker", () => {
     expect(enqueuePinExtraction).not.toHaveBeenCalled();
   });
 
+  it("evil query-domain과 notinstagram/profile URL은 source write 전에 400이다", async () => {
+    const invalidUrls = [
+      "https://evil.com/?next=instagram.com/p/abc123",
+      "https://notinstagram.com/p/abc123",
+      "https://www.instagram.com/profile",
+    ];
+
+    for (const url of invalidUrls) {
+      const response = await postPin(memberDevice, { url });
+      expect(response.status).toBe(400);
+    }
+    expect(enqueuePinExtraction).not.toHaveBeenCalled();
+    expect(await db.select().from(sources)).toHaveLength(0);
+  });
+
   it("worker malformed task는 영구 오류로 acknowledge한다", async () => {
     const response = await fetch(`${baseUrl}/api-internal/v1/tasks/pins`, {
       method: "POST",
@@ -292,6 +365,18 @@ describe("방 핀 추출 enqueue와 worker", () => {
     });
 
     expect(response.status).toBe(204);
+    expect(instagram.fetchPost).not.toHaveBeenCalled();
+  });
+
+  it("worker route는 OIDC authorization이 없으면 401이고 추출하지 않는다", async () => {
+    await postPin();
+    const response = await fetch(`${baseUrl}/api-internal/v1/tasks/pins`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(capturedTask),
+    });
+
+    expect(response.status).toBe(401);
     expect(instagram.fetchPost).not.toHaveBeenCalled();
   });
 
