@@ -73,13 +73,13 @@ describe("extractInstagramShortcode", () => {
 
   it("파싱 도중 네트워크 호출(fetch)을 하지 않는다", () => {
     let fetchCalls = 0;
-    globalThis.fetch = async (
-      _input: RequestInfo | URL,
-      _init?: RequestInit,
-    ) => {
-      fetchCalls += 1;
-      return new Response("");
-    };
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: async (_input: RequestInfo | URL, _init?: RequestInit) => {
+        fetchCalls += 1;
+        return new Response("");
+      },
+    });
 
     extractInstagramShortcode("https://www.instagram.com/p/abc123/");
     try {
