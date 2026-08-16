@@ -320,21 +320,19 @@ describe("PlaceService", () => {
     await expect(promise).rejects.toThrow("Not implemented");
   });
 
-  it("정보가 더 완전한 후보를 먼저 정렬한다", async () => {
-    // given
+  it("provider가 매긴 순서를 재정렬하지 않는다", async () => {
+    // given — Kakao는 거리순, Google은 relevance로 이미 정렬해서 주므로 덮으면 안 된다.
     const { service, instagram, ai, geocoder } = createService();
     instagram.fetchPost.mockResolvedValue(makePost());
     ai.extract.mockResolvedValue({ places: [QUERY] });
     geocoder.search.mockResolvedValue([
+      // 선택 필드가 적은 후보가 앞에 와도 그대로 유지돼야 한다.
+      makeCandidate({ placeName: "provider 1순위" }),
       makeCandidate({
-        placeName: "정보 적은 곳",
-        coordinate: { lat: 37.1, lng: 127.1 },
-      }),
-      makeCandidate({
-        placeName: "정보 많은 곳",
-        coordinate: { lat: 37.2, lng: 127.2 },
+        placeName: "provider 2순위",
         mapUrl: "https://x",
         category: "카페",
+        distance: 10,
       }),
     ]);
 
@@ -342,33 +340,10 @@ describe("PlaceService", () => {
     const result = await service.extractFromUrl(URL);
 
     // then
-    expect(result[0].matches[0]?.placeName).toBe("정보 많은 곳");
-    expect(result[0].matches[0].placeName).toBe("정보 많은 곳");
-  });
-
-  it("정보 완전도가 같으면 더 가까운 후보를 먼저 정렬한다", async () => {
-    // given
-    const { service, instagram, ai, geocoder } = createService();
-    instagram.fetchPost.mockResolvedValue(makePost());
-    ai.extract.mockResolvedValue({ places: [QUERY] });
-    geocoder.search.mockResolvedValue([
-      makeCandidate({
-        placeName: "먼 후보",
-        coordinate: { lat: 37.1, lng: 127.1 },
-        distance: 1200,
-      }),
-      makeCandidate({
-        placeName: "가까운 후보",
-        coordinate: { lat: 37.2, lng: 127.2 },
-        distance: 300,
-      }),
+    expect(result[0].matches.map((match) => match.placeName)).toEqual([
+      "provider 1순위",
+      "provider 2순위",
     ]);
-
-    // when
-    const result = await service.extractFromUrl(URL);
-
-    // then
-    expect(result[0].matches[0]?.placeName).toBe("가까운 후보");
   });
 
   it("PlaceModule이 PlaceService와 PlaceController를 해석한다", async () => {

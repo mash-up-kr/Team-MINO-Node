@@ -3,14 +3,12 @@ import { AppException } from "../../common/exceptions/app.exception";
 import { AiService } from "../../infrastructures/ai/ai.service";
 import type { ContentPart } from "../../infrastructures/ai/ai.type";
 import { GeocoderService } from "../../infrastructures/geocoder/geocoder.service";
-import type { GeoCandidate } from "../../infrastructures/geocoder/geocoder.type";
 import { PlaceImageService } from "../../infrastructures/place-image/place-image.service";
 import type { StoredImage } from "../../infrastructures/place-image/place-image.type";
 import { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import {
   type ExtractedPlace,
-  type PlaceCandidate,
   type PlaceMatch,
   type PlaceQuery,
   placeExtractionSchema,
@@ -33,7 +31,7 @@ Write relation in the same language as the source content (use Korean when the c
     private readonly placeImageService: PlaceImageService,
   ) {}
 
-  /** Instagram URL → scrape → AI extraction → geocoding fan-out → ranking. */
+  /** Instagram URL → scrape → AI extraction → 국가 기준 지오코딩. */
   async extractFromUrl(url: string): Promise<PlaceMatch[]> {
     const post = await this.scraperService.fetchPost(url);
     const queries = await this.extractQueries(post);
@@ -67,8 +65,11 @@ Write relation in the same language as the source content (use Korean when the c
 
     return queries.map((query, index) => {
       const result = settled[index];
-      const matches =
-        result.status === "fulfilled" ? this.rankCandidates(result.value) : [];
+      /*
+       * provider가 매긴 순서를 그대로 둔다. Kakao는 주소 기준 거리순(sort=distance),
+       * Google은 자체 relevance로 이미 정렬해서 주므로 우리가 다시 매기면 그 신호를 덮는다.
+       */
+      const matches = result.status === "fulfilled" ? result.value : [];
       return { extracted: this.toExtractedPlace(query), matches };
     });
   }
@@ -127,26 +128,5 @@ Write relation in the same language as the source content (use Korean when the c
     }
 
     return parts;
-  }
-
-  /** Orders by completeness → proximity. 한 질의의 후보는 모두 같은 provider에서 온다. */
-  private rankCandidates(candidates: GeoCandidate[]): PlaceCandidate[] {
-    return candidates.sort((a, b) => {
-      const completenessDiff = this.completeness(b) - this.completeness(a);
-      if (completenessDiff !== 0) return completenessDiff;
-
-      const distanceA = a.distance ?? Number.POSITIVE_INFINITY;
-      const distanceB = b.distance ?? Number.POSITIVE_INFINITY;
-      return distanceA - distanceB;
-    });
-  }
-
-  /** Counts how many optional fields are present (higher = more complete). */
-  private completeness(candidate: GeoCandidate): number {
-    let score = 0;
-    if (candidate.mapUrl) score++;
-    if (candidate.category) score++;
-    if (candidate.distance !== undefined) score++;
-    return score;
   }
 }

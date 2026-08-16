@@ -63,6 +63,6 @@ export interface ExtractedPlace {
 export interface PlaceMatch {
   /** 게시글에서 추출한 장소. */
   extracted: ExtractedPlace;
-  /** 이 장소에 대한 지오코딩 후보(장소 내 랭킹순, 첫 번째가 최상위). 없으면 빈 배열. */
+  /** 이 장소에 대한 지오코딩 후보(provider가 매긴 순서, 첫 번째가 최상위). 없으면 빈 배열. */
   matches: PlaceCandidate[];
 }
