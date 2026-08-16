@@ -10,7 +10,7 @@ reviews:
     drafts: false
   path_filters:
     - "!bun.lock"
-    - "!drizzle/**"
+    - "!src/infrastructures/db/migrations/**"
     - "!dist/**"
   path_instructions:
     - path: "src/**"
