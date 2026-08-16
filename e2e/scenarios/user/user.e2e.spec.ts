@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { startApp } from "../../../e2e/start-app";
-import { AppModule } from "../../app.module";
+import { AppModule } from "../../../src/app.module";
+import { startApp } from "../../start-app";
 
 let app: INestApplication;
 let baseUrl: string;
