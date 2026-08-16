@@ -7,9 +7,11 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
   it("멤버십을 먼저 확인하고 source를 재사용하며 exact task payload를 enqueue한다", async () => {
     const first = await harness.postPin();
     const second = await harness.postPin();
+    const firstBody = await first.json();
     const body = await second.json();
 
     expect(first.status).toBe(202);
+    expect(firstBody).toEqual({ data: { ok: true } });
     expect(body).toEqual({ data: { ok: true } });
     expect(second.status).toBe(202);
     expect(harness.enqueuePinExtraction).toHaveBeenCalledTimes(2);
