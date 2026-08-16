@@ -6,20 +6,11 @@ import {
   Param,
   Post,
   Query,
-  UseGuards,
 } from "@nestjs/common";
-import {
-  ApiBody,
-  ApiHeader,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from "@nestjs/swagger";
-import { CurrentUser } from "../../common/guards/current-user.decorator";
-import {
-  CurrentUserGuard,
-  type RequestUser,
-} from "../../common/guards/current-user.guard";
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
+import type { RequestUser } from "../../common/guards/current-user.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
 import {
   type DuplicatePinRequest,
@@ -39,12 +30,7 @@ import type { PinDetailResponse, PinListResponse } from "./pin.type";
 const OK = { ok: true } as const;
 
 @ApiTags("pin")
-@ApiHeader({
-  name: "X-Device-Id",
-  description: "요청 유저 식별용 deviceId (인증 정책 TBD — 임시 계약)",
-  required: true,
-})
-@UseGuards(CurrentUserGuard)
+@RequireCurrentUser()
 @Controller("api/v1/pins")
 export class PinController {
   constructor(private readonly pinService: PinService) {}
