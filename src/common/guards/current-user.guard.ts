@@ -19,7 +19,7 @@ export type RequestUser = {
 };
 
 export type RequestWithUser = {
-  currentUser?: RequestUser;
+  user?: RequestUser;
 };
 
 /** 임시 식별 헤더. 인증 설계 확정 시 이 계약은 사라진다. */
@@ -67,7 +67,7 @@ export class CurrentUserGuard implements CanActivate {
       );
     }
 
-    request.currentUser = user;
+    request.user = user;
     return true;
   }
 }
