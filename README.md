@@ -92,7 +92,7 @@ docker compose up -d postgres
 http://localhost:3000/api-docs
 ```
 
-## Local Place Extraction with Postman
+## Local Place Extraction
 
 로컬에서 enqueue 요청과 Internal endpoint의 최종 `places` 저장까지 하나의 서버에서 확인하는 흐름입니다.
 
@@ -102,7 +102,7 @@ http://localhost:3000/api-docs
 bun run start:local
 ```
 
-2. Postman에서 추출을 enqueue합니다.
+2. API 호출로 추출을 enqueue합니다.
 
 ```http
 POST http://localhost:3000/api/v1/place/places
