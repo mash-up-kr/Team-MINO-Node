@@ -6,7 +6,10 @@ import {
   paginationApiSchema,
 } from "../../common/pagination/pagination.dto";
 import type { SchemaObject } from "../../common/swagger/schema";
-import { isInstagramUrl } from "../../infrastructures/scraper/instagram.util";
+import {
+  isInstagramUrl,
+  normalizeInstagramUrl,
+} from "../../infrastructures/scraper/instagram.util";
 
 export const uuidParamSchema = v.pipe(v.string(), v.uuid());
 
@@ -17,6 +20,7 @@ const instagramUrlSchema = v.pipe(
     (value: string) => isInstagramUrl(value),
     "지원하지 않는 인스타그램 URL입니다.",
   ),
+  v.transform(normalizeInstagramUrl),
 );
 
 export const createRoomPinRequestSchema = v.object({
