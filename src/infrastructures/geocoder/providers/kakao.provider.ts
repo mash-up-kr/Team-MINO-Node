@@ -201,7 +201,11 @@ export class KakaoProvider implements GeocoderProvider {
       provider: this.name,
       providerPlaceId: document.id,
       placeName: document.place_name,
-      address: document.address_name,
+      /*
+       * 표시용으로는 도로명이 낫고, Google이 주는 formattedAddress도 도로명 기반이라
+       * provider 간 표기가 맞는다. 도로명이 없는 장소는 빈 문자열로 와서 지번으로 떨어진다.
+       */
+      address: document.road_address_name || document.address_name,
       coordinate: {
         lat: this.parseCoordinate(document.y),
         lng: this.parseCoordinate(document.x),

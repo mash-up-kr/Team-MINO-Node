@@ -291,7 +291,7 @@ describe("KakaoProvider", () => {
         provider: "kakao",
         providerPlaceId: "26338954",
         placeName: "카카오프렌즈 코엑스점",
-        address: "서울 강남구 삼성동 159",
+        address: "서울 강남구 영동대로 513",
         coordinate: {
           lat: 37.51207412593136,
           lng: 127.05902969025047,
@@ -301,6 +301,16 @@ describe("KakaoProvider", () => {
         category: "가정,생활 > 문구,사무용품 > 디자인문구 > 카카오프렌즈",
       },
     ]);
+  });
+
+  it("도로명주소가 없으면 지번주소로 떨어진다", async () => {
+    // 구축물처럼 도로명이 없는 장소는 빈 문자열로 온다.
+    mockFetchJson(createKakaoResponse({ road_address_name: "" }));
+    const provider = createProvider();
+
+    const [candidate] = await provider.search(regionQuery);
+
+    expect(candidate.address).toBe("서울 강남구 삼성동 159");
   });
 
   it("distance가 없거나 빈 문자열이면 distance를 생략한다", async () => {
