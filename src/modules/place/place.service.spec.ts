@@ -12,7 +12,11 @@ import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import { PlaceController } from "./place.controller";
 import { PlaceModule } from "./place.module";
 import { PlaceService } from "./place.service";
-import { type PlaceQuery, placeExtractionSchema } from "./place.type";
+import {
+  type ExtractedPlace,
+  type PlaceQuery,
+  placeExtractionSchema,
+} from "./place.type";
 
 describe("PlaceService", () => {
   const URL = "https://www.instagram.com/p/abc123/";
@@ -21,6 +25,15 @@ describe("PlaceService", () => {
     place_name: "어니언 성수",
     area_name: "성수동",
     area_type: "landmark",
+    country_code: "KR",
+    relation: "카페 방문 후기",
+  };
+
+  const EXTRACTED: ExtractedPlace = {
+    placeName: "어니언 성수",
+    areaName: "성수동",
+    areaType: "landmark",
+    countryCode: "KR",
     relation: "카페 방문 후기",
   };
 
@@ -50,7 +63,7 @@ describe("PlaceService", () => {
   function createService() {
     const instagram = { fetchPost: jest.fn() };
     const ai = { extract: jest.fn() };
-    const geocoder = { searchAll: jest.fn() };
+    const geocoder = { search: jest.fn() };
     const placeImage = { storePostImages: jest.fn().mockResolvedValue([]) };
     const service = new PlaceService(
       instagram as unknown as ScraperService,
@@ -66,27 +79,42 @@ describe("PlaceService", () => {
     const { service, instagram, ai, geocoder } = createService();
     instagram.fetchPost.mockResolvedValue(makePost());
     ai.extract.mockResolvedValue({ places: [QUERY] });
-    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+    geocoder.search.mockResolvedValue([makeCandidate()]);
 
     // when
     const result = await service.extractFromUrl(URL);
 
     // then
     expect(instagram.fetchPost).toHaveBeenCalledWith(URL);
-    expect(geocoder.searchAll).toHaveBeenCalledWith({
+    expect(geocoder.search).toHaveBeenCalledWith({
       placeName: QUERY.place_name,
       areaName: QUERY.area_name,
       areaType: QUERY.area_type,
+      countryCode: QUERY.country_code,
     });
     expect(result).toHaveLength(1);
-    expect(result[0].extracted).toEqual({
-      placeName: "어니언 성수",
-      areaName: "성수동",
-      areaType: "landmark",
-      relation: "카페 방문 후기",
-    });
+    expect(result[0].extracted).toEqual(EXTRACTED);
     expect(result[0].matches[0]?.placeName).toBe("어니언 성수");
     expect(result[0].matches).toHaveLength(1);
+  });
+
+  it("AI가 국가 코드를 소문자로 주면 대문자로 맞춰 전달한다", async () => {
+    // given — provider 선택이 코드 일치로 결정되므로 대소문자가 어긋나면 조용히 빈 결과가 된다.
+    const { service, instagram, ai, geocoder } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    ai.extract.mockResolvedValue({
+      places: [{ ...QUERY, country_code: "kr" }],
+    });
+    geocoder.search.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const result = await service.extractFromUrl(URL);
+
+    // then
+    expect(geocoder.search).toHaveBeenCalledWith(
+      expect.objectContaining({ countryCode: "KR" }),
+    );
+    expect(result[0].extracted.countryCode).toBe("KR");
   });
 
   it("여러 장소가 추출되면 각각 지오코딩한 뒤 결과를 합쳐 랭킹한다", async () => {
@@ -100,11 +128,12 @@ describe("PlaceService", () => {
           place_name: "대림창고",
           area_name: "성수동",
           area_type: "landmark",
+          country_code: "KR",
           relation: "다음 코스",
         },
       ],
     });
-    geocoder.searchAll
+    geocoder.search
       .mockResolvedValueOnce([makeCandidate()])
       .mockResolvedValueOnce([
         makeCandidate({
@@ -117,7 +146,7 @@ describe("PlaceService", () => {
     const result = await service.extractFromUrl(URL);
 
     // then
-    expect(geocoder.searchAll).toHaveBeenCalledTimes(2);
+    expect(geocoder.search).toHaveBeenCalledTimes(2);
     expect(result).toHaveLength(2);
     expect(result[0].extracted.placeName).toBe("어니언 성수");
     expect(result[0].matches[0]?.placeName).toBe("어니언 성수");
@@ -132,12 +161,13 @@ describe("PlaceService", () => {
       place_name: tag,
       area_name: "성수동",
       area_type: "landmark",
+      country_code: "KR",
       relation: "코스",
     }));
     instagram.fetchPost.mockResolvedValue(makePost());
     ai.extract.mockResolvedValue({ places });
     for (const tag of ["A", "B", "C"]) {
-      geocoder.searchAll.mockResolvedValueOnce([
+      geocoder.search.mockResolvedValueOnce([
         makeCandidate({ placeName: `${tag}-1` }),
         makeCandidate({ placeName: `${tag}-2` }),
       ]);
@@ -167,11 +197,12 @@ describe("PlaceService", () => {
           place_name: "실패 장소",
           area_name: "성수동",
           area_type: "landmark",
+          country_code: "KR",
           relation: "x",
         },
       ],
     });
-    geocoder.searchAll
+    geocoder.search
       .mockResolvedValueOnce([makeCandidate()])
       .mockRejectedValueOnce(new Error("provider down"));
 
@@ -179,7 +210,7 @@ describe("PlaceService", () => {
     const result = await service.extractFromUrl(URL);
 
     // then
-    expect(geocoder.searchAll).toHaveBeenCalledTimes(2);
+    expect(geocoder.search).toHaveBeenCalledTimes(2);
     expect(result).toHaveLength(2);
     expect(result[0].matches[0]?.placeName).toBe("어니언 성수");
     expect(result[0].matches).toHaveLength(1);
@@ -193,7 +224,7 @@ describe("PlaceService", () => {
     const { service, instagram, ai, geocoder } = createService();
     instagram.fetchPost.mockResolvedValue(makePost());
     ai.extract.mockResolvedValue({ places: [QUERY] });
-    geocoder.searchAll.mockRejectedValue(new Error("provider down"));
+    geocoder.search.mockRejectedValue(new Error("provider down"));
 
     // when
     const promise = service.extractFromUrl(URL);
@@ -225,7 +256,7 @@ describe("PlaceService", () => {
       { gsUri: "gs://bucket/abc123/0", mediaType: "image/jpeg" },
     ]);
     ai.extract.mockResolvedValue({ places: [QUERY] });
-    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+    geocoder.search.mockResolvedValue([makeCandidate()]);
 
     // when
     await service.extractFromUrl(URL);
@@ -251,19 +282,14 @@ describe("PlaceService", () => {
     const { service, instagram, ai, geocoder } = createService();
     instagram.fetchPost.mockResolvedValue(makePost());
     ai.extract.mockResolvedValue({ places: [QUERY] });
-    geocoder.searchAll.mockResolvedValue([]);
+    geocoder.search.mockResolvedValue([]);
 
     // when
     const result = await service.extractFromUrl(URL);
 
     // then
     expect(result).toHaveLength(1);
-    expect(result[0].extracted).toEqual({
-      placeName: "어니언 성수",
-      areaName: "성수동",
-      areaType: "landmark",
-      relation: "카페 방문 후기",
-    });
+    expect(result[0].extracted).toEqual(EXTRACTED);
     expect(result[0].matches[0]).toBeUndefined();
     expect(result[0].matches).toHaveLength(0);
   });
@@ -279,7 +305,7 @@ describe("PlaceService", () => {
 
     // then
     expect(result).toEqual([]);
-    expect(geocoder.searchAll).not.toHaveBeenCalled();
+    expect(geocoder.search).not.toHaveBeenCalled();
   });
 
   it("인프라 서비스의 에러를 그대로 전파한다", async () => {
@@ -294,22 +320,19 @@ describe("PlaceService", () => {
     await expect(promise).rejects.toThrow("Not implemented");
   });
 
-  it("정보가 더 완전한 후보를 먼저 정렬한다", async () => {
-    // given
+  it("provider가 매긴 순서를 재정렬하지 않는다", async () => {
+    // given — Kakao는 거리순, Google은 relevance로 이미 정렬해서 주므로 덮으면 안 된다.
     const { service, instagram, ai, geocoder } = createService();
     instagram.fetchPost.mockResolvedValue(makePost());
     ai.extract.mockResolvedValue({ places: [QUERY] });
-    geocoder.searchAll.mockResolvedValue([
+    geocoder.search.mockResolvedValue([
+      // 선택 필드가 적은 후보가 앞에 와도 그대로 유지돼야 한다.
+      makeCandidate({ placeName: "provider 1순위" }),
       makeCandidate({
-        placeName: "정보 적은 곳",
-        coordinate: { lat: 37.1, lng: 127.1 },
-      }),
-      makeCandidate({
-        placeName: "정보 많은 곳",
-        coordinate: { lat: 37.2, lng: 127.2 },
+        placeName: "provider 2순위",
         mapUrl: "https://x",
-        phone: "02-000",
         category: "카페",
+        distance: 10,
       }),
     ]);
 
@@ -317,33 +340,10 @@ describe("PlaceService", () => {
     const result = await service.extractFromUrl(URL);
 
     // then
-    expect(result[0].matches[0]?.placeName).toBe("정보 많은 곳");
-    expect(result[0].matches[0].placeName).toBe("정보 많은 곳");
-  });
-
-  it("정보 완전도가 같으면 더 가까운 후보를 먼저 정렬한다", async () => {
-    // given
-    const { service, instagram, ai, geocoder } = createService();
-    instagram.fetchPost.mockResolvedValue(makePost());
-    ai.extract.mockResolvedValue({ places: [QUERY] });
-    geocoder.searchAll.mockResolvedValue([
-      makeCandidate({
-        placeName: "먼 후보",
-        coordinate: { lat: 37.1, lng: 127.1 },
-        distance: 1200,
-      }),
-      makeCandidate({
-        placeName: "가까운 후보",
-        coordinate: { lat: 37.2, lng: 127.2 },
-        distance: 300,
-      }),
+    expect(result[0].matches.map((match) => match.placeName)).toEqual([
+      "provider 1순위",
+      "provider 2순위",
     ]);
-
-    // when
-    const result = await service.extractFromUrl(URL);
-
-    // then
-    expect(result[0].matches[0]?.placeName).toBe("가까운 후보");
   });
 
   it("PlaceModule이 PlaceService와 PlaceController를 해석한다", async () => {

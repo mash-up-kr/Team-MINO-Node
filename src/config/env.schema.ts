@@ -36,7 +36,9 @@ const envSchema = v.object({
    * 로컬 실행이 운영 버킷에 쌓이지 않도록 한다.
    */
   GCS_PLACE_IMAGES_BUCKET: v.optional(v.pipe(v.string(), v.minLength(1))),
+  // 지오코더 키. 국내는 Kakao, 해외는 Google Places를 쓰므로 둘 다 필요하다.
   KAKAO_REST_API_KEY: v.pipe(v.string(), v.minLength(1)),
+  GOOGLE_MAPS_API_KEY: v.pipe(v.string(), v.minLength(1)),
   SENTRY_DSN: v.optional(v.pipe(v.string(), v.url(), v.regex(/^https:\/\//))),
   SENTRY_RELEASE: v.optional(v.pipe(v.string(), v.minLength(1))),
   /*

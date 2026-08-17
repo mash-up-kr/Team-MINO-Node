@@ -97,7 +97,7 @@ Figma **새 보드**(node `1512:70762`)의 섹션 번호 [000]~[007]을 기준�
 **백엔드 관점**
 
 1. 링크 접수: `original_url` 정규화 → `sources` 조회·등록(살아있는 행 기준 유니크이므로 재유입 시 기존 행 재사용) → 분석 잡 생성 후 **즉시 202 응답**(`jobId` 반환).
-2. 백그라운드 처리(Cloud Tasks 워커): 스크래핑(`infrastructures/scraper`) → AI 장소 추출(`infrastructures/ai`) → 지오코딩(`infrastructures/geocoder`, Kakao/Google).
+2. 백그라운드 처리(Cloud Tasks 워커): 스크래핑(`infrastructures/scraper`) → AI 장소 추출(`infrastructures/ai`) → 지오코딩(`infrastructures/geocoder`). 지오코더는 AI가 장소마다 뽑은 국가 코드로 provider를 고른다 — **국내는 Kakao, 해외는 Google Places**.
 3. 저장: `places`에 `(provider, provider_place_id)` 기준 dedup upsert → `place_sources` 연결(`(place_id, source_id)` 살아있는 행 유니크라 재유입 시 기존 연결 재사용) → 선택한 방에 `pins` 생성.
 4. 중복 판정: 같은 방에 같은 장소가 이미 있으면(`pins (room_id, place_id)` 살아있는 행 유니크) 새 핀을 만들지 않고 **중복 결과**로 처리한다.
 5. 결과 알림: 잡 종료 시 결과 유형별 알림 레코드를 남기고, **중복·실패인 경우 푸시를 발송한다.** 중복인 경우 **기존 핀으로 이동할 수 있는 참조(방·핀 식별자, 최초 저장 시각)** 를 함께 담는다. (→ [[006] 알림함](#006-알림함))
@@ -219,7 +219,7 @@ Figma **새 보드**(node `1512:70762`)의 섹션 번호 [000]~[007]을 기준�
 **백엔드 관점**
 
 - 지도뷰는 [004] 방 상세의 핀 리스트를 좌표와 함께 재사용한다. 별도 엔드포인트를 두지 않는다.
-- 카테고리 필터는 `places`의 카테고리 값 기준이다. 지오코더(Kakao/Google) 응답의 카테고리 체계가 provider마다 달라 **표시용 카테고리 정규화 규칙**이 필요하다.
+- 카테고리 필터는 `places`의 카테고리 값 기준이다. 지오코더(Kakao/Google) 응답의 카테고리 체계가 provider마다 달라 **표시용 카테고리 정규화 규칙**이 필요하다. Google provider가 붙으면서 두 체계가 실제로 공존하기 시작했으므로(Kakao `"음식점 > 카페 > 커피전문점"` / Google `"카페"`), **정규화 대상 카테고리 목록 확정이 이 화면의 선행 조건**이다.
 - 장소 상세 = 장소 정보 + 출처 링크(`place_sources` → `sources.original_url`) + 코멘트 목록/수.
 - 코멘트 작성·조회·삭제 모두 방 멤버십을 검증한다. **삭제는 작성자 본인만 가능하다.** (PR 리뷰 확정) 삭제는 soft delete(`pin_comments.deleted_at`)로 처리한다. **수정은 MVP 미지원**(삭제 후 재작성)이며 수정 API를 두지 않는다.
 - 코멘트 목록 정렬은 **`createdAt` 오름차순(ASC)** — 최신 코멘트가 목록 맨 아래에 온다.
@@ -312,7 +312,7 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 |---|---|
 | **스크래퍼** (`infrastructures/scraper`) | 인스타그램 게시물 콘텐츠 추출 — 구현됨 |
 | **AI** (`infrastructures/ai`) | Vertex AI(Gemini) 장소 추출 — 구현됨 |
-| **지오코더** (`infrastructures/geocoder`) | **Kakao 키워드/주소 검색 구현 완료. Google provider는 스켈레톤만 존재하며 `search()`는 미구현**(`Not implemented` throw) |
+| **지오코더** (`infrastructures/geocoder`) | **국가 기준 라우팅 구현됨** — AI가 뽑은 `country_code`(ISO 3166-1 alpha-2)로 provider를 고른다. 국내는 Kakao(키워드/주소 검색), 그 외는 Google Places(Text Search). **운영 전 GCP에 Places API (New) 활성화와 `GOOGLE_MAPS_API_KEY` 주입이 필요하다** |
 | **장소 검색** (`modules/place`) | 장소 검색 API — 구현됨 |
 | **DB** | Drizzle + PostgreSQL(Supabase), search_path 기반 develop/production 분리 — 구현됨 |
 | **모니터링** | Sentry 오류 수집 + Discord 알림 — 구현됨 |
@@ -333,6 +333,8 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 7. **닉네임 중복 허용 범위**: 스키마상 닉네임 유니크 제약이 없어 중복 가능하다. 전체 유저 간 허용인지, 방 안에서만 제한할지 프디팀 확인 필요. (PR 리뷰 질문 — 미답)
 8. **방 커버 도입 여부**: 새 보드에 "방 커버 변경 예정" 주석이 있다. 도입되면 `rooms`에 커버 필드가 필요할 수 있다.
 9. **방 변경 시 라벨 vs 툴팁**: 디자인 리뷰에서는 고정 라벨로 확정했으나 새 보드에 "툴팁 3초 유지" 화면이 남아 있다. 재확인 필요.
+10. **해외 장소의 외부 지도 앱 이동**: 지오코더가 해외 장소를 지원하게 되면서 [[005] 장소 상세](#005-장소-상세--지도뷰)의 "카카오맵만 가능" 전제가 깨졌다. 해외 장소는 카카오맵에 없을 수 있어 provider에 따라 딥링크를 분기해야 한다. 서버는 `mapUrl`을 provider별로 이미 내려주므로 계약 변경은 없고, **클라이언트 분기와 라이팅을 프디팀과 확정해야 한다.**
+11. **해외 장소의 표시 이름 언어**: 지오코딩에 성공하면 Google이 한국어 이름을 주지만(`languageCode=ko`), 후보가 0건이면 AI가 뽑은 현지어·영어 이름만 남는다. 검색 정확도를 위해 한국어 음차를 금지한 결과라 정책 확인이 필요하다.
 
 ### 해소된 항목
 

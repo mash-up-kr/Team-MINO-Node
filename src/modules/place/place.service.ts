@@ -3,23 +3,16 @@ import { AppException } from "../../common/exceptions/app.exception";
 import { AiService } from "../../infrastructures/ai/ai.service";
 import type { ContentPart } from "../../infrastructures/ai/ai.type";
 import { GeocoderService } from "../../infrastructures/geocoder/geocoder.service";
-import type { GeoCandidate } from "../../infrastructures/geocoder/geocoder.type";
 import { PlaceImageService } from "../../infrastructures/place-image/place-image.service";
 import type { StoredImage } from "../../infrastructures/place-image/place-image.type";
 import { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import {
   type ExtractedPlace,
-  type PlaceCandidate,
   type PlaceMatch,
   type PlaceQuery,
   placeExtractionSchema,
 } from "./place.type";
-
-const PROVIDER_PRIORITY: Record<GeoCandidate["provider"], number> = {
-  kakao: 0,
-  google: 1,
-};
 
 @Injectable()
 export class PlaceService {
@@ -28,7 +21,8 @@ export class PlaceService {
 Analyze the caption and images to identify every distinct real-world place featured in the post, and fill in the structured fields for each according to their descriptions.
 For area_type, choose "address" only when area_name is a concrete street address, "region" for a broad district or city, and "landmark" for a well-known nearby place; when unsure, prefer "region".
 When area_type is "address", make area_name as complete a street address as the content allows so it can be geocoded precisely.
-Respond in the same language as the source content (use Korean when the content is Korean).`;
+Write place_name and area_name the way local maps label the place: Korean when country_code is "KR", and the local language or English otherwise — never a Korean transliteration of a foreign name, because those do not match map listings.
+Write relation in the same language as the source content (use Korean when the content is Korean).`;
 
   constructor(
     private readonly scraperService: ScraperService,
@@ -37,7 +31,7 @@ Respond in the same language as the source content (use Korean when the content 
     private readonly placeImageService: PlaceImageService,
   ) {}
 
-  /** Instagram URL → scrape → AI extraction → geocoding fan-out → ranking. */
+  /** Instagram URL → scrape → AI extraction → 국가 기준 지오코딩. */
   async extractFromUrl(url: string): Promise<PlaceMatch[]> {
     const post = await this.scraperService.fetchPost(url);
     const queries = await this.extractQueries(post);
@@ -48,10 +42,11 @@ Respond in the same language as the source content (use Korean when the content 
 
     const settled = await Promise.allSettled(
       queries.map((query) =>
-        this.geocoderService.searchAll({
+        this.geocoderService.search({
           placeName: query.place_name,
           areaName: query.area_name,
           areaType: query.area_type,
+          countryCode: query.country_code,
         }),
       ),
     );
@@ -70,8 +65,11 @@ Respond in the same language as the source content (use Korean when the content 
 
     return queries.map((query, index) => {
       const result = settled[index];
-      const matches =
-        result.status === "fulfilled" ? this.rankCandidates(result.value) : [];
+      /*
+       * provider가 매긴 순서를 그대로 둔다. Kakao는 주소 기준 거리순(sort=distance),
+       * Google은 자체 relevance로 이미 정렬해서 주므로 우리가 다시 매기면 그 신호를 덮는다.
+       */
+      const matches = result.status === "fulfilled" ? result.value : [];
       return { extracted: this.toExtractedPlace(query), matches };
     });
   }
@@ -81,6 +79,7 @@ Respond in the same language as the source content (use Korean when the content 
       placeName: query.place_name,
       areaName: query.area_name,
       areaType: query.area_type,
+      countryCode: query.country_code,
       relation: query.relation,
     };
   }
@@ -96,7 +95,11 @@ Respond in the same language as the source content (use Korean when the content 
       placeExtractionSchema,
       content,
     );
-    return places;
+
+    return places.map((place) => ({
+      ...place,
+      country_code: place.country_code.toUpperCase(),
+    }));
   }
 
   private buildContent(
@@ -125,29 +128,5 @@ Respond in the same language as the source content (use Korean when the content 
     }
 
     return parts;
-  }
-
-  /** Orders by completeness → proximity → provider preference. */
-  private rankCandidates(candidates: GeoCandidate[]): PlaceCandidate[] {
-    return candidates.sort((a, b) => {
-      const completenessDiff = this.completeness(b) - this.completeness(a);
-      if (completenessDiff !== 0) return completenessDiff;
-
-      const distanceA = a.distance ?? Number.POSITIVE_INFINITY;
-      const distanceB = b.distance ?? Number.POSITIVE_INFINITY;
-      if (distanceA !== distanceB) return distanceA - distanceB;
-
-      return PROVIDER_PRIORITY[a.provider] - PROVIDER_PRIORITY[b.provider];
-    });
-  }
-
-  /** Counts how many optional fields are present (higher = more complete). */
-  private completeness(candidate: GeoCandidate): number {
-    let score = 0;
-    if (candidate.mapUrl) score++;
-    if (candidate.phone) score++;
-    if (candidate.category) score++;
-    if (candidate.distance !== undefined) score++;
-    return score;
   }
 }

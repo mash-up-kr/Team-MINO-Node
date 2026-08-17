@@ -34,7 +34,6 @@ const geoCandidateSchema: SchemaObject = {
     coordinate: coordinateSchema,
     distance: { type: "number", nullable: true },
     mapUrl: { type: "string", nullable: true },
-    phone: { type: "string", nullable: true },
     category: { type: "string", nullable: true },
   },
 };
@@ -45,6 +44,11 @@ const extractedPlaceSchema: SchemaObject = {
     placeName: { type: "string" },
     areaName: { type: "string" },
     areaType: { type: "string", enum: [...AREA_TYPES] },
+    countryCode: {
+      type: "string",
+      example: "KR",
+      description: "ISO 3166-1 alpha-2 (대문자)",
+    },
     relation: { type: "string" },
   },
 };

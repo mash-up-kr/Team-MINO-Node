@@ -2,21 +2,28 @@ import "reflect-metadata";
 import { beforeEach, describe, expect, it, jest } from "bun:test";
 import { ConfigModule } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
-import { AppException } from "../../common/exceptions/app.exception";
 import { GeocoderModule } from "./geocoder.module";
-import { GeocoderService } from "./geocoder.service";
+import { GEOCODER_PROVIDERS, GeocoderService } from "./geocoder.service";
 import type { GeoCandidate, GeocoderProvider, GeoQuery } from "./geocoder.type";
 import { KakaoProvider } from "./providers/kakao.provider";
 
-const query: GeoQuery = {
+const domesticQuery: GeoQuery = {
   areaName: "서울",
   areaType: "landmark",
   placeName: "남산타워",
+  countryCode: "KR",
+};
+const overseasQuery: GeoQuery = {
+  ...domesticQuery,
+  areaName: "Paris",
+  placeName: "Eiffel Tower",
+  countryCode: "FR",
 };
 
 describe("Geocoder", () => {
   let service: GeocoderService;
   let kakao: KakaoProvider;
+  let providers: GeocoderProvider[];
 
   function makeCandidate(overrides: Partial<GeoCandidate> = {}): GeoCandidate {
     return {
@@ -34,6 +41,7 @@ describe("Geocoder", () => {
   ): GeocoderProvider {
     return {
       name: "kakao",
+      supports: () => true,
       search: jest.fn().mockResolvedValue([makeCandidate()]),
       ...overrides,
     };
@@ -48,6 +56,7 @@ describe("Geocoder", () => {
     }).compile();
     service = module.get(GeocoderService);
     kakao = module.get(KakaoProvider);
+    providers = module.get(GEOCODER_PROVIDERS);
   });
 
   it("DI 컨테이너에서 GeocoderService를 해석한다", () => {
@@ -58,65 +67,72 @@ describe("Geocoder", () => {
     expect(kakao.name).toBe("kakao");
   });
 
-  it("searchAll은 provider 결과를 병합한다", async () => {
-    const kakaoProvider = makeProvider({
-      name: "kakao",
-      search: jest
-        .fn()
-        .mockResolvedValue([
-          makeCandidate({ provider: "kakao", providerPlaceId: "kakao-1" }),
-        ]),
-    });
-    const googleProvider = makeProvider({
-      name: "google",
-      search: jest.fn().mockResolvedValue([
-        makeCandidate({
-          provider: "google",
-          providerPlaceId: "google-1",
-          placeName: "N Seoul Tower",
-        }),
-      ]),
-    });
-    const geocoder = new GeocoderService([kakaoProvider, googleProvider]);
-
-    const result = await geocoder.searchAll(query);
-
-    expect(kakaoProvider.search).toHaveBeenCalledWith(query);
-    expect(googleProvider.search).toHaveBeenCalledWith(query);
-    expect(result).toHaveLength(2);
-    expect(result.map((candidate) => candidate.provider)).toEqual([
+  it("provider 주입 순서가 라우팅 정책을 표현한다", () => {
+    expect(providers.map((provider) => provider.name)).toEqual([
       "kakao",
       "google",
     ]);
+    expect(providers[0].supports(domesticQuery)).toBe(true);
+    expect(providers[0].supports(overseasQuery)).toBe(false);
+    expect(providers[1].supports(overseasQuery)).toBe(true);
   });
 
-  it("일부 provider가 실패해도 성공한 결과를 반환한다", async () => {
-    const successfulProvider = makeProvider({
-      search: jest.fn().mockResolvedValue([makeCandidate()]),
-    });
-    const failedProvider = makeProvider({
-      name: "google",
-      search: jest.fn().mockRejectedValue(new Error("provider down")),
-    });
-    const geocoder = new GeocoderService([successfulProvider, failedProvider]);
+  it("질의를 지원하는 provider로 검색한다", async () => {
+    const provider = makeProvider();
+    const geocoder = new GeocoderService([provider]);
 
-    const result = await geocoder.searchAll(query);
+    const result = await geocoder.search(domesticQuery);
 
+    expect(provider.search).toHaveBeenCalledWith(domesticQuery);
     expect(result).toEqual([makeCandidate()]);
   });
 
-  it("모든 provider가 실패하면 GEOCODER_ALL_PROVIDERS_FAILED(502)를 던진다", async () => {
-    const failedProvider = makeProvider({
+  it("여러 provider가 지원하면 주입 순서가 앞선 하나만 호출한다", async () => {
+    // 국가마다 정확한 provider가 정해져 있어 병합할 이유가 없고, 유료 provider 헛호출을 막는다.
+    const first = makeProvider({ name: "kakao" });
+    const second = makeProvider({ name: "google" });
+    const geocoder = new GeocoderService([first, second]);
+
+    await geocoder.search(domesticQuery);
+
+    expect(first.search).toHaveBeenCalledTimes(1);
+    expect(second.search).not.toHaveBeenCalled();
+  });
+
+  it("앞선 provider가 지원하지 않으면 다음 provider로 넘어간다", async () => {
+    const domesticOnly = makeProvider({
+      name: "kakao",
+      supports: (query) => query.countryCode === "KR",
+    });
+    const worldwide = makeProvider({ name: "google" });
+    const geocoder = new GeocoderService([domesticOnly, worldwide]);
+
+    await geocoder.search(overseasQuery);
+
+    expect(domesticOnly.search).not.toHaveBeenCalled();
+    expect(worldwide.search).toHaveBeenCalledWith(overseasQuery);
+  });
+
+  it("지원하는 provider가 없으면 에러가 아니라 빈 결과를 반환한다", async () => {
+    const domesticOnly = makeProvider({
+      supports: (query) => query.countryCode === "KR",
+    });
+    const geocoder = new GeocoderService([domesticOnly]);
+
+    const result = await geocoder.search(overseasQuery);
+
+    expect(result).toEqual([]);
+    expect(domesticOnly.search).not.toHaveBeenCalled();
+  });
+
+  it("provider 검색 실패는 감추지 않고 그대로 전파한다", async () => {
+    const failing = makeProvider({
       search: jest.fn().mockRejectedValue(new Error("provider down")),
     });
-    const geocoder = new GeocoderService([failedProvider]);
+    const geocoder = new GeocoderService([failing]);
 
-    const error = await geocoder.searchAll(query).then(
-      () => undefined,
-      (error: unknown) => error,
+    await expect(geocoder.search(domesticQuery)).rejects.toThrow(
+      "provider down",
     );
-
-    expect(error).toBeInstanceOf(AppException);
-    expect(error).toMatchObject({ errorCode: "GEOCODER_ALL_PROVIDERS_FAILED" });
   });
 });

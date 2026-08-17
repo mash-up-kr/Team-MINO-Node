@@ -10,16 +10,19 @@ const regionQuery: GeoQuery = {
   areaName: "서울 강남구",
   areaType: "region",
   placeName: "카카오프렌즈",
+  countryCode: "KR",
 };
 const addressQuery: GeoQuery = {
   areaName: "서울 강남구 영동대로 513",
   areaType: "address",
   placeName: "카카오프렌즈",
+  countryCode: "KR",
 };
 const landmarkQuery: GeoQuery = {
   areaName: "코엑스",
   areaType: "landmark",
   placeName: "카카오프렌즈",
+  countryCode: "KR",
 };
 
 function createProvider() {
@@ -49,7 +52,6 @@ function createKakaoResponse(overrides: Record<string, unknown> = {}) {
         category_name: "가정,생활 > 문구,사무용품 > 디자인문구 > 카카오프렌즈",
         category_group_code: "",
         category_group_name: "",
-        phone: "02-6002-1880",
         address_name: "서울 강남구 삼성동 159",
         road_address_name: "서울 강남구 영동대로 513",
         x: "127.05902969025047",
@@ -128,6 +130,19 @@ async function expectAppException(
 describe("KakaoProvider", () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
+  });
+
+  it("국내 질의만 지원한다", () => {
+    const provider = createProvider();
+
+    expect(provider.supports(regionQuery)).toBe(true);
+    // 해외 질의를 보내면 0건이 아니라 이름이 겹치는 국내 장소가 걸릴 수 있어 먼저 거른다.
+    expect(provider.supports({ ...regionQuery, countryCode: "FR" })).toBe(
+      false,
+    );
+    expect(provider.supports({ ...regionQuery, countryCode: "JP" })).toBe(
+      false,
+    );
   });
 
   it("keyword search API를 올바른 query와 인증 헤더로 호출한다", async () => {
@@ -276,17 +291,26 @@ describe("KakaoProvider", () => {
         provider: "kakao",
         providerPlaceId: "26338954",
         placeName: "카카오프렌즈 코엑스점",
-        address: "서울 강남구 삼성동 159",
+        address: "서울 강남구 영동대로 513",
         coordinate: {
           lat: 37.51207412593136,
           lng: 127.05902969025047,
         },
         distance: 418,
         mapUrl: "http://place.map.kakao.com/26338954",
-        phone: "02-6002-1880",
         category: "가정,생활 > 문구,사무용품 > 디자인문구 > 카카오프렌즈",
       },
     ]);
+  });
+
+  it("도로명주소가 없으면 지번주소로 떨어진다", async () => {
+    // 구축물처럼 도로명이 없는 장소는 빈 문자열로 온다.
+    mockFetchJson(createKakaoResponse({ road_address_name: "" }));
+    const provider = createProvider();
+
+    const [candidate] = await provider.search(regionQuery);
+
+    expect(candidate.address).toBe("서울 강남구 삼성동 159");
   });
 
   it("distance가 없거나 빈 문자열이면 distance를 생략한다", async () => {

@@ -23,6 +23,13 @@ export const placeQuerySchema = v.object({
       'How area_name is expressed: "landmark" for a well-known place, "address" for a street address, "region" for a broad area such as a district or city.',
     ),
   ),
+  country_code: v.pipe(
+    v.string(),
+    v.length(2),
+    v.description(
+      'The ISO 3166-1 alpha-2 country code of the place in uppercase, e.g. "KR" for South Korea, "JP" for Japan, "FR" for France. When the content does not make the country clear, use "KR".',
+    ),
+  ),
   relation: v.pipe(
     v.string(),
     v.description(
@@ -49,12 +56,13 @@ export interface ExtractedPlace {
   placeName: string;
   areaName: string;
   areaType: AreaType;
+  countryCode: string;
   relation: string;
 }
 
 export interface PlaceMatch {
   /** 게시글에서 추출한 장소. */
   extracted: ExtractedPlace;
-  /** 이 장소에 대한 지오코딩 후보(장소 내 랭킹순, 첫 번째가 최상위). 없으면 빈 배열. */
+  /** 이 장소에 대한 지오코딩 후보(provider가 매긴 순서, 첫 번째가 최상위). 없으면 빈 배열. */
   matches: PlaceCandidate[];
 }

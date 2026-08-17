@@ -24,11 +24,21 @@ const KAKAO_SEARCH_SIZE = "15";
 const KAKAO_ADDRESS_BIAS_RADIUS = "1000";
 const KAKAO_REQUEST_TIMEOUT_MS = 5000;
 
+/*
+ * 카카오 로컬 API는 국내 장소만 색인한다. 해외 질의를 보내면 0건이 아니라 이름이 겹치는
+ * 국내 장소가 걸릴 수 있어("파리 에펠탑" → 상호에 에펠탑이 든 국내 업소) 국가로 먼저 거른다.
+ */
+const KAKAO_SUPPORTED_COUNTRY_CODE = "KR";
+
 @Injectable()
 export class KakaoProvider implements GeocoderProvider {
   readonly name = "kakao" as const;
 
   constructor(private readonly configService: ConfigService<Env>) {}
+
+  supports(query: GeoQuery): boolean {
+    return query.countryCode === KAKAO_SUPPORTED_COUNTRY_CODE;
+  }
 
   async search(query: GeoQuery): Promise<GeoCandidate[]> {
     const apiKey = this.configService.getOrThrow("KAKAO_REST_API_KEY", {
@@ -191,14 +201,17 @@ export class KakaoProvider implements GeocoderProvider {
       provider: this.name,
       providerPlaceId: document.id,
       placeName: document.place_name,
-      address: document.address_name,
+      /*
+       * 표시용으로는 도로명이 낫고, Google이 주는 formattedAddress도 도로명 기반이라
+       * provider 간 표기가 맞는다. 도로명이 없는 장소는 빈 문자열로 와서 지번으로 떨어진다.
+       */
+      address: document.road_address_name || document.address_name,
       coordinate: {
         lat: this.parseCoordinate(document.y),
         lng: this.parseCoordinate(document.x),
       },
       distance: this.parseDistance(document.distance),
       mapUrl: document.place_url,
-      phone: document.phone || undefined,
       category: document.category_name || undefined,
     };
   }
