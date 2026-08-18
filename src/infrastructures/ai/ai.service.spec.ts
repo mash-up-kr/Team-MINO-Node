@@ -79,6 +79,7 @@ describe("AiService", () => {
     await expect(promise).rejects.toBeInstanceOf(AppException);
     await expect(promise).rejects.toMatchObject({
       errorCode: "AI_SCHEMA_MISMATCH",
+      retryable: true,
     });
   });
 
