@@ -499,16 +499,53 @@ paths:
   /api/v1/rooms/{roomId}/cards:
     get:
       tags: [Pin]
-      summary: "[TBD] 홈 카드 피드 조회"
+      summary: 홈 카드 피드 조회
       description: |
-        **TBD — 홈 카드 큐레이션 기획 변경 진행 중.** 라벨 그룹 4종(클릭수/코멘트수/중복 저장/오래된 랜덤)
-        큐레이션이 후보로 등장했으나 확정 전이라 파라미터·응답 구성은 잠정이다.
-        확정분: 카드 10개 노출, 재생성 시 사용자별 접근 기록으로 이미 본 카드 제외, 개인별 큐레이션.
+        `sort`로 후보를 좁힌 뒤 장소분류 라벨 4종으로 **최대 10장**의 덱을 만든다.
+
+        **후보 집합 (`sort`)**
+        - `gukPick`(기본): 저장일 오래된 순 상위 30%
+        - `latest`: 저장일이 최근 14일 이내
+        - `nearby`: 요청 좌표 기준 반경 3km 이내 (`lat`·`lng` 필수)
+
+        **덱 구성** — 후보에서 그룹별로 선발하며, 응답은 아래 순서대로 담는다.
+        1. `worthVisiting` 가볼 만한 곳 — 나머지 중 저장일 오래된 순, 최대 4
+        2. `manyComments` 이야기 많은 곳 — 코멘트 수 많은 순, 최대 2
+        3. `manySaves` 여럿이 저장한 곳 — 중복 저장 수 많은 순, 최대 2
+        4. `manyViews` 친구들이 많이 본 곳 — 클릭 수 많은 순, 최대 2
+
+        임계값은 두지 않고 많은 순으로 자른다. **정원이 미달인 그룹은 채우지 않으므로 덱이 10장보다 짧을 수 있다.**
+        한 장소는 한 라벨에만 속한다. 여러 조건에 걸리면 `manyComments` → `manySaves` → `manyViews`
+        순으로 먼저 배정하고 나머지가 `worthVisiting`이 된다. 동점은 저장일 오래된 순으로 깬다.
+
+        재생성 시 요청 유저의 접근 기록(`pin_accesses`)으로 이미 본 카드를 제외한다.
+        호출 시점(= 방 진입)에 요청 유저의 `last_viewed_room_id`를 갱신한다.
       parameters:
         - $ref: "#/components/parameters/RoomId"
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [gukPick, latest, nearby]
+            default: gukPick
+        - name: lat
+          in: query
+          required: false
+          description: "`sort=nearby`일 때 필수"
+          schema:
+            type: number
+            format: double
+        - name: lng
+          in: query
+          required: false
+          description: "`sort=nearby`일 때 필수"
+          schema:
+            type: number
+            format: double
       responses:
         "200":
-          description: 카드 10개 (잠정)
+          description: 최대 10장. 그룹 정원 미달 시 더 짧을 수 있다
           content:
             application/json:
               schema:
@@ -519,6 +556,8 @@ paths:
                     maxItems: 10
                     items:
                       $ref: "#/components/schemas/Card"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "403":
           $ref: "#/components/responses/Forbidden"
 
@@ -529,7 +568,14 @@ paths:
       description: |
         `roomId`의 핀 목록(좌표 포함). 요청 유저의 해당 방 멤버십을 검증한다.
         **`page`/`pageSize` 미지정 시 전체를 반환한다** — 지도 전체 보기는 페이지네이션 구분이 애매해 전체 조회를 보장한다(성능 저하 확인 시 리팩토링, PR 리뷰 확정). 리스트 뷰 등에서는 offset 기반 페이지네이션한다.
-        정렬/필터(5종)·카드형/리스트형 뷰는 기획 TBD — 확정 후 파라미터를 추가한다.
+        **목록 정렬 5종** (`sort`, 기본 `all`) — 홈 카드 덱의 정렬 칩과 별개다.
+        - `all` 전체 / `gukPick` 저장일 오래된 순 상위 30% / `latest` 저장일 최신순
+        - `distance` 요청 좌표 기준 반경 3km 이내 (`lat`·`lng` 필수) / `commented` 코멘트 수 상위 30%
+
+        `gukPick`의 판정 기준은 홈 카드 덱과 동일하다.
+        **장소분류 라벨(`labelGroup`)은 이 응답에 없다** — 라벨은 홈 카드 덱이 부여하는 값이다.
+
+        카드형/리스트형 뷰 전환은 기획 미확정이나, 조회 계약이 아니라 클라 표현 문제로 본다.
       parameters:
         - name: roomId
           in: query
@@ -537,6 +583,35 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, gukPick, latest, distance, commented]
+            default: all
+        - name: category
+          in: query
+          required: false
+          description: 지도 상단 카테고리 필터. 3종 고정
+          schema:
+            type: string
+            enum: [all, cafe, restaurant]
+            default: all
+        - name: lat
+          in: query
+          required: false
+          description: "`sort=distance`일 때 필수"
+          schema:
+            type: number
+            format: double
+        - name: lng
+          in: query
+          required: false
+          description: "`sort=distance`일 때 필수"
+          schema:
+            type: number
+            format: double
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -1087,7 +1162,9 @@ components:
         category:
           type: string
           nullable: true
-          description: provider별 카테고리 정규화 규칙 정의 예정
+          description: |
+            provider 원본 카테고리 문자열. 지도 상단 필터는 이 값을
+            `cafe`/`restaurant`/그 외 3분류로 접어서 판정한다 (매핑 규칙 정의 예정)
         phone:
           type: string
           nullable: true
@@ -1170,10 +1247,18 @@ components:
 
     Card:
       type: object
-      description: 홈 카드 (TBD — 큐레이션 확정 후 라벨 그룹 등 필드 확정)
+      description: 홈 카드. 장소분류 라벨은 서버가 판정해 내려준다
       properties:
         pin:
           $ref: "#/components/schemas/Pin"
+        labelGroup:
+          type: string
+          description: |
+            `worthVisiting` 가볼 만한 곳 / `manyComments` 이야기 많은 곳 /
+            `manySaves` 여럿이 저장한 곳 / `manyViews` 친구들이 많이 본 곳.
+            `worthVisiting`이 나머지 자리라 라벨이 비는 카드는 없다
+          enum: [worthVisiting, manyComments, manySaves, manyViews]
+      required: [pin, labelGroup]
 
     Notification:
       type: object
