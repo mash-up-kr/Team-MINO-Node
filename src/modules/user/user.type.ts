@@ -10,7 +10,7 @@ export type UserProfileRow = {
 export type CreateUserInput = {
   deviceId: string;
   nickname: string;
-  avatar: UserAvatar | null;
+  avatar: UserAvatar;
 };
 
 export type PersonalRoomInput = {

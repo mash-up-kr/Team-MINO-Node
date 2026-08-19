@@ -24,7 +24,7 @@ export class UserService {
         {
           deviceId: input.deviceId,
           nickname: input.nickname,
-          avatar: input.avatar ?? null,
+          avatar: input.avatar,
         },
         {
           name: PERSONAL_ROOM_NAME,
