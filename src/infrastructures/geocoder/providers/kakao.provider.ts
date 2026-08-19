@@ -92,6 +92,8 @@ export class KakaoProvider implements GeocoderProvider {
         "KAKAO_RATE_LIMITED",
         "카카오 장소 검색 요청 한도를 초과했습니다.",
         HttpStatus.TOO_MANY_REQUESTS,
+        // 순간적인 초당 제한일 수 있으므로 Cloud Tasks가 backoff 후 재시도하도록 한다.
+        { retryable: true },
       );
     }
 

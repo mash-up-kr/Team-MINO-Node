@@ -81,7 +81,11 @@ export class PlaceResultRepository {
     const retryableFailures = matches.filter((match) => {
       if (match.geocoding.status !== "rejected") return false;
       const reason = match.geocoding.reason;
-      return reason instanceof AppException && reason.retryable === true;
+      // 재시도 가능: 명시적 retryable=true 또는 5xx 에러
+      return (
+        reason instanceof AppException &&
+        (reason.retryable === true || reason.getStatus() >= 500)
+      );
     }).length;
     const successfulMatches = matches.flatMap((match) => {
       if (match.geocoding.status !== "fulfilled") return [];
