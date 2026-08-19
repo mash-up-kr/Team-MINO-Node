@@ -1,5 +1,7 @@
 import { expect, it } from "bun:test";
+import { HttpStatus } from "@nestjs/common";
 import { and, eq, inArray, isNull } from "drizzle-orm";
+import { AppException } from "../../../src/common/exceptions/app.exception";
 import { pins } from "../../../src/modules/pin/pin.schema";
 import { places } from "../../../src/modules/place/place.schema";
 import { placeSources } from "../../../src/modules/source/place-source.schema";
@@ -51,7 +53,13 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
     await harness.postPin();
     harness.geocoder.search.mockImplementation(
       async (query: { placeName: string }) => {
-        if (query.placeName === "대림창고") throw new Error("provider down");
+        if (query.placeName === "대림창고")
+          throw new AppException(
+            "GEOCODER_PROVIDER_FAILED",
+            "provider down",
+            HttpStatus.SERVICE_UNAVAILABLE,
+            { retryable: true },
+          );
         return [CANDIDATES[0]];
       },
     );
