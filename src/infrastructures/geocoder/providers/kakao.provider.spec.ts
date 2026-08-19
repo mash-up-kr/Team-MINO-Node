@@ -123,6 +123,7 @@ async function expectAppException(
 
   expect(error).toBeInstanceOf(AppException);
   expect(error).toMatchObject({ errorCode });
+  return error;
 }
 
 describe("KakaoProvider", () => {
@@ -314,10 +315,11 @@ describe("KakaoProvider", () => {
     mockFetchJson({ error: "rate limited" }, { status: 429 });
     const provider = createProvider();
 
-    await expectAppException(
+    const error = await expectAppException(
       provider.search(regionQuery),
       "KAKAO_RATE_LIMITED",
     );
+    expect(error).toMatchObject({ retryable: true });
   });
 
   it("2xx 응답이 아니면 KAKAO_REQUEST_FAILED를 던진다", async () => {
