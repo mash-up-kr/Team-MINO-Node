@@ -43,7 +43,6 @@ export class PlaceResultRepository {
           and(
             eq(sources.id, task.sourceId),
             eq(sources.type, "instagram"),
-            eq(sources.originalUrl, task.url),
             isNull(sources.deletedAt),
           ),
         )
