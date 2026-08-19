@@ -94,10 +94,11 @@ export class PlaceResultRepository {
     }
 
     await this.databaseService.db.transaction(async (tx) => {
-      for (const candidate of successfulMatches) {
-        const [place] = await tx
-          .insert(places)
-          .values({
+      // Batch insert places (N+1 방지)
+      const insertedPlaces = await tx
+        .insert(places)
+        .values(
+          successfulMatches.map((candidate) => ({
             provider: candidate.provider,
             providerPlaceId: candidate.providerPlaceId,
             name: candidate.placeName,
@@ -107,51 +108,61 @@ export class PlaceResultRepository {
             phone: candidate.phone,
             category: candidate.category,
             externalUrl: candidate.mapUrl,
-          })
-          .onConflictDoUpdate({
-            target: [places.provider, places.providerPlaceId],
-            targetWhere: isNull(places.deletedAt),
-            set: {
-              name: sql`excluded.name`,
-              address: sql`excluded.address`,
-              lat: sql`excluded.lat`,
-              lng: sql`excluded.lng`,
-              phone: sql`excluded.phone`,
-              category: sql`excluded.category`,
-              externalUrl: sql`excluded.external_url`,
-              updatedAt: sql`now()`,
-            },
-          })
-          .returning({ id: places.id });
-        if (!place) {
-          throw new AppException(
-            "PLACE_UPSERT_FAILED",
-            "장소를 저장하지 못했습니다.",
-            HttpStatus.BAD_GATEWAY,
-          );
-        }
+          })),
+        )
+        .onConflictDoUpdate({
+          target: [places.provider, places.providerPlaceId],
+          targetWhere: isNull(places.deletedAt),
+          set: {
+            name: sql`excluded.name`,
+            address: sql`excluded.address`,
+            lat: sql`excluded.lat`,
+            lng: sql`excluded.lng`,
+            phone: sql`excluded.phone`,
+            category: sql`excluded.category`,
+            externalUrl: sql`excluded.external_url`,
+            updatedAt: sql`now()`,
+          },
+        })
+        .returning({ id: places.id });
 
-        await tx
-          .insert(placeSources)
-          .values({ placeId: place.id, sourceId: task.sourceId })
-          .onConflictDoNothing({
-            target: [placeSources.placeId, placeSources.sourceId],
-            where: isNull(placeSources.deletedAt),
-          });
+      if (insertedPlaces.length !== successfulMatches.length) {
+        throw new AppException(
+          "PLACE_UPSERT_FAILED",
+          "장소를 저장하지 못했습니다.",
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
 
-        await tx
-          .insert(pins)
-          .values({
+      // Batch insert placeSources
+      await tx
+        .insert(placeSources)
+        .values(
+          insertedPlaces.map((place) => ({
+            placeId: place.id,
+            sourceId: task.sourceId,
+          })),
+        )
+        .onConflictDoNothing({
+          target: [placeSources.placeId, placeSources.sourceId],
+          where: isNull(placeSources.deletedAt),
+        });
+
+      // Batch insert pins
+      await tx
+        .insert(pins)
+        .values(
+          insertedPlaces.map((place) => ({
             roomId: task.roomId,
             placeId: place.id,
             sourceId: task.sourceId,
             createdBy: task.createdBy,
-          })
-          .onConflictDoNothing({
-            target: [pins.roomId, pins.placeId],
-            where: isNull(pins.deletedAt),
-          });
-      }
+          })),
+        )
+        .onConflictDoNothing({
+          target: [pins.roomId, pins.placeId],
+          where: isNull(pins.deletedAt),
+        });
     });
 
     return {
