@@ -77,9 +77,13 @@ export class PlaceResultRepository {
     task: PinExtractionTask,
     matches: PlaceMatch[],
   ): Promise<PlaceSaveResult> {
-    const retryableFailures = matches.filter(
-      (match) => match.geocoding.status === "rejected",
-    ).length;
+    // 재시도 가능 failure는 AppException이면서 retryable: true인 경우만.
+    // 영구 실패(502, 파싱 오류 등)는 재시도해도 소용없으므로 acknowledge 처리.
+    const retryableFailures = matches.filter((match) => {
+      if (match.geocoding.status !== "rejected") return false;
+      const reason = match.geocoding.reason;
+      return reason instanceof AppException && reason.retryable === true;
+    }).length;
     const successfulMatches = matches.flatMap((match) => {
       if (match.geocoding.status !== "fulfilled") return [];
       const candidate = match.matches[0];
