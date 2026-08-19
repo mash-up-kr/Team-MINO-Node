@@ -5,6 +5,7 @@ import { DatabaseService } from "../../infrastructures/db/database.service";
 import type { PinExtractionTask } from "../pin/pin.dto";
 import { pins } from "../pin/pin.schema";
 import { rooms } from "../room/room.schema";
+import { roomMembers } from "../room/room-member.schema";
 import { placeSources } from "../source/place-source.schema";
 import { sources } from "../source/source.schema";
 import { users } from "../user/user.schema";
@@ -21,8 +22,15 @@ export type PlaceSaveResult = {
 export class PlaceResultRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
+  /**
+   * 작업이 여전히 유효한 대상에게 향하는지 확인.
+   *
+   * TOCTOU 방어: enqueue 시점과 저장 시점 사이(수 분)에 사용자가 방을 나갔을 수 있음.
+   * 방/source/user 존재 여부는 기본 확인이고, createdBy가 여전히 roomId의 활성 멤버인지도
+   * 함께 검증해서 더 이상 멤버가 아닌 사용자의 핀이 저장되는 것을 차단.
+   */
   async isActiveTaskTarget(task: PinExtractionTask): Promise<boolean> {
-    const [room, source, user] = await Promise.all([
+    const [room, source, user, membership] = await Promise.all([
       this.databaseService.db
         .select({ id: rooms.id })
         .from(rooms)
@@ -45,8 +53,24 @@ export class PlaceResultRepository {
         .from(users)
         .where(and(eq(users.id, task.createdBy), isNull(users.deletedAt)))
         .limit(1),
+      this.databaseService.db
+        .select({ id: roomMembers.id })
+        .from(roomMembers)
+        .where(
+          and(
+            eq(roomMembers.roomId, task.roomId),
+            eq(roomMembers.userId, task.createdBy),
+            isNull(roomMembers.deletedAt),
+          ),
+        )
+        .limit(1),
     ]);
-    return room.length > 0 && source.length > 0 && user.length > 0;
+    return (
+      room.length > 0 &&
+      source.length > 0 &&
+      user.length > 0 &&
+      membership.length > 0
+    );
   }
 
   async save(
