@@ -47,7 +47,11 @@ describe("유저 등록", () => {
   });
 
   it("같은 deviceId로 재등록하면 409를 반환한다", async () => {
-    const response = await register({ deviceId, nickname: "다른이름" });
+    const response = await register({
+      deviceId,
+      nickname: "다른이름",
+      avatar: { id: 1 },
+    });
 
     expect(response.status).toBe(409);
     const body = (await response.json()) as { errorCode: string };
@@ -58,6 +62,18 @@ describe("유저 등록", () => {
     const response = await register({
       deviceId: `e2e-user-${randomUUID()}`,
       nickname: "꾹!",
+      avatar: { id: 1 },
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { errorCode: string };
+    expect(body.errorCode).toBe("VALIDATION_ERROR");
+  });
+
+  it("avatar 없이 등록하면 400 VALIDATION_ERROR (최초 진입 시 필수 입력)", async () => {
+    const response = await register({
+      deviceId: `e2e-user-${randomUUID()}`,
+      nickname: "꾹이",
     });
 
     expect(response.status).toBe(400);
