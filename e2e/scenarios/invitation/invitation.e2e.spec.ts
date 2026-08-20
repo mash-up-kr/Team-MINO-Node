@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
+import { and, eq, isNull } from "drizzle-orm";
 import { AppModule } from "../../../src/app.module";
 import { DatabaseService } from "../../../src/infrastructures/db/database.service";
 import { SentryErrorReporter } from "../../../src/infrastructures/sentry/sentry-reporter";
@@ -21,12 +22,14 @@ let db: DatabaseService["db"];
 // 시나리오 파일끼리 DB를 공유하므로 기기 식별자를 매 실행 고유하게 만듭니다.
 const ownerDeviceId = `e2e-invite-owner-${randomUUID()}`;
 const memberDeviceId = `e2e-invite-member-${randomUUID()}`;
+const joinerDeviceId = `e2e-invite-joiner-${randomUUID()}`;
 const outsiderDeviceId = `e2e-invite-outsider-${randomUUID()}`;
 const personalInviteCode = randomUUID()
   .replace(/[^a-z0-9]/g, "")
   .slice(0, 6)
   .toUpperCase();
 
+let joinerId: string;
 let sharedRoomId: string;
 let personalRoomId: string;
 
@@ -49,6 +52,26 @@ function createInvitation(roomId: string, deviceId: string) {
   return api(`/api/v1/rooms/${roomId}/invitations`, deviceId, {
     method: "POST",
   });
+}
+
+function joinRoom(roomId: string, deviceId: string, inviteCode: string) {
+  return api(`/api/v1/rooms/${roomId}/members`, deviceId, {
+    method: "POST",
+    body: JSON.stringify({ inviteCode }),
+  });
+}
+
+function activeMemberships(roomId: string, userId: string) {
+  return db
+    .select({ id: roomMembers.id })
+    .from(roomMembers)
+    .where(
+      and(
+        eq(roomMembers.roomId, roomId),
+        eq(roomMembers.userId, userId),
+        isNull(roomMembers.deletedAt),
+      ),
+    );
 }
 
 async function createdCode(roomId: string, deviceId: string): Promise<string> {
@@ -75,6 +98,7 @@ beforeAll(async () => {
         avatar: { id: 1 },
       },
       { deviceId: memberDeviceId, nickname: "민호" },
+      { deviceId: joinerDeviceId, nickname: "재성" },
       { deviceId: outsiderDeviceId, nickname: "외부인" },
     ])
     .returning({ id: users.id, deviceId: users.deviceId });
@@ -84,6 +108,7 @@ beforeAll(async () => {
     return id;
   };
   const ownerId = userIdOf(ownerDeviceId);
+  joinerId = userIdOf(joinerDeviceId);
 
   const insertedRooms = await db
     .insert(rooms)
@@ -240,6 +265,72 @@ describe("GET /api/v1/invitations/:code", () => {
     const response = await api(
       `/api/v1/invitations/${personalInviteCode}`,
       null,
+    );
+
+    // then
+    expect(response.status).toBe(403);
+    expect((await response.json()).errorCode).toBe("PERSONAL_ROOM_NOT_ALLOWED");
+  });
+});
+
+describe("POST /api/v1/rooms/:roomId/members", () => {
+  it("초대 코드로 합류하고, 다시 요청해도 멱등하게 성공한다", async () => {
+    // given
+    const code = await createdCode(sharedRoomId, ownerDeviceId);
+
+    // when
+    const first = await joinRoom(sharedRoomId, joinerDeviceId, code);
+    const second = await joinRoom(sharedRoomId, joinerDeviceId, code);
+
+    // then
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({ data: { ok: true } });
+    expect(second.status).toBe(200);
+    expect(await activeMemberships(sharedRoomId, joinerId)).toHaveLength(1);
+  });
+
+  it("나갔던 방에 다시 합류할 수 있다", async () => {
+    // given
+    const code = await createdCode(sharedRoomId, ownerDeviceId);
+    await joinRoom(sharedRoomId, joinerDeviceId, code);
+    // 방 나가기 API는 아직 없어 soft delete를 직접 기록합니다.
+    await db
+      .update(roomMembers)
+      .set({ deletedAt: new Date() })
+      .where(
+        and(
+          eq(roomMembers.roomId, sharedRoomId),
+          eq(roomMembers.userId, joinerId),
+        ),
+      );
+    expect(await activeMemberships(sharedRoomId, joinerId)).toHaveLength(0);
+
+    // when
+    const response = await joinRoom(sharedRoomId, joinerDeviceId, code);
+
+    // then
+    expect(response.status).toBe(200);
+    expect(await activeMemberships(sharedRoomId, joinerId)).toHaveLength(1);
+  });
+
+  it("코드가 다른 방의 것이면 400을 반환한다", async () => {
+    // given
+    const code = await createdCode(sharedRoomId, ownerDeviceId);
+
+    // when
+    const response = await joinRoom(personalRoomId, joinerDeviceId, code);
+
+    // then
+    expect(response.status).toBe(400);
+    expect((await response.json()).errorCode).toBe("INVALID_INVITE_CODE");
+  });
+
+  it("개인방 코드로는 합류할 수 없다", async () => {
+    // when
+    const response = await joinRoom(
+      personalRoomId,
+      joinerDeviceId,
+      personalInviteCode,
     );
 
     // then

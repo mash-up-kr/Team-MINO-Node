@@ -63,6 +63,34 @@ export class InvitationService {
     };
   }
 
+  async join(
+    deviceId: string | undefined,
+    roomId: string,
+    inviteCode: string,
+  ): Promise<void> {
+    const user = await this.requireUser(deviceId);
+    const invitation = await this.requireInvitation(inviteCode);
+
+    // 코드와 경로의 방이 다르면 엉뚱한 방에 가입시키게 됩니다.
+    if (invitation.roomId !== roomId) {
+      throw new AppException(
+        "INVALID_INVITE_CODE",
+        "초대 코드가 요청한 방의 것이 아닙니다.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    this.assertNotPersonal(invitation.roomType);
+
+    const membership = await this.invitationRepository.findActiveMembership(
+      roomId,
+      user.id,
+    );
+    if (membership) return;
+
+    await this.invitationRepository.addMember(roomId, user.id);
+  }
+
   private async requireInvitation(code: string) {
     const invitation =
       await this.invitationRepository.findActiveInvitationByCode(code);

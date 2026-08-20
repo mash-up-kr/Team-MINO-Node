@@ -409,9 +409,13 @@ paths:
       tags: [Invitation]
       summary: 방 합류
       description: |
-        body의 `inviteCode`가 path의 `{roomId}`에 속한 활성 코드인지 검증하고, 불일치·무효 코드는 거절한다.
-        **개인방(`type: personal`)의 코드는 거절한다.** 이미 멤버면 오류 대신 멱등 응답을 준다.
+        body의 `inviteCode`로 `invitations`에서 활성 초대를 찾고, 그 초대의 방이 path의 `{roomId}`와
+        같은지 검증한다. 불일치·무효 코드는 멤버 추가 전에 거절한다.
+        **개인방의 코드는 거절한다.** 이미 멤버면 오류 대신 멱등 응답을 준다.
+        나갔던 방에는 같은 코드로 다시 합류할 수 있다(이전 멤버십 행은 `deleted_at`을 유지).
+
         합류 완료 시 방 멤버 전원에게 푸시 알림을 발송한다. (PR 리뷰 확정)
+        **푸시 발송은 미구현이다.** FCM/APNs 인프라가 도입되면 연결한다.
       requestBody:
         required: true
         content:
@@ -434,6 +438,10 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
     get:
       tags: [Room]
       summary: 방 멤버 목록
