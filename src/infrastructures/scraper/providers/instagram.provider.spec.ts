@@ -11,17 +11,21 @@ function makeEmbedHtml(
     imageUrl?: string | null;
     caption?: string | null;
     username?: string | null;
+    brokenMedia?: boolean;
   } = {},
 ) {
   const {
     imageUrl = "https://scontent.cdninstagram.com/img.jpg?a=1&amp;b=2",
     caption = '성수동 카페 <a href="/explore/tags/카페/">#카페</a> 좋아요&#064;',
     username = "onion_seongsu",
+    brokenMedia = false,
   } = options;
 
   const image = imageUrl
     ? `<img class="EmbeddedMediaImage" alt="post" src="${imageUrl}">`
-    : "";
+    : brokenMedia
+      ? '<div class="EmbedBrokenMedia"></div>'
+      : "";
   const usernameLink = username
     ? `<a class="CaptionUsername" href="https://www.instagram.com/${username}/">${username}</a>`
     : "";
@@ -180,15 +184,29 @@ describe("InstagramProvider", () => {
     });
   });
 
-  it("대표 이미지가 없으면(삭제/비공개) POST_NOT_FOUND를 던진다", async () => {
-    // given — 게시물이 없거나 비공개면 임베드 페이지에 대표 이미지가 렌더링되지 않는다.
-    mockFetch(makeEmbedHtml({ imageUrl: null }));
+  it("EmbedBrokenMedia 마커가 있으면(삭제/비공개) POST_NOT_FOUND를 던진다", async () => {
+    // given — 게시물이 없거나 비공개면 인스타가 이 마커를 명시적으로 렌더링한다.
+    mockFetch(makeEmbedHtml({ imageUrl: null, brokenMedia: true }));
 
     // when
     const call = provider.fetchPost(URL);
 
     // then
     await expect(call).rejects.toMatchObject({ errorCode: "POST_NOT_FOUND" });
+  });
+
+  it("이미지도 EmbedBrokenMedia 마커도 없으면 게시글 없음이 아니라 SCRAPER_REQUEST_FAILED를 던진다", async () => {
+    // given — 마크업이 바뀌어 파싱이 깨진 경우. "게시글 없음"으로 조용히
+    // 오분류하면 안 되고, 알림 가능한 실패로 남아야 한다.
+    mockFetch(makeEmbedHtml({ imageUrl: null }));
+
+    // when
+    const call = provider.fetchPost(URL);
+
+    // then
+    await expect(call).rejects.toMatchObject({
+      errorCode: "SCRAPER_REQUEST_FAILED",
+    });
   });
 
   it("응답 status가 오류면 SCRAPER_REQUEST_FAILED를 던진다", async () => {
@@ -208,6 +226,25 @@ describe("InstagramProvider", () => {
     // given — fetch 자체가 reject (네트워크 오류/타임아웃 상황)
     globalThis.fetch = (async () => {
       throw new DOMException("timed out", "TimeoutError");
+    }) as unknown as typeof fetch;
+
+    // when
+    const call = provider.fetchPost(URL);
+
+    // then
+    await expect(call).rejects.toMatchObject({
+      errorCode: "SCRAPER_REQUEST_FAILED",
+    });
+  });
+
+  it("응답 헤더는 받았지만 본문 읽기 중 실패하면 SCRAPER_REQUEST_FAILED를 던진다", async () => {
+    // given — 느린 연결에서 헤더는 왔지만 스트리밍 중 타임아웃되는 상황을 흉내낸다.
+    globalThis.fetch = (async () => {
+      const response = new Response("", { status: 200 });
+      response.text = async () => {
+        throw new DOMException("timed out", "TimeoutError");
+      };
+      return response;
     }) as unknown as typeof fetch;
 
     // when

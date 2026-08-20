@@ -16,19 +16,24 @@ const EMBED_REQUEST_USER_AGENT = "team-mino-place-extraction/1.0";
 
 // 대표 이미지: <img class="EmbeddedMediaImage" ... src="...">
 const MEDIA_IMAGE_REGEX = /<img class="EmbeddedMediaImage"[^>]*\ssrc="([^"]+)"/;
+// 삭제/비공개/존재하지 않는 게시글은 인스타가 이 마커로 명시적으로 알려준다
+// (실제로 확인함: 없는 shortcode는 class="EmbedBrokenMedia"를 포함한 페이지를 준다).
+const BROKEN_MEDIA_REGEX = /class="EmbedBrokenMedia"/;
 // Caption div는 "View all N comments"(class="CaptionComments")를 캡션 텍스트 뒤에
 // 자기 안에 품고 있다. 항상 뒤따르는 형제 Footer div를 경계로 통째로 잘라낸 뒤,
 // CaptionComments 조각만 별도로 도려낸다.
 const CAPTION_SECTION_REGEX =
   /<div class="Caption">([\s\S]*?)<div class="Footer">/;
 const CAPTION_COMMENTS_REGEX = /<div class="CaptionComments">[\s\S]*?<\/div>/;
-const CAPTION_USERNAME_LINK_REGEX = /^<a class="CaptionUsername"[^>]*>.*?<\/a>/;
+// 실제 마크업엔 앞에 공백이 없지만, 혹시 모를 포맷팅 변화에 대비해 \s*를 둔다.
+const CAPTION_USERNAME_LINK_REGEX =
+  /^\s*<a class="CaptionUsername"[^>]*>.*?<\/a>/;
 const OWNER_USERNAME_REGEX = /<a class="CaptionUsername"[^>]*>([^<]*)<\/a>/;
 
 // 임베드 HTML은 URL/캡션에 HTML 엔티티를 인코딩해서 준다
 // (예: "&" -> "&amp;", "@" -> "&#064;"). 이미지 URL은 디코딩하지 않으면
 // 쿼리스트링이 깨져 다운로드가 실패한다.
-const HTML_ENTITY_REGEX = /&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);/g;
+const HTML_ENTITY_REGEX = /&(#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z]+);/g;
 const MAX_UNICODE_CODE_POINT = 0x10ffff;
 const NAMED_HTML_ENTITIES: Record<string, string> = {
   amp: "&",
@@ -50,11 +55,8 @@ function decodeHtmlEntities(value: string): string {
       isHex ? 16 : 10,
     );
     // 유효 범위를 벗어나면 fromCodePoint가 RangeError를 던지므로, 원문을 그대로 둔다.
-    if (
-      Number.isNaN(codePoint) ||
-      codePoint < 0 ||
-      codePoint > MAX_UNICODE_CODE_POINT
-    ) {
+    // (정규식이 숫자만 매칭하므로 codePoint는 음수가 될 수 없다.)
+    if (Number.isNaN(codePoint) || codePoint > MAX_UNICODE_CODE_POINT) {
       return entity;
     }
     return String.fromCodePoint(codePoint);
@@ -71,12 +73,21 @@ export class InstagramProvider {
 
     const imageUrl = this.extractImageUrl(html);
     if (!imageUrl) {
-      // 삭제 / 비공개 / 존재하지 않는 게시글은 대표 이미지가 렌더링되지 않는다.
-      throw new AppException(
-        "POST_NOT_FOUND",
-        "게시글을 찾을 수 없습니다. (삭제되었거나 비공개일 수 있습니다)",
-        HttpStatus.NOT_FOUND,
+      if (BROKEN_MEDIA_REGEX.test(html)) {
+        // 삭제 / 비공개 / 존재하지 않는 게시글은 인스타가 이렇게 명시적으로 알려준다.
+        throw new AppException(
+          "POST_NOT_FOUND",
+          "게시글을 찾을 수 없습니다. (삭제되었거나 비공개일 수 있습니다)",
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      // BROKEN_MEDIA 마커도 없이 이미지를 못 찾았다면 게시글이 없는 게 아니라
+      // 인스타가 마크업을 바꿔 파싱이 깨진 것 — 다르게 알려야 조용히 묻히지 않는다.
+      this.logger.warn(
+        { shortcode },
+        "인스타그램 임베드 응답 구조가 예상과 다릅니다",
       );
+      throw this.upstreamFailed("예상하지 못한 응답 구조입니다.");
     }
 
     return {
@@ -100,14 +111,24 @@ export class InstagramProvider {
   private async fetchEmbedHtml(shortcode: string): Promise<string> {
     const requestUrl = `https://www.instagram.com/p/${shortcode}/embed/captioned/`;
 
-    let response: Response;
     try {
-      response = await fetch(requestUrl, {
+      const response = await fetch(requestUrl, {
         headers: { "User-Agent": EMBED_REQUEST_USER_AGENT },
-        // 타임아웃 초과 시 fetch가 reject → 아래 catch에서 502로 변환.
+        // 타임아웃 초과 시 fetch/본문 읽기가 reject → 아래 catch에서 502로 변환.
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
+
+      if (!response.ok) {
+        throw this.upstreamFailed(
+          `인스타그램 응답 오류입니다. (status: ${response.status})`,
+        );
+      }
+
+      // 응답 헤더까지는 받았지만 본문 스트리밍 중 타임아웃/연결 끊김이 나면
+      // 여기서도 reject된다 — fetch()만 감싸고 이 호출을 밖에 두면 놓친다.
+      return await response.text();
     } catch (error) {
+      if (error instanceof AppException) throw error;
       // 타임아웃/DNS 등 원인 구분을 위해 원본 에러를 남긴다(사용자 응답은 그대로 502).
       this.logger.warn(
         { err: error, shortcode },
@@ -117,14 +138,6 @@ export class InstagramProvider {
         "인스타그램 요청에 실패했거나 시간이 초과됐습니다.",
       );
     }
-
-    if (!response.ok) {
-      throw this.upstreamFailed(
-        `인스타그램 응답 오류입니다. (status: ${response.status})`,
-      );
-    }
-
-    return response.text();
   }
 
   private extractImageUrl(html: string): string | null {
