@@ -2,7 +2,7 @@ FROM --platform=$BUILDPLATFORM oven/bun:1.3.14-slim AS builder
 
 WORKDIR /app
 
-COPY package.json bun.lock ./
+COPY --parents package.json bun.lock patches ./
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     SKIP_INSTALL_SIMPLE_GIT_HOOKS=1 bun install --frozen-lockfile
 

@@ -8,7 +8,7 @@
         "@ai-sdk/google-vertex": "^4.0.147",
         "@ai-sdk/valibot": "^2.0.31",
         "@google-cloud/storage": "^7.21.0",
-        "@google-cloud/tasks": "^6.2.3",
+        "@google-cloud/tasks": "6.3.0",
         "@kiyasov/platform-hono": "^2.0.3",
         "@nestjs/common": "^11.1.24",
         "@nestjs/config": "^4.0.4",
@@ -50,6 +50,9 @@
     "@embedded-postgres/linux-arm64",
     "@embedded-postgres/linux-x64",
   ],
+  "patchedDependencies": {
+    "@google-cloud/tasks@6.3.0": "patches/@google-cloud%2Ftasks@6.3.0.patch",
+  },
   "packages": {
     "@ai-sdk/anthropic": ["@ai-sdk/anthropic@3.0.86", "", { "dependencies": { "@ai-sdk/provider": "3.0.10", "@ai-sdk/provider-utils": "4.0.30" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-IVUaTOz46dNniRaALEvphV5WOqPfKTJRZlJhJabz3kaXk1QiwdnzWQhKMKLiprD+872E9YHqmmyFNFFH1MfnBQ=="],
 
