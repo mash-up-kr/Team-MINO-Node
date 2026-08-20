@@ -330,6 +330,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/v1/rooms/{roomId}/invitations:
+    parameters:
+      - $ref: "#/components/parameters/RoomId"
+    post:
+      tags: [Invitation]
+      summary: 내 초대 링크 발급
+      description: |
+        **초대는 멤버당 1개다.** 이미 발급했다면 같은 `code`를 돌려준다(멱등).
+        만료·재발급·거절이 없으므로 링크는 계속 유효하다.
+        미리보기에 "OO님이 초대했어요"로 표시되는 초대자가 곧 이 API를 호출한 멤버다.
+
+        클라이언트가 `gguk.org/r/{code}` 형태로 링크를 조립한다. 서버는 도메인을 알지 않는다.
+        **개인방은 초대할 수 없다.**
+      responses:
+        "200":
+          description: 초대 코드 (기존 초대가 있으면 같은 값)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        minLength: 6
+                        maxLength: 6
+                        pattern: "^[A-Z0-9]{6}$"
+                        example: "K7Q2MZ"
+                        description: 초대 링크 gguk.org/r/{code}의 code (대문자 영문 + 숫자 6자 고정)
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/v1/invitations/{code}:
     get:
       tags: [Invitation]
