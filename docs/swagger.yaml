@@ -768,6 +768,9 @@ paths:
                 placeIds:
                   type: array
                   minItems: 1
+                  maxItems: 100
+                  uniqueItems: true
+                  description: Android 지오펜스 상한(100개)에 맞춘 값. iOS는 기기당 20개로 더 낮다
                   items:
                     type: string
                     format: uuid
@@ -1180,6 +1183,7 @@ components:
     Notification:
       type: object
       description: 알림함 스펙 3.0.0 기준. 읽음 상태 필드는 두지 않는다.
+      required: [id, typeLabel, targetName, occurredAt, deepLink]
       properties:
         id:
           type: string
