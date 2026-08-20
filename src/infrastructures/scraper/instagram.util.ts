@@ -8,8 +8,9 @@ const SHORTCODE_PATH_REGEX = /\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/;
 /**
  * 인스타그램 게시글 URL을 검증하고 shortcode(게시글 식별자)를 추출하는 순수 함수.
  *
- * 네트워크 호출이 전혀 없으므로 스크래퍼 fetch 경로와 job 생성 경로가 동일한 식별 규칙을
- * 공유할 수 있다. 지원하지 않는 호스트/경로/형식은 400 `INVALID_INSTAGRAM_URL`로 실패시킨다.
+ * 네트워크 호출이 전혀 없으므로 스크래퍼 fetch 경로와 enqueue 요청 검증이 동일한 식별
+ * 규칙을 공유할 수 있다. 지원하지 않는 호스트/경로/형식은 400 `INVALID_INSTAGRAM_URL`로
+ * 실패시킨다.
  */
 export function extractInstagramShortcode(url: string): string {
   let parsed: URL;

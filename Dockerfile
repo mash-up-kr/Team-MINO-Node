@@ -2,7 +2,7 @@ FROM --platform=$BUILDPLATFORM oven/bun:1.3.14-slim AS builder
 
 WORKDIR /app
 
-COPY package.json bun.lock ./
+COPY --parents package.json bun.lock patches ./
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     SKIP_INSTALL_SIMPLE_GIT_HOOKS=1 bun install --frozen-lockfile
 
@@ -21,6 +21,7 @@ FROM gcr.io/distroless/base-debian13:nonroot AS runtime
 WORKDIR /app
 COPY --link --from=builder /app/dist/server /app/server
 COPY --link --from=builder /app/dist/main.js.map /app/main.js.map
+COPY --link --from=builder /app/node_modules/swagger-ui-dist /app/node_modules/swagger-ui-dist
 
 ENV NODE_ENV=production \
     PORT=3000

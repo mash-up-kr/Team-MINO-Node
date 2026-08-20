@@ -1,10 +1,8 @@
-import { isNull } from "drizzle-orm";
 import {
   index,
   pgTable,
   text,
   timestamp,
-  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -28,9 +26,6 @@ export const rooms = pgTable(
     description: text(),
     // 팔레트 5색 중 하나의 hex 값 (예: "#FF6B6B")
     color: varchar({ length: 7 }).notNull(),
-    // 초대 링크(gguk.org/r/{code})의 code 부분.
-    // 초대 기획이 TBD라 발급 로직이 없어 nullable — invitations 리소스 분리 확정 시 함께 정리한다.
-    inviteCode: varchar({ length: 16 }),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp({ withTimezone: true })
       .defaultNow()
@@ -39,11 +34,5 @@ export const rooms = pgTable(
     // soft delete 시각. NULL이면 활성 레코드입니다.
     deletedAt: timestamp({ withTimezone: true }),
   },
-  (t) => [
-    // 삭제된 방이 초대 코드를 계속 점유하지 않도록 살아있는 행끼리만 유니크
-    uniqueIndex("rooms_invite_code_active_unique")
-      .on(t.inviteCode)
-      .where(isNull(t.deletedAt)),
-    index().on(t.ownerId),
-  ],
+  (t) => [index().on(t.ownerId)],
 );

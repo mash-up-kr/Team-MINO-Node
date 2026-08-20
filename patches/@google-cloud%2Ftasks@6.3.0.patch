@@ -1,0 +1,57 @@
+diff --git a/build/esm/src/v2/cloud_tasks_client.js b/build/esm/src/v2/cloud_tasks_client.js
+index 6b29ac8ba1530204c35958b0df2953ff022d81e0..01acfdd938e00d26f06e31cdc38e740d75f37dc4 100644
+--- a/build/esm/src/v2/cloud_tasks_client.js
++++ b/build/esm/src/v2/cloud_tasks_client.js
+@@ -27,10 +27,11 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
+  * `src/v2/cloud_tasks_client_config.json`.
+  * This file defines retry strategy and timeouts for all API methods in this library.
+  */
+-const gapicConfig = getJSON(path.join(dirname, 'cloud_tasks_client_config.json'));
+-const jsonProtos = getJSON(path.join(dirname, '..', '..', '..', 'protos/protos.json'));
++import gapicConfig from './cloud_tasks_client_config.json' with { type: 'json' };
++import jsonProtos from '../../../protos/protos.json' with { type: 'json' };
+ import { loggingUtils as logging, decodeAnyProtosInArray } from 'google-gax';
+-const version = getJSON(path.join(dirname, '..', '..', '..', '..', 'package.json')).version;
++import pkg from '../../../../package.json' with { type: 'json' };
++const version = pkg.version;
+ /**
+  *  Cloud Tasks allows developers to manage the execution of background
+  *  work in their applications.
+diff --git a/build/esm/src/v2beta2/cloud_tasks_client.js b/build/esm/src/v2beta2/cloud_tasks_client.js
+index 9502ec160b42f121c067004a2e5af7c32b09b587..4dad50e774309439b579ebb489adb5feb34f0503 100644
+--- a/build/esm/src/v2beta2/cloud_tasks_client.js
++++ b/build/esm/src/v2beta2/cloud_tasks_client.js
+@@ -27,10 +27,11 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
+  * `src/v2beta2/cloud_tasks_client_config.json`.
+  * This file defines retry strategy and timeouts for all API methods in this library.
+  */
+-const gapicConfig = getJSON(path.join(dirname, 'cloud_tasks_client_config.json'));
+-const jsonProtos = getJSON(path.join(dirname, '..', '..', '..', 'protos/protos.json'));
++import gapicConfig from './cloud_tasks_client_config.json' with { type: 'json' };
++import jsonProtos from '../../../protos/protos.json' with { type: 'json' };
+ import { loggingUtils as logging, decodeAnyProtosInArray } from 'google-gax';
+-const version = getJSON(path.join(dirname, '..', '..', '..', '..', 'package.json')).version;
++import pkg from '../../../../package.json' with { type: 'json' };
++const version = pkg.version;
+ /**
+  *  Cloud Tasks allows developers to manage the execution of background
+  *  work in their applications.
+diff --git a/build/esm/src/v2beta3/cloud_tasks_client.js b/build/esm/src/v2beta3/cloud_tasks_client.js
+index c4de7ba09f425079a43a6972f487b8e606f09c82..fb30b1ac2ecfa7d1cc10d208ac5b9abd819846a3 100644
+--- a/build/esm/src/v2beta3/cloud_tasks_client.js
++++ b/build/esm/src/v2beta3/cloud_tasks_client.js
+@@ -27,10 +27,11 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
+  * `src/v2beta3/cloud_tasks_client_config.json`.
+  * This file defines retry strategy and timeouts for all API methods in this library.
+  */
+-const gapicConfig = getJSON(path.join(dirname, 'cloud_tasks_client_config.json'));
+-const jsonProtos = getJSON(path.join(dirname, '..', '..', '..', 'protos/protos.json'));
++import gapicConfig from './cloud_tasks_client_config.json' with { type: 'json' };
++import jsonProtos from '../../../protos/protos.json' with { type: 'json' };
+ import { loggingUtils as logging, decodeAnyProtosInArray } from 'google-gax';
+-const version = getJSON(path.join(dirname, '..', '..', '..', '..', 'package.json')).version;
++import pkg from '../../../../package.json' with { type: 'json' };
++const version = pkg.version;
+ /**
+  *  Cloud Tasks allows developers to manage the execution of background
+  *  work in their applications.
