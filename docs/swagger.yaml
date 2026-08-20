@@ -780,9 +780,9 @@ paths:
                   data:
                     type: object
                     properties:
-                      notifiedCount:
+                      newPlaceCount:
                         type: integer
-                        description: 이번 요청으로 새로 기록된(=이미 알린 적 없는) 장소 수
+                        description: 이번 요청으로 새로 기록된(=이미 알린 적 없는) 장소 수. push 발송은 별개이며 실패해도 이 값에는 반영되지 않는다
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1178,7 +1178,7 @@ components:
     Notification:
       type: object
       description: 알림함 스펙 3.0.0 기준. 읽음 상태 필드는 두지 않는다.
-      required: [id, typeLabel, targetName, occurredAt, url]
+      required: [id, typeLabel, targetName, createdAt, url]
       properties:
         id:
           type: string
@@ -1196,7 +1196,7 @@ components:
           format: uri
           nullable: true
           description: 장소 대상 유형만 값이 있다. 없으면 클라이언트가 기본 아이콘을 그린다
-        occurredAt:
+        createdAt:
           type: string
           format: date-time
           description: 경과 시간 표기(방금/N시간 전/N월 N일)는 클라이언트가 기기 로컬 시간대 기준으로 계산한다
