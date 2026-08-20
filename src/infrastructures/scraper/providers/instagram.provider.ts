@@ -1,8 +1,7 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { AppException } from "../../../common/exceptions/app.exception";
 import { extractInstagramShortcode } from "../instagram.util";
 import type { ScrapedPost } from "../scraper.type";
-import { decodeHtmlEntities } from "./instagram.type";
 
 // 인스타 응답 지연 시 무한 대기를 막기 위한 요청 타임아웃.
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -26,8 +25,46 @@ const CAPTION_COMMENTS_REGEX = /<div class="CaptionComments">[\s\S]*?<\/div>/;
 const CAPTION_USERNAME_LINK_REGEX = /^<a class="CaptionUsername"[^>]*>.*?<\/a>/;
 const OWNER_USERNAME_REGEX = /<a class="CaptionUsername"[^>]*>([^<]*)<\/a>/;
 
+// 임베드 HTML은 URL/캡션에 HTML 엔티티를 인코딩해서 준다
+// (예: "&" -> "&amp;", "@" -> "&#064;"). 이미지 URL은 디코딩하지 않으면
+// 쿼리스트링이 깨져 다운로드가 실패한다.
+const HTML_ENTITY_REGEX = /&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);/g;
+const MAX_UNICODE_CODE_POINT = 0x10ffff;
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+function decodeHtmlEntities(value: string): string {
+  return value.replace(HTML_ENTITY_REGEX, (entity, body: string) => {
+    if (body[0] !== "#") {
+      return NAMED_HTML_ENTITIES[body] ?? entity;
+    }
+    const isHex = body[1] === "x" || body[1] === "X";
+    const codePoint = Number.parseInt(
+      body.slice(isHex ? 2 : 1),
+      isHex ? 16 : 10,
+    );
+    // 유효 범위를 벗어나면 fromCodePoint가 RangeError를 던지므로, 원문을 그대로 둔다.
+    if (
+      Number.isNaN(codePoint) ||
+      codePoint < 0 ||
+      codePoint > MAX_UNICODE_CODE_POINT
+    ) {
+      return entity;
+    }
+    return String.fromCodePoint(codePoint);
+  });
+}
+
 @Injectable()
 export class InstagramProvider {
+  private readonly logger = new Logger(InstagramProvider.name);
+
   async fetchPost(url: string): Promise<ScrapedPost> {
     const shortcode = extractInstagramShortcode(url);
     const html = await this.fetchEmbedHtml(shortcode);
@@ -70,7 +107,12 @@ export class InstagramProvider {
         // 타임아웃 초과 시 fetch가 reject → 아래 catch에서 502로 변환.
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
-    } catch {
+    } catch (error) {
+      // 타임아웃/DNS 등 원인 구분을 위해 원본 에러를 남긴다(사용자 응답은 그대로 502).
+      this.logger.warn(
+        { err: error, shortcode },
+        "인스타그램 임베드 요청 실패",
+      );
       throw this.upstreamFailed(
         "인스타그램 요청에 실패했거나 시간이 초과됐습니다.",
       );

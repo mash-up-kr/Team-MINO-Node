@@ -105,6 +105,39 @@ describe("InstagramProvider", () => {
     expect(userAgent).not.toMatch(/Mozilla|Chrome|Safari/);
   });
 
+  it("16진수 HTML 엔티티를 디코딩한다", async () => {
+    // given
+    mockFetch(makeEmbedHtml({ caption: "웃긴 사진&#x1F600;" }));
+
+    // when
+    const post = await provider.fetchPost(URL);
+
+    // then
+    expect(post.caption).toBe("웃긴 사진😀");
+  });
+
+  it("유효 범위를 벗어난 숫자 엔티티는 예외 없이 원문 그대로 둔다", async () => {
+    // given — String.fromCodePoint는 0x10FFFF를 넘으면 RangeError를 던진다.
+    mockFetch(makeEmbedHtml({ caption: "이상한 값&#99999999;끝" }));
+
+    // when
+    const post = await provider.fetchPost(URL);
+
+    // then — 던지지 않고, 알 수 없는 엔티티는 원문 그대로 보존한다.
+    expect(post.caption).toBe("이상한 값&#99999999;끝");
+  });
+
+  it("알 수 없는 명명 엔티티는 원문 그대로 둔다", async () => {
+    // given
+    mockFetch(makeEmbedHtml({ caption: "생략&hellip;표시" }));
+
+    // when
+    const post = await provider.fetchPost(URL);
+
+    // then
+    expect(post.caption).toBe("생략&hellip;표시");
+  });
+
   it("캡션이 없으면 null로 매핑한다", async () => {
     // given
     mockFetch(makeEmbedHtml({ caption: null }));
