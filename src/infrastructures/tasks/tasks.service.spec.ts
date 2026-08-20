@@ -1,4 +1,4 @@
-import { describe, expect, it, jest } from "bun:test";
+import { afterEach, describe, expect, it, jest } from "bun:test";
 import type { ConfigService } from "@nestjs/config";
 import type { Env } from "../../config/env.schema";
 import { TasksService } from "./tasks.service";
@@ -27,59 +27,74 @@ function createConfigService(
   } as unknown as ConfigService<Env>;
 }
 
-type CreateTaskArg = {
-  parent: string;
-  task: {
-    dispatchDeadline?: { seconds: number };
-    httpRequest: {
-      httpMethod: string;
-      url: string;
-      headers?: Record<string, string>;
-      body?: Buffer;
-      oidcToken: { serviceAccountEmail: string; audience: string };
-    };
-  };
-};
+type CapturedRequest = { url: string; init: RequestInit };
 
-function stubClient(
-  service: TasksService,
-  createTask: (arg: CreateTaskArg) => Promise<unknown>,
-) {
-  const client = {
-    queuePath: (p: string, l: string, q: string) =>
-      `projects/${p}/locations/${l}/queues/${q}`,
-    createTask: jest.fn(createTask),
+function stubAuth(service: TasksService, token = "fake-access-token") {
+  const auth = {
+    getClient: async () => ({
+      getAccessToken: async () => ({ token }),
+    }),
   };
-  (service as unknown as { client: typeof client }).client = client;
-  return client;
+  (service as unknown as { auth: typeof auth }).auth = auth;
+}
+
+function stubFetch(response: {
+  ok: boolean;
+  status?: number;
+  text?: () => Promise<string>;
+}) {
+  let captured: CapturedRequest | undefined;
+  const fetchMock = jest.fn(async (url: string, init: RequestInit) => {
+    captured = { url, init };
+    return {
+      ok: response.ok,
+      status: response.status ?? (response.ok ? 200 : 500),
+      text: response.text ?? (async () => ""),
+    } as Response;
+  });
+  globalThis.fetch = fetchMock as unknown as typeof fetch;
+  return { fetchMock, getCaptured: () => captured };
+}
+
+function parsedBody(init: RequestInit) {
+  return JSON.parse(init.body as string);
 }
 
 describe("TasksService.enqueuePlaceExtraction", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
   it("URL payload와 internal endpoint를 사용해 태스크를 만든다", async () => {
     const service = new TasksService(createConfigService());
-    let captured: CreateTaskArg | undefined;
-    stubClient(service, async (arg) => {
-      captured = arg;
-      return [{}];
-    });
+    stubAuth(service);
+    const { getCaptured } = stubFetch({ ok: true });
 
     await service.enqueuePlaceExtraction("https://www.instagram.com/p/abc123/");
 
-    expect(captured?.parent).toBe(
-      "projects/team-mino-prod/locations/asia-northeast3/queues/team-mino-prod-place-extraction",
+    const captured = getCaptured();
+    expect(captured?.url).toBe(
+      "https://cloudtasks.googleapis.com/v2/projects/team-mino-prod/locations/asia-northeast3/queues/team-mino-prod-place-extraction/tasks",
     );
-    expect(captured?.task.dispatchDeadline).toEqual({ seconds: 9 * 60 });
-    expect(captured?.task.httpRequest.httpMethod).toBe("POST");
-    expect(captured?.task.httpRequest.url).toBe(
+    expect(
+      (captured?.init.headers as Record<string, string>).Authorization,
+    ).toBe("Bearer fake-access-token");
+
+    const body = parsedBody(captured?.init ?? {});
+    expect(body.task.dispatchDeadline).toBe("540s");
+    expect(body.task.httpRequest.httpMethod).toBe("POST");
+    expect(body.task.httpRequest.url).toBe(
       "https://api.team-mino.example/internal/tasks/pin-extraction",
     );
-    expect(captured?.task.httpRequest.headers).toEqual({
+    expect(body.task.httpRequest.headers).toEqual({
       "Content-Type": "application/json",
     });
     expect(
-      JSON.parse(captured?.task.httpRequest.body?.toString() ?? "{}"),
+      JSON.parse(Buffer.from(body.task.httpRequest.body, "base64").toString()),
     ).toEqual({ url: "https://www.instagram.com/p/abc123/" });
-    expect(captured?.task.httpRequest.oidcToken).toEqual({
+    expect(body.task.httpRequest.oidcToken).toEqual({
       serviceAccountEmail: ENV.CLOUD_TASKS_INVOKER_EMAIL,
       audience: ENV.APP_BASE_URL,
     });
@@ -89,44 +104,40 @@ describe("TasksService.enqueuePlaceExtraction", () => {
     const service = new TasksService(
       createConfigService({ APP_BASE_URL: "https://api.team-mino.example/" }),
     );
-    let captured: CreateTaskArg | undefined;
-    stubClient(service, async (arg) => {
-      captured = arg;
-      return [{}];
-    });
+    stubAuth(service);
+    const { getCaptured } = stubFetch({ ok: true });
 
     await service.enqueuePlaceExtraction("https://www.instagram.com/p/abc/");
 
-    expect(captured?.task.httpRequest.url).toBe(
+    const body = parsedBody(getCaptured()?.init ?? {});
+    expect(body.task.httpRequest.url).toBe(
       "https://api.team-mino.example/internal/tasks/pin-extraction",
     );
-    expect(captured?.task.httpRequest.oidcToken.audience).toBe(
+    expect(body.task.httpRequest.oidcToken.audience).toBe(
       "https://api.team-mino.example",
     );
   });
 
-  it("createTask가 실패하면 그대로 전파한다", async () => {
+  it("Cloud Tasks 응답이 실패면 에러를 던진다", async () => {
     const service = new TasksService(createConfigService());
-    stubClient(service, async () => {
-      throw new Error("UNAVAILABLE");
-    });
+    stubAuth(service);
+    stubFetch({ ok: false, status: 503, text: async () => "UNAVAILABLE" });
 
     await expect(
       service.enqueuePlaceExtraction("https://www.instagram.com/p/abc/"),
-    ).rejects.toThrow("UNAVAILABLE");
+    ).rejects.toThrow("Cloud Tasks enqueue failed: 503 UNAVAILABLE");
   });
 
   it("로컬 모드에서는 Cloud Tasks에 enqueue하지 않는다", async () => {
     const service = new TasksService(
       createConfigService({ CLOUD_TASKS_MODE: "local" }),
     );
-    const client = stubClient(service, async () => {
-      throw new Error("should not enqueue");
-    });
+    stubAuth(service);
+    const { fetchMock } = stubFetch({ ok: true });
 
     await expect(
       service.enqueuePlaceExtraction("https://www.instagram.com/p/abc/"),
     ).resolves.toBeUndefined();
-    expect(client.createTask).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

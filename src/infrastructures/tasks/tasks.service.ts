@@ -1,15 +1,24 @@
-import { CloudTasksClient } from "@google-cloud/tasks";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { GoogleAuth } from "google-auth-library";
 import type { Env } from "../../config/env.schema";
 
 /* Cloud Tasks가 Internal endpoint 응답을 기다리는 최대 시간입니다. */
 const TASK_DISPATCH_DEADLINE_SECONDS = 9 * 60;
 
+const CLOUD_TASKS_API_ROOT = "https://cloudtasks.googleapis.com/v2";
+const CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
+
+/*
+ * @google-cloud/tasks(gax) 대신 REST를 fetch로 직접 호출한다.
+ * gax는 gapic 클라이언트 설정을 런타임에 동적 require하는데, 이 파일이
+ * `bun build --compile` 산출물(단일 바이너리)의 가상 파일시스템에 포함되지
+ * 않아 부팅 시 "Cannot find module ... cloud_tasks_client_config.json"으로
+ * 죽는다. enqueue는 REST 호출 하나뿐이라 클라이언트 라이브러리가 필요 없다.
+ */
 @Injectable()
 export class TasksService {
-  // fallback: true → gRPC 네이티브 의존성 대신 REST 사용(bun --compile 단일 바이너리 번들 안전).
-  private readonly client = new CloudTasksClient({ fallback: true });
+  private readonly auth = new GoogleAuth({ scopes: [CLOUD_PLATFORM_SCOPE] });
 
   /*
    * 전부 프로세스 수명 동안 불변인 값들. 생성자에서 한 번 읽어 두면 env 누락이
@@ -36,7 +45,7 @@ export class TasksService {
     });
     const baseUrl = configService.getOrThrow("APP_BASE_URL", { infer: true });
 
-    this.queueParent = this.client.queuePath(project, location, queue);
+    this.queueParent = `projects/${project}/locations/${location}/queues/${queue}`;
     // APP_BASE_URL 끝에 슬래시가 붙어 있어도 경로가 //internal 로 깨지지 않게 정규화.
     this.targetBaseUrl = baseUrl.replace(/\/+$/, "");
     this.oidcToken = {
@@ -53,18 +62,45 @@ export class TasksService {
   async enqueuePlaceExtraction(url: string): Promise<void> {
     if (this.isLocalMode) return;
 
-    await this.client.createTask({
-      parent: this.queueParent,
-      task: {
-        dispatchDeadline: { seconds: TASK_DISPATCH_DEADLINE_SECONDS },
-        httpRequest: {
-          httpMethod: "POST",
-          url: `${this.targetBaseUrl}/internal/tasks/pin-extraction`,
-          headers: { "Content-Type": "application/json" },
-          body: Buffer.from(JSON.stringify({ url })),
-          oidcToken: this.oidcToken,
+    const accessToken = await this.getAccessToken();
+    const response = await fetch(
+      `${CLOUD_TASKS_API_ROOT}/${this.queueParent}/tasks`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          task: {
+            // google.protobuf.Duration의 REST JSON 표현: 초 단위 뒤에 "s".
+            dispatchDeadline: `${TASK_DISPATCH_DEADLINE_SECONDS}s`,
+            httpRequest: {
+              httpMethod: "POST",
+              url: `${this.targetBaseUrl}/internal/tasks/pin-extraction`,
+              headers: { "Content-Type": "application/json" },
+              // bytes 필드의 REST JSON 표현은 base64 문자열.
+              body: Buffer.from(JSON.stringify({ url })).toString("base64"),
+              oidcToken: this.oidcToken,
+            },
+          },
+        }),
       },
-    });
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Cloud Tasks enqueue failed: ${response.status} ${await response.text()}`,
+      );
+    }
+  }
+
+  private async getAccessToken(): Promise<string> {
+    const client = await this.auth.getClient();
+    const { token } = await client.getAccessToken();
+    if (!token) {
+      throw new Error("Cloud Tasks 인증 토큰을 가져오지 못했습니다.");
+    }
+    return token;
   }
 }
