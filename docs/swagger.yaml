@@ -1178,7 +1178,7 @@ components:
     Notification:
       type: object
       description: 알림함 스펙 3.0.0 기준. 읽음 상태 필드는 두지 않는다.
-      required: [id, typeLabel, targetName, occurredAt, deepLink]
+      required: [id, typeLabel, targetName, occurredAt, url]
       properties:
         id:
           type: string
@@ -1200,7 +1200,9 @@ components:
           type: string
           format: date-time
           description: 경과 시간 표기(방금/N시간 전/N월 N일)는 클라이언트가 기기 로컬 시간대 기준으로 계산한다
-        deepLink:
+        url:
           type: string
           format: uri
-          description: 서버가 완성한 유니버설 링크. 장소 대상 유형은 placeId까지만 담고 방 식별자는 없다. 스킴·경로는 모바일과 협의 예정
+          description: |
+            서버가 완성한 이동 링크(딥링크/유니버설 링크). 필요하면 일반 http(s) URL도 실을 수 있게 필드명을 범용으로 뒀다.
+            장소 대상 유형은 placeId까지만 담고 방 식별자는 없다. 스킴·경로는 모바일과 협의 예정
