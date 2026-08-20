@@ -125,9 +125,7 @@ paths:
     put:
       tags: [User]
       summary: 디바이스 푸시 토큰 등록·갱신
-      description: |
-        FCM 등록 토큰. platform 필드는 두지 않는다. FCM이 토큰으로 플랫폼을 판별한다.
-        재설치로 새 유저가 생성됐을 때 이전 유저 행에 남아 있던 같은 토큰은 서버가 회수한다.
+      description: FCM 등록 토큰(platform 필드 없음, FCM이 토큰으로 판별). 재설치로 새 유저 생성 시 이전 유저 행의 토큰은 서버가 회수한다.
       requestBody:
         required: true
         content:
@@ -723,10 +721,8 @@ paths:
       tags: [Notification]
       summary: 알림 목록 조회
       description: |
-        알림함 스펙 3.0.0 기준. 유형은 중복 저장 / 저장 오류 / 위치 기반 리마인드 / 코멘트 기반 리마인드 /
-        공동방 참가(기존 멤버) / 공동방 참가(본인) 6종으로 고정된다.
-        읽음 상태는 두지 않는다. 안 읽은 개수 배지도 없다.
-        offset 기반 페이지네이션, 기간·총량 상한 없음(기본 20건).
+        알림함 스펙 3.0.0 기준. 유형 6종 고정(중복 저장/저장 오류/위치 기반/코멘트 기반/공동방 참가 2종).
+        읽음 상태 없음. offset 기반 페이지네이션, 기간·총량 상한 없음(기본 20건).
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
@@ -752,11 +748,10 @@ paths:
       tags: [Notification]
       summary: 위치 기반 리마인드 트리거
       description: |
-        저장은 했지만 아직 방문하지 않은 장소 주변에 클라이언트가 지오펜스를 걸어두고,
-        진입 이벤트가 발생하면 후보 placeId들을 이 API로 보낸다.
-        서버는 요청 유저의 실제 활성 핀인지 검증한 뒤에만 기록한다. 이미 알린 장소는 재발송하지 않는다.
-        신규로 기록된 장소가 있을 때만 대표 push("근처에 저장한 곳 N개가 있어요")를 보낸다.
-        위치 트리거 방식(클라이언트 지오펜스 대 서버 폴링)은 아직 확정 전이라 이 경로는 잠정이다.
+        저장했지만 미방문인 장소 주변에서 지오펜스가 진입 이벤트를 감지하면 클라이언트가 후보 placeId를 보낸다.
+        서버는 요청 유저의 활성 핀인지 검증 후 기록하며, 이미 알린 장소는 재발송하지 않는다.
+        신규 기록이 있을 때만 대표 push("근처에 저장한 곳 N개가 있어요")를 보낸다.
+        위치 트리거 방식(지오펜스 대 서버 폴링)이 미확정이라 이 경로는 잠정이다.
       requestBody:
         required: true
         content:
@@ -1204,10 +1199,8 @@ components:
         occurredAt:
           type: string
           format: date-time
-          description: 경과 시간(방금/N시간 전/N월 N일) 표기는 서버가 계산하지 않는다. 클라이언트가 기기 로컬 시간대 기준으로 계산한다
+          description: 경과 시간 표기(방금/N시간 전/N월 N일)는 클라이언트가 기기 로컬 시간대 기준으로 계산한다
         deepLink:
           type: string
           format: uri
-          description: |
-            서버가 완성해 내려주는 유니버설 링크. 장소 대상 유형은 placeId까지만 담고 방 식별자는 포함하지 않는다
-            (어느 방을 열지는 클라이언트의 표시 기준 방 상태가 정한다). 스킴·경로 구조는 모바일과 별도 협의 필요
+          description: 서버가 완성한 유니버설 링크. 장소 대상 유형은 placeId까지만 담고 방 식별자는 없다. 스킴·경로는 모바일과 협의 예정
