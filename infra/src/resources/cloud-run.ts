@@ -27,7 +27,7 @@ export const service = new gcp.cloudrunv2.Service(
           ports: { containerPort: 3000 },
           resources: {
             cpuIdle: true,
-            limits: { cpu: "0.08", memory: "128Mi" },
+            limits: { cpu: "0.08", memory: "512Mi" },
           },
         },
       ],
