@@ -1,10 +1,11 @@
 import { Injectable } from "@nestjs/common";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import { DatabaseService } from "../../infrastructures/db/database.service";
 import { isUniqueViolation } from "../../infrastructures/db/db.error";
+import { pins } from "../pin/pin.schema";
 import { type RoomType, rooms } from "../room/room.schema";
 import { roomMembers } from "../room/room-member.schema";
-import { users } from "../user/user.schema";
+import { type UserAvatar, users } from "../user/user.schema";
 import { invitations } from "./invitation.schema";
 import { generateInvitationCode } from "./invitation.util";
 
@@ -113,5 +114,63 @@ export class InvitationRepository {
     throw new Error(
       `초대 코드를 ${maxAttempts}회 시도했지만 비어 있는 값을 찾지 못했습니다.`,
     );
+  }
+
+  // 삭제된 방은 조인에서 함께 걸러집니다.
+  async findActiveInvitationByCode(code: string) {
+    const [invitation] = await this.db
+      .select({
+        roomId: rooms.id,
+        roomType: rooms.type,
+        name: rooms.name,
+        description: rooms.description,
+        color: rooms.color,
+        inviterNickname: users.nickname,
+        inviterAvatar: users.avatar,
+      })
+      .from(invitations)
+      .innerJoin(
+        rooms,
+        and(eq(invitations.roomId, rooms.id), isNull(rooms.deletedAt)),
+      )
+      // 초대자가 탈퇴해도 soft delete라 행이 남습니다.
+      .innerJoin(users, eq(invitations.invitedBy, users.id))
+      .where(and(eq(invitations.code, code), isNull(invitations.deletedAt)))
+      .limit(1);
+
+    return invitation;
+  }
+
+  async countActiveMembers(roomId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ value: count() })
+      .from(roomMembers)
+      .where(
+        and(eq(roomMembers.roomId, roomId), isNull(roomMembers.deletedAt)),
+      );
+
+    return row?.value ?? 0;
+  }
+
+  async countActivePins(roomId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ value: count() })
+      .from(pins)
+      .where(and(eq(pins.roomId, roomId), isNull(pins.deletedAt)));
+
+    return row?.value ?? 0;
+  }
+
+  async findMemberAvatars(
+    roomId: string,
+    limit: number,
+  ): Promise<Array<{ avatar: UserAvatar | null }>> {
+    return this.db
+      .select({ avatar: users.avatar })
+      .from(roomMembers)
+      .innerJoin(users, eq(roomMembers.userId, users.id))
+      .where(and(eq(roomMembers.roomId, roomId), isNull(roomMembers.deletedAt)))
+      .orderBy(roomMembers.joinedAt)
+      .limit(limit);
   }
 }

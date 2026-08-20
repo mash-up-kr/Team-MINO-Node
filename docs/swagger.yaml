@@ -374,8 +374,8 @@ paths:
       summary: 초대 코드로 방 미리보기
       description: |
         **인증 불필요** (앱 설치 전/온보딩 전 진입). 초대 링크(`gguk.org/r/{code}`)의 code로 조회한다.
-        응답에 `roomId`를 포함한다 — 합류 API의 path `roomId`를 얻는 유일한 경로 (PR 리뷰 확정).
-        초대 링크 유효기간은 무제한이며 거절 개념이 없다. **개인방 코드는 거절한다**(거절 방식 상세는 피쳐 PR에서).
+        응답의 `room.id`가 합류 API의 path `roomId`를 얻는 유일한 경로다 (PR 리뷰 확정).
+        초대 링크 유효기간은 무제한이며 거절 개념이 없다. **개인방 코드는 거절한다.**
       security: []
       parameters:
         - name: code
@@ -383,7 +383,10 @@ paths:
           required: true
           schema:
             type: string
-            maxLength: 16
+            minLength: 6
+            maxLength: 6
+            pattern: "^[A-Z0-9]{6}$"
+            example: "K7Q2MZ"
       responses:
         "200":
           description: 방 미리보기 (노출 정보 최소화)
@@ -394,6 +397,8 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/InvitationPreview"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -979,33 +984,58 @@ components:
 
     InvitationPreview:
       type: object
-      description: 인증 없이 노출되므로 정보 최소화. roomId는 합류 API 호출에 필요 (PR 리뷰 확정)
+      description: |
+        인증 없이 노출되므로 정보 최소화. `room.id`는 합류 API 호출에 필요 (PR 리뷰 확정).
+        초대자는 invitations.invited_by에서 조회한다. 링크를 공유한 멤버가 그대로 표시된다.
+
+        엔티티 단위로 묶어 클라이언트가 Room/User 타입을 그대로 재사용할 수 있게 한다.
+
+        현재 구현과의 차이: 팔레트 색상 객체가 아직 스키마에 없어 `color`는 hex 문자열을 반환한다.
       properties:
-        roomId:
-          type: string
-          format: uuid
-        name:
-          type: string
-        description:
-          type: string
-          nullable: true
-          description: 방 설명
-        color:
+        room:
           type: object
-          description: 팔레트 색상 객체 (avatar와 같은 id 참조·확장 구조)
-          required: [id]
           properties:
             id:
+              type: string
+              format: uuid
+            type:
+              type: string
+              enum: [personal, shared]
+            name:
+              type: string
+            description:
+              type: string
+              nullable: true
+              description: 방 설명
+            color:
+              type: object
+              description: 팔레트 색상 객체 (avatar와 같은 id 참조 구조)
+              required: [id]
+              properties:
+                id:
+                  type: integer
+            pinCount:
               type: integer
-        pinCount:
-          type: integer
+              description: 방에 저장된 장소 수. "999+" 같은 절삭 표기는 클라이언트가 담당한다
+            memberCount:
+              type: integer
+              description: 방의 활성 멤버 수
+            members:
+              type: array
+              description: 겹쳐 보여줄 멤버 아바타. 인증 없이 열리는 응답이라 최대 5명까지만 내려간다
+              items:
+                type: object
+                properties:
+                  avatar:
+                    $ref: "#/components/schemas/Avatar"
         inviter:
           type: object
-          description: 초대자 정보 (invitation 테이블 도입 시 초대자 참조에서 조회)
+          description: 초대를 만든 멤버 (invitations.invited_by)
           properties:
             nickname:
               $ref: "#/components/schemas/Nickname"
-
+            avatar:
+              $ref: "#/components/schemas/Avatar"
     Place:
       type: object
       description: places 테이블 컬럼을 전부 내려준다. 단 images는 제외 — pins로 이동 예정(DB 변경)

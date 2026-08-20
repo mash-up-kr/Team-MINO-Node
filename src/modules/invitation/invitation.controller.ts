@@ -1,5 +1,6 @@
 import {
   Controller,
+  Get,
   Headers,
   HttpCode,
   HttpStatus,
@@ -10,11 +11,16 @@ import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
 import {
   errorResponseApiSchema,
+  invitationCodeParamSchema,
   invitationCodeResponseApiSchema,
+  invitationPreviewResponseApiSchema,
   roomIdParamSchema,
 } from "./invitation.dto";
 import { InvitationService } from "./invitation.service";
-import type { InvitationCodeResponse } from "./invitation.type";
+import type {
+  InvitationCodeResponse,
+  InvitationPreviewResponse,
+} from "./invitation.type";
 
 // TODO: PR #58의 CurrentUserGuard/@CurrentUser 머지 후 x-device-id 직접 읽기를 교체.
 @ApiTags("invitation")
@@ -62,5 +68,32 @@ export class InvitationController {
     @Param("roomId", new ValibotPipe(roomIdParamSchema)) roomId: string,
   ): Promise<InvitationCodeResponse> {
     return this.invitationService.create(deviceId, roomId);
+  }
+
+  @Get("invitations/:code")
+  @ApiOperation({
+    summary: "초대 코드로 방 미리보기",
+    description:
+      "인증이 필요 없다(앱 설치 전·온보딩 전 진입). 초대자와 방 정보를 최소로 노출한다.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "방 미리보기",
+    schema: invitationPreviewResponseApiSchema,
+  })
+  @ApiResponse({
+    status: 403,
+    description: "개인방 (PERSONAL_ROOM_NOT_ALLOWED)",
+    schema: errorResponseApiSchema,
+  })
+  @ApiResponse({
+    status: 404,
+    description: "초대 없음 (INVITATION_NOT_FOUND)",
+    schema: errorResponseApiSchema,
+  })
+  previewInvitation(
+    @Param("code", new ValibotPipe(invitationCodeParamSchema)) code: string,
+  ): Promise<InvitationPreviewResponse> {
+    return this.invitationService.preview(code);
   }
 }
