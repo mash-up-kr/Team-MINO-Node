@@ -30,7 +30,7 @@
   "dependencies": {
     "@ai-sdk/google-vertex": "^4.0.147",
     "@ai-sdk/valibot": "^2.0.31",
-    "@google-cloud/tasks": "^6.2.3",
+    "@google-cloud/tasks": "6.3.0",
     "@google-cloud/storage": "^7.21.0",
     "@kiyasov/platform-hono": "^2.0.3",
     "@nestjs/common": "^11.1.24",
@@ -77,5 +77,8 @@
     "@embedded-postgres/darwin-x64",
     "@embedded-postgres/linux-arm64",
     "@embedded-postgres/linux-x64"
-  ]
+  ],
+  "patchedDependencies": {
+    "@google-cloud/tasks@6.3.0": "patches/@google-cloud%2Ftasks@6.3.0.patch"
+  }
 }
