@@ -1,15 +1,23 @@
-import { CloudTasksClient } from "@google-cloud/tasks";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { GoogleAuth } from "google-auth-library";
 import type { Env } from "../../config/env.schema";
 
 /* Cloud Tasks가 Internal endpoint 응답을 기다리는 최대 시간입니다. */
 const TASK_DISPATCH_DEADLINE_SECONDS = 9 * 60;
 
+/*
+ * @google-cloud/tasks 대신 REST를 직접 호출합니다. SDK는 import.meta.url 기준 경로로
+ * client_config·protos JSON을 런타임에 읽는데, bun --compile 단일 바이너리에는 그 파일들이
+ * 없어 기동 즉시 죽습니다. fallback: true는 전송 계층만 REST로 바꿔서 해결되지 않습니다.
+ */
+const CLOUD_TASKS_API = "https://cloudtasks.googleapis.com/v2";
+
 @Injectable()
 export class TasksService {
-  // fallback: true → gRPC 네이티브 의존성 대신 REST 사용(bun --compile 단일 바이너리 번들 안전).
-  private readonly client = new CloudTasksClient({ fallback: true });
+  private readonly auth = new GoogleAuth({
+    scopes: "https://www.googleapis.com/auth/cloud-platform",
+  });
 
   /*
    * 전부 프로세스 수명 동안 불변인 값들. 생성자에서 한 번 읽어 두면 env 누락이
@@ -36,7 +44,7 @@ export class TasksService {
     });
     const baseUrl = configService.getOrThrow("APP_BASE_URL", { infer: true });
 
-    this.queueParent = this.client.queuePath(project, location, queue);
+    this.queueParent = `projects/${project}/locations/${location}/queues/${queue}`;
     // APP_BASE_URL 끝에 슬래시가 붙어 있어도 경로가 //internal 로 깨지지 않게 정규화.
     this.targetBaseUrl = baseUrl.replace(/\/+$/, "");
     this.oidcToken = {
@@ -53,18 +61,38 @@ export class TasksService {
   async enqueuePlaceExtraction(url: string): Promise<void> {
     if (this.isLocalMode) return;
 
-    await this.client.createTask({
-      parent: this.queueParent,
-      task: {
-        dispatchDeadline: { seconds: TASK_DISPATCH_DEADLINE_SECONDS },
-        httpRequest: {
-          httpMethod: "POST",
-          url: `${this.targetBaseUrl}/internal/tasks/pin-extraction`,
-          headers: { "Content-Type": "application/json" },
-          body: Buffer.from(JSON.stringify({ url })),
-          oidcToken: this.oidcToken,
-        },
+    await this.createTask({
+      // REST는 duration을 "540s" 형태 문자열로, body를 base64로 받습니다.
+      dispatchDeadline: `${TASK_DISPATCH_DEADLINE_SECONDS}s`,
+      httpRequest: {
+        httpMethod: "POST",
+        url: `${this.targetBaseUrl}/internal/tasks/pin-extraction`,
+        headers: { "Content-Type": "application/json" },
+        body: Buffer.from(JSON.stringify({ url })).toString("base64"),
+        oidcToken: this.oidcToken,
       },
     });
+  }
+
+  private async createTask(task: unknown): Promise<void> {
+    const accessToken = await this.auth.getAccessToken();
+
+    const response = await fetch(
+      `${CLOUD_TASKS_API}/${this.queueParent}/tasks`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ task }),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Cloud Tasks createTask 실패 (${response.status}): ${await response.text()}`,
+      );
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it, jest } from "bun:test";
+import { afterEach, describe, expect, it, jest } from "bun:test";
 import type { ConfigService } from "@nestjs/config";
 import type { Env } from "../../config/env.schema";
 import { TasksService } from "./tasks.service";
@@ -27,106 +27,125 @@ function createConfigService(
   } as unknown as ConfigService<Env>;
 }
 
-type CreateTaskArg = {
-  parent: string;
+type TaskBody = {
   task: {
-    dispatchDeadline?: { seconds: number };
+    dispatchDeadline?: string;
     httpRequest: {
       httpMethod: string;
       url: string;
       headers?: Record<string, string>;
-      body?: Buffer;
+      body?: string;
       oidcToken: { serviceAccountEmail: string; audience: string };
     };
   };
 };
 
-function stubClient(
-  service: TasksService,
-  createTask: (arg: CreateTaskArg) => Promise<unknown>,
-) {
-  const client = {
-    queuePath: (p: string, l: string, q: string) =>
-      `projects/${p}/locations/${l}/queues/${q}`,
-    createTask: jest.fn(createTask),
-  };
-  (service as unknown as { client: typeof client }).client = client;
-  return client;
+const originalFetch = globalThis.fetch;
+
+/** access token 발급을 막고, 호출된 요청을 그대로 돌려줍니다. */
+function stubTransport(service: TasksService, response = new Response("{}")) {
+  (
+    service as unknown as { auth: { getAccessToken: () => Promise<string> } }
+  ).auth = { getAccessToken: async () => "test-token" };
+
+  const fetchMock = jest.fn(async () => response);
+  globalThis.fetch = fetchMock as unknown as typeof fetch;
+  return fetchMock;
 }
+
+async function capture(fetchMock: ReturnType<typeof stubTransport>) {
+  const [url, init] = fetchMock.mock.calls[0] as unknown as [
+    string,
+    { headers: Record<string, string>; body: string },
+  ];
+  return {
+    url,
+    headers: init.headers,
+    body: JSON.parse(init.body) as TaskBody,
+  };
+}
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
 
 describe("TasksService.enqueuePlaceExtraction", () => {
   it("URL payload와 internal endpoint를 사용해 태스크를 만든다", async () => {
+    // given
     const service = new TasksService(createConfigService());
-    let captured: CreateTaskArg | undefined;
-    stubClient(service, async (arg) => {
-      captured = arg;
-      return [{}];
-    });
+    const fetchMock = stubTransport(service);
 
+    // when
     await service.enqueuePlaceExtraction("https://www.instagram.com/p/abc123/");
 
-    expect(captured?.parent).toBe(
-      "projects/team-mino-prod/locations/asia-northeast3/queues/team-mino-prod-place-extraction",
+    // then
+    const { url, headers, body } = await capture(fetchMock);
+    expect(url).toBe(
+      "https://cloudtasks.googleapis.com/v2/projects/team-mino-prod/locations/asia-northeast3/queues/team-mino-prod-place-extraction/tasks",
     );
-    expect(captured?.task.dispatchDeadline).toEqual({ seconds: 9 * 60 });
-    expect(captured?.task.httpRequest.httpMethod).toBe("POST");
-    expect(captured?.task.httpRequest.url).toBe(
+    expect(headers.Authorization).toBe("Bearer test-token");
+    expect(body.task.dispatchDeadline).toBe(`${9 * 60}s`);
+    expect(body.task.httpRequest.httpMethod).toBe("POST");
+    expect(body.task.httpRequest.url).toBe(
       "https://api.team-mino.example/internal/tasks/pin-extraction",
     );
-    expect(captured?.task.httpRequest.headers).toEqual({
+    expect(body.task.httpRequest.headers).toEqual({
       "Content-Type": "application/json",
     });
+    // REST는 body를 base64로 받습니다.
     expect(
-      JSON.parse(captured?.task.httpRequest.body?.toString() ?? "{}"),
+      JSON.parse(
+        Buffer.from(body.task.httpRequest.body ?? "", "base64").toString(),
+      ),
     ).toEqual({ url: "https://www.instagram.com/p/abc123/" });
-    expect(captured?.task.httpRequest.oidcToken).toEqual({
+    expect(body.task.httpRequest.oidcToken).toEqual({
       serviceAccountEmail: ENV.CLOUD_TASKS_INVOKER_EMAIL,
       audience: ENV.APP_BASE_URL,
     });
   });
 
   it("APP_BASE_URL 끝 슬래시가 있어도 internal url이 깨지지 않는다", async () => {
+    // given
     const service = new TasksService(
       createConfigService({ APP_BASE_URL: "https://api.team-mino.example/" }),
     );
-    let captured: CreateTaskArg | undefined;
-    stubClient(service, async (arg) => {
-      captured = arg;
-      return [{}];
-    });
+    const fetchMock = stubTransport(service);
 
+    // when
     await service.enqueuePlaceExtraction("https://www.instagram.com/p/abc/");
 
-    expect(captured?.task.httpRequest.url).toBe(
+    // then
+    const { body } = await capture(fetchMock);
+    expect(body.task.httpRequest.url).toBe(
       "https://api.team-mino.example/internal/tasks/pin-extraction",
     );
-    expect(captured?.task.httpRequest.oidcToken.audience).toBe(
+    expect(body.task.httpRequest.oidcToken.audience).toBe(
       "https://api.team-mino.example",
     );
   });
 
-  it("createTask가 실패하면 그대로 전파한다", async () => {
+  it("createTask가 실패하면 상태 코드와 응답 본문을 담아 던진다", async () => {
+    // given
     const service = new TasksService(createConfigService());
-    stubClient(service, async () => {
-      throw new Error("UNAVAILABLE");
-    });
+    stubTransport(service, new Response("queue not found", { status: 404 }));
 
+    // when / then
     await expect(
       service.enqueuePlaceExtraction("https://www.instagram.com/p/abc/"),
-    ).rejects.toThrow("UNAVAILABLE");
+    ).rejects.toThrow("Cloud Tasks createTask 실패 (404): queue not found");
   });
 
   it("로컬 모드에서는 Cloud Tasks에 enqueue하지 않는다", async () => {
+    // given
     const service = new TasksService(
       createConfigService({ CLOUD_TASKS_MODE: "local" }),
     );
-    const client = stubClient(service, async () => {
-      throw new Error("should not enqueue");
-    });
+    const fetchMock = stubTransport(service);
 
+    // when / then
     await expect(
       service.enqueuePlaceExtraction("https://www.instagram.com/p/abc/"),
     ).resolves.toBeUndefined();
-    expect(client.createTask).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
