@@ -14,8 +14,13 @@ export type InstagramFallbackReason =
  *
  * 캐러셀 뒷장에만 장소가 담긴 게시글(맛집 모음류)에서 첫 장만으로 "성공" 처리하면
  * AI 추출 품질이 에러 없이 조용히 떨어진다. 그래서 전체 이미지를 확보하지 못한
- * 경우는 부분 성공 대신 이 경계로 넘긴다. 지금은 미구현(Noop)이라 명시적 실패로
- * 끝나고, 추후 관리형 스크래핑 API(SaaS) 구현으로 교체한다.
+ * 경우는 부분 성공 대신 이 경계로 넘긴다.
+ *
+ * TODO(다음 태스크): 관리형 스크래핑 API(SaaS) 어댑터 구현.
+ *   - 후보: Apify(~$2.3/1천 건, 비동기 실행), HikerAPI류 저지연 REST 등 — 벤더 선정 필요.
+ *   - 연령제한 게시글(EMBED_BLOCKED)과 contextJSON 없는 캐러셀(CAROUSEL_DATA_MISSING)을
+ *     로그인 세션 기반으로 가져올 수 있다.
+ *   - 구현 후 ScraperModule의 provider만 Noop에서 교체하면 된다(호출부 변경 없음).
  */
 export abstract class InstagramFallbackFetcher {
   abstract fetchPost(
