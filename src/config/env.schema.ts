@@ -48,15 +48,6 @@ const envSchema = v.pipe(
       v.pipe(v.string(), v.url(), v.startsWith("https://")),
     ),
     SUPABASE_API_KEY: v.optional(v.pipe(v.string(), v.minLength(1))),
-    // Instagram 비공개 GraphQL 호출용 값들. 인스타가 토큰/구조를 바꾸면 env만 갱신하면 됨.
-    INSTAGRAM_GRAPHQL_ENDPOINT: v.pipe(
-      v.string(),
-      v.url(),
-      v.startsWith("https://"),
-    ),
-    INSTAGRAM_DOC_ID: v.pipe(v.string(), v.minLength(1)),
-    INSTAGRAM_APP_ID: v.pipe(v.string(), v.minLength(1)),
-    INSTAGRAM_USER_AGENT: v.pipe(v.string(), v.minLength(1)),
     // Cloud Tasks가 워커(/internal/*) 호출 시 쓰는 SA 이메일. OIDC 토큰의 email 클레임과 대조.
     CLOUD_TASKS_INVOKER_EMAIL: v.pipe(v.string(), v.minLength(1)),
     /*
