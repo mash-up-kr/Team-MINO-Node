@@ -16,6 +16,7 @@ import { DatabaseModule } from "./infrastructures/db/database.module";
 import { SentryModule } from "./infrastructures/sentry/sentry.module";
 import { InvitationModule } from "./modules/invitation/invitation.module";
 import { PlaceModule } from "./modules/place/place.module";
+import { UserModule } from "./modules/user/user.module";
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { PlaceModule } from "./modules/place/place.module";
     SentryModule,
     PlaceModule,
     InvitationModule,
+    UserModule,
   ],
   controllers: [HealthController],
   providers: [DrizzleHealthIndicator, DbKeepAliveService],
