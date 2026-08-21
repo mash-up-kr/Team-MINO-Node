@@ -25,7 +25,14 @@ const USER_PROFILE_COLUMNS = {
 
 @Injectable()
 export class UserRepository extends BaseRepository {
-  /** 유저 + 개인방 + 본인 멤버십을 한 트랜잭션으로 생성한다. */
+  /**
+   * 유저 + 개인방 + 본인 멤버십을 한 트랜잭션으로 생성한다.
+   *
+   * 방 생성이지만 room 쪽이 아닌 여기에 두는 이유: 온보딩(유저 등록)의
+   * 부속 절차라 유저 insert와 원자적으로 묶여야 하고, 트랜잭션을 repository
+   * 메서드 안에서 여는 컨벤션상 다른 repository를 조합할 수 없어서다.
+   * 공동방 생성은 RoomRepository.createSharedRoom이 별도로 담당한다.
+   */
   async createWithPersonalRoom(
     user: CreateUserInput,
     personalRoom: PersonalRoomInput,
