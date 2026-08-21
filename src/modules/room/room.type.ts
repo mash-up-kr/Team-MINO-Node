@@ -1,7 +1,7 @@
 import type { UserAvatar } from "../user/user.schema";
 import type { RoomType } from "./room.schema";
 
-/** 방 응답 공통 필드. invite_code는 초대 기획 TBD로 노출하지 않는다. */
+/** 방 응답 공통 필드. */
 export type RoomResponse = {
   id: string;
   type: RoomType;

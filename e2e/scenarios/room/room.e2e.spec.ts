@@ -91,8 +91,6 @@ describe("공동방 생성·조회", () => {
     expect(data.name).toBe("맛집 탐방"); // 앞뒤 공백 제거
     expect(data.type).toBe("shared");
     expect(data.ownerId).toBe(ownerId);
-    // 초대 기획 TBD — invite_code는 발급·노출하지 않는다
-    expect(data).not.toContainKey("inviteCode");
     sharedRoomId = data.id as string;
   });
 

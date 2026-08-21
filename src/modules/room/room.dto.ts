@@ -95,7 +95,6 @@ export const transferOwnerRequestApiSchema = toJsonSchema(
 
 const roomSchema: SchemaObject = {
   type: "object",
-  description: "invite_code는 초대 기획 TBD로 노출하지 않는다",
   properties: {
     id: { type: "string", format: "uuid" },
     type: { type: "string", enum: ["personal", "shared"] },
