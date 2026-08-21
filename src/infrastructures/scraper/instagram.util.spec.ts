@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { AppException } from "../../common/exceptions/app.exception";
-import { extractInstagramShortcode } from "./instagram.util";
+import {
+  extractInstagramShortcode,
+  shortcodeToMediaId,
+} from "./instagram.util";
 
 const originalFetch = globalThis.fetch;
 
@@ -83,5 +86,17 @@ describe("extractInstagramShortcode", () => {
     }
 
     expect(fetchCalls).toBe(0);
+  });
+});
+
+describe("shortcodeToMediaId", () => {
+  it("shortcode를 64진수로 디코딩해 media_id를 만든다", () => {
+    // 실제 게시글로 확인한 값. Number.MAX_SAFE_INTEGER를 넘으므로 BigInt 누산이 필요하다.
+    expect(shortcodeToMediaId("DPJF4CjCSUY")).toBe("3731539607511704856");
+    expect(shortcodeToMediaId("C7xCXAmsbZS")).toBe("3382495172422121042");
+  });
+
+  it("알파벳에 없는 문자가 섞이면 거부한다", () => {
+    expect(() => shortcodeToMediaId("abc!")).toThrow(AppException);
   });
 });

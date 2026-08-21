@@ -5,6 +5,7 @@ import { validateEnv } from "./env.schema";
 const requiredEnvironment = {
   DATABASE_URL: "postgres://postgres:postgres@localhost:5432/team_mino",
   GOOGLE_CLOUD_PROJECT: "test-project",
+  INSTAGRAM_DOC_ID: "test",
   KAKAO_REST_API_KEY: "test",
   CLOUD_TASKS_INVOKER_EMAIL: "invoker@x.iam.gserviceaccount.com",
   APP_BASE_URL: "http://localhost:3000",

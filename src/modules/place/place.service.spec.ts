@@ -213,9 +213,8 @@ describe("PlaceService", () => {
         location: {
           id: "1",
           name: "어니언 성수",
-          slug: "onion",
-          hasPublicPage: true,
-          address: null,
+          lat: 37.5445,
+          lng: 127.0559,
         },
         imageUrls: ["https://scontent.cdninstagram.com/a.jpg"],
       }),

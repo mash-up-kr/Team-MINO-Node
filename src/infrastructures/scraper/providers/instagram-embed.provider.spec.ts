@@ -1,13 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, jest } from "bun:test";
 import { AppException } from "../../../common/exceptions/app.exception";
-import type { ScrapedPost } from "../scraper.type";
-import {
-  type InstagramFallbackReason,
-  NoopInstagramFallbackFetcher,
-} from "./instagram-embed.fallback";
+import type { SentryErrorReporter } from "../../sentry/sentry-reporter";
 import { InstagramEmbedProvider } from "./instagram-embed.provider";
 
-const URL = "https://www.instagram.com/p/abc123/";
+// 경로 실패 시 Sentry 보고가 테스트를 깨뜨리지 않도록 하는 스텁.
+const reporter = { report: () => undefined } as unknown as SentryErrorReporter;
+
+const SHORTCODE = "abc123";
 
 // contextJSON에 들어가는 gql_data.shortcode_media를 흉내내는 헬퍼.
 function makeContextMedia(overrides: Record<string, unknown> = {}) {
@@ -70,37 +69,21 @@ function makeEmbedHtml(
   return `<html><body><article><div class="EmbedContainer">${image}</div>${captionBlock}</article>${embedData}</body></html>`;
 }
 
-const originalFetch = globalThis.fetch;
-
 function mockFetch(body: string, status = 200) {
-  globalThis.fetch = (async () =>
-    new Response(body, {
-      status,
-      headers: { "content-type": "text/html" },
-    })) as unknown as typeof fetch;
-}
-
-function mockFetchCapturingRequest(body: string) {
-  let capturedInit: RequestInit | undefined;
-  globalThis.fetch = (async (_url: string, init?: RequestInit) => {
-    capturedInit = init;
-    return new Response(body, {
-      status: 200,
-      headers: { "content-type": "text/html" },
-    });
-  }) as unknown as typeof fetch;
-  return () => capturedInit;
+  jest
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValue(new Response(body, { status }));
 }
 
 describe("InstagramEmbedProvider", () => {
   let provider: InstagramEmbedProvider;
 
   beforeEach(() => {
-    provider = new InstagramEmbedProvider(new NoopInstagramFallbackFetcher());
+    provider = new InstagramEmbedProvider(reporter);
   });
 
   afterEach(() => {
-    globalThis.fetch = originalFetch;
+    jest.restoreAllMocks();
   });
 
   describe("contextJSON 경로", () => {
@@ -130,11 +113,11 @@ describe("InstagramEmbedProvider", () => {
       );
 
       // when
-      const post = await provider.fetchPost(URL);
+      const post = await provider.fetch(SHORTCODE);
 
       // then
-      expect(post.typename).toBe("carousel");
-      expect(post.imageUrls).toEqual([
+      expect(post?.typename).toBe("carousel");
+      expect(post?.imageUrls).toEqual([
         "https://scontent.cdninstagram.com/1.jpg",
         "https://scontent.cdninstagram.com/2.jpg",
       ]);
@@ -145,21 +128,21 @@ describe("InstagramEmbedProvider", () => {
       mockFetch(makeEmbedHtml({ contextMedia: makeContextMedia() }));
 
       // when
-      const post = await provider.fetchPost(URL);
+      const post = await provider.fetch(SHORTCODE);
 
       // then
-      expect(post.shortcode).toBe("abc123");
-      expect(post.typename).toBe("image");
-      expect(post.caption).toBe("성수동 카페 ☕️");
-      expect(post.imageUrls).toEqual([
+      expect(post?.shortcode).toBe("abc123");
+      expect(post?.typename).toBe("image");
+      expect(post?.caption).toBe("성수동 카페 ☕️");
+      expect(post?.imageUrls).toEqual([
         "https://scontent.cdninstagram.com/main.jpg?a=1&b=2",
       ]);
-      expect(post.owner).toEqual({
+      expect(post?.owner).toEqual({
         id: "1",
         username: "onion_seongsu",
         fullName: "", // 임베드의 full_name은 null로 온다 → 빈 값으로 정규화
       });
-      expect(post.location).toBeNull();
+      expect(post?.location).toBeNull();
     });
 
     it("영상 게시글은 typename=video, 썸네일(display_url)을 이미지로 담는다", async () => {
@@ -174,11 +157,11 @@ describe("InstagramEmbedProvider", () => {
       );
 
       // when
-      const post = await provider.fetchPost(URL);
+      const post = await provider.fetch(SHORTCODE);
 
       // then
-      expect(post.typename).toBe("video");
-      expect(post.imageUrls).toEqual([
+      expect(post?.typename).toBe("video");
+      expect(post?.imageUrls).toEqual([
         "https://scontent.cdninstagram.com/thumb.jpg",
       ]);
     });
@@ -196,13 +179,13 @@ describe("InstagramEmbedProvider", () => {
       );
 
       // when
-      const post = await provider.fetchPost(URL);
+      const post = await provider.fetch(SHORTCODE);
 
       // then
-      expect(post.caption).toBe('오늘의 "최애" 카페\n2호점');
+      expect(post?.caption).toBe('오늘의 "최애" 카페\n2호점');
     });
 
-    it("지원하지 않는 게시물 타입이면 SCRAPER_REQUEST_FAILED를 던진다", async () => {
+    it("지원하지 않는 게시물 타입은 image로 삼키지 않고 null을 돌린다", async () => {
       // given
       mockFetch(
         makeEmbedHtml({
@@ -210,13 +193,8 @@ describe("InstagramEmbedProvider", () => {
         }),
       );
 
-      // when
-      const call = provider.fetchPost(URL);
-
-      // then
-      await expect(call).rejects.toMatchObject({
-        errorCode: "SCRAPER_REQUEST_FAILED",
-      });
+      // when · then
+      expect(await provider.fetch(SHORTCODE)).toBeNull();
     });
 
     it("contextJSON 구조가 예상과 다르면 무시하고 마크업 파싱으로 폴백한다", async () => {
@@ -225,94 +203,36 @@ describe("InstagramEmbedProvider", () => {
       mockFetch(makeEmbedHtml({ contextMedia: { shortcode: "abc123" } }));
 
       // when
-      const post = await provider.fetchPost(URL);
+      const post = await provider.fetch(SHORTCODE);
 
       // then — 마크업에서 뽑은 값들
-      expect(post.imageUrls).toEqual([
+      expect(post?.imageUrls).toEqual([
         "https://scontent.cdninstagram.com/img.jpg?a=1&b=2",
       ]);
-      expect(post.caption).toBe("성수동 카페 #카페 좋아요@");
+      expect(post?.caption).toBe("성수동 카페 #카페 좋아요@");
     });
   });
 
-  describe("폴백 경계", () => {
-    function makeRecordingFallback(result: ScrapedPost) {
-      const calls: { shortcode: string; reason: InstagramFallbackReason }[] =
-        [];
-      const fallback = {
-        fetchPost: async (
-          shortcode: string,
-          reason: InstagramFallbackReason,
-        ) => {
-          calls.push({ shortcode, reason });
-          return result;
-        },
-      };
-      return { calls, fallback };
-    }
-
-    const FALLBACK_POST: ScrapedPost = {
-      shortcode: "abc123",
-      typename: "carousel",
-      caption: "폴백이 가져온 게시글",
-      imageUrls: ["https://scontent.cdninstagram.com/fb.jpg"],
-      owner: { id: "", username: "", fullName: "" },
-      location: null,
-    };
-
-    it("캐러셀인데 contextJSON이 없으면 첫 장만으로 성공하지 않고 폴백을 호출한다", async () => {
-      // given — 첫 장만 파싱해 "성공" 처리하면 뒷장의 장소를 놓친 채 품질이
-      // 조용히 떨어지므로, 부분 데이터 대신 폴백으로 넘겨야 한다.
-      const { calls, fallback } = makeRecordingFallback(FALLBACK_POST);
-      provider = new InstagramEmbedProvider(fallback as never);
-      mockFetch(makeEmbedHtml({ isSidecar: true }));
-
-      // when
-      const post = await provider.fetchPost(URL);
-
-      // then
-      expect(calls).toEqual([
-        { shortcode: "abc123", reason: "CAROUSEL_DATA_MISSING" },
-      ]);
-      expect(post).toEqual(FALLBACK_POST);
-    });
-
-    it("EmbedBrokenMedia 마커가 있으면 폴백을 호출한다 (연령제한 게시글은 폴백이 가져올 수 있다)", async () => {
-      // given
-      const { calls, fallback } = makeRecordingFallback(FALLBACK_POST);
-      provider = new InstagramEmbedProvider(fallback as never);
-      mockFetch(makeEmbedHtml({ imageUrl: null, brokenMedia: true }));
-
-      // when
-      const post = await provider.fetchPost(URL);
-
-      // then
-      expect(calls).toEqual([{ shortcode: "abc123", reason: "EMBED_BLOCKED" }]);
-      expect(post).toEqual(FALLBACK_POST);
-    });
-
-    it("폴백 미구성(Noop) 시 EmbedBrokenMedia는 POST_NOT_FOUND를 던진다", async () => {
+  describe("체인 경계", () => {
+    it("EmbedBrokenMedia 마커가 있으면 POST_NOT_FOUND로 체인을 끝낸다", async () => {
       // given — 게시물이 없거나 비공개/연령제한이면 인스타가 이 마커를 렌더링한다.
       mockFetch(makeEmbedHtml({ imageUrl: null, brokenMedia: true }));
 
       // when
-      const call = provider.fetchPost(URL);
+      const call = provider.fetch(SHORTCODE);
 
       // then
+      await expect(call).rejects.toBeInstanceOf(AppException);
       await expect(call).rejects.toMatchObject({ errorCode: "POST_NOT_FOUND" });
     });
 
-    it("폴백 미구성(Noop) 시 contextJSON 없는 캐러셀은 SCRAPER_REQUEST_FAILED를 던진다", async () => {
-      // given
+    it("캐러셀인데 contextJSON이 없으면 첫 장만으로 성공하지 않고 null을 돌린다", async () => {
+      // given — 첫 장만 파싱해 "성공" 처리하면 뒷장의 장소를 놓친 채 품질이
+      // 조용히 떨어진다. 부분 데이터 대신 다음 경로로 넘긴다.
       mockFetch(makeEmbedHtml({ isSidecar: true }));
 
-      // when
-      const call = provider.fetchPost(URL);
-
-      // then
-      await expect(call).rejects.toMatchObject({
-        errorCode: "SCRAPER_REQUEST_FAILED",
-      });
+      // when · then
+      expect(await provider.fetch(SHORTCODE)).toBeNull();
     });
   });
 
@@ -322,54 +242,40 @@ describe("InstagramEmbedProvider", () => {
       mockFetch(makeEmbedHtml());
 
       // when
-      const post = await provider.fetchPost(URL);
+      const post = await provider.fetch(SHORTCODE);
 
       // then
-      expect(post.shortcode).toBe("abc123");
-      expect(post.typename).toBe("image");
-      expect(post.caption).toBe("성수동 카페 #카페 좋아요@");
-      expect(post.imageUrls).toEqual([
+      expect(post?.shortcode).toBe("abc123");
+      expect(post?.typename).toBe("image");
+      expect(post?.caption).toBe("성수동 카페 #카페 좋아요@");
+      expect(post?.imageUrls).toEqual([
         "https://scontent.cdninstagram.com/img.jpg?a=1&b=2",
       ]);
-      expect(post.owner).toEqual({
+      expect(post?.owner).toEqual({
         id: "",
         username: "onion_seongsu",
         fullName: "",
       });
-      expect(post.location).toBeNull();
+      expect(post?.location).toBeNull();
     });
 
-    it("16진수 HTML 엔티티를 디코딩한다", async () => {
-      // given
-      mockFetch(makeEmbedHtml({ caption: "웃긴 사진&#x1F600;" }));
+    it.each([
+      ["16진수 엔티티를 디코딩한다", "웃긴 사진&#x1F600;", "웃긴 사진😀"],
+      // String.fromCodePoint는 0x10FFFF를 넘으면 RangeError를 던진다 — 원문을 보존해야 한다.
+      [
+        "범위를 넘은 숫자 엔티티는 그대로 둔다",
+        "이상한 값&#99999999;끝",
+        "이상한 값&#99999999;끝",
+      ],
+      [
+        "모르는 명명 엔티티는 그대로 둔다",
+        "생략&hellip;표시",
+        "생략&hellip;표시",
+      ],
+    ])("캡션 엔티티 — %s", async (_label, caption, expected) => {
+      mockFetch(makeEmbedHtml({ caption }));
 
-      // when
-      const post = await provider.fetchPost(URL);
-
-      // then
-      expect(post.caption).toBe("웃긴 사진😀");
-    });
-
-    it("유효 범위를 벗어난 숫자 엔티티는 예외 없이 원문 그대로 둔다", async () => {
-      // given — String.fromCodePoint는 0x10FFFF를 넘으면 RangeError를 던진다.
-      mockFetch(makeEmbedHtml({ caption: "이상한 값&#99999999;끝" }));
-
-      // when
-      const post = await provider.fetchPost(URL);
-
-      // then — 던지지 않고, 알 수 없는 엔티티는 원문 그대로 보존한다.
-      expect(post.caption).toBe("이상한 값&#99999999;끝");
-    });
-
-    it("알 수 없는 명명 엔티티는 원문 그대로 둔다", async () => {
-      // given
-      mockFetch(makeEmbedHtml({ caption: "생략&hellip;표시" }));
-
-      // when
-      const post = await provider.fetchPost(URL);
-
-      // then
-      expect(post.caption).toBe("생략&hellip;표시");
+      expect((await provider.fetch(SHORTCODE))?.caption).toBe(expected);
     });
 
     it("캡션이 없으면 null로 매핑한다", async () => {
@@ -377,117 +283,46 @@ describe("InstagramEmbedProvider", () => {
       mockFetch(makeEmbedHtml({ caption: null }));
 
       // when
-      const post = await provider.fetchPost(URL);
+      const post = await provider.fetch(SHORTCODE);
 
       // then
-      expect(post.caption).toBeNull();
+      expect(post?.caption).toBeNull();
     });
 
-    it("이미지도 EmbedBrokenMedia 마커도 없으면 게시글 없음이 아니라 SCRAPER_REQUEST_FAILED를 던진다", async () => {
-      // given — 마크업이 바뀌어 파싱이 깨진 경우. "게시글 없음"으로 조용히
-      // 오분류하면 안 되고, 알림 가능한 실패로 남아야 한다.
+    it("이미지도 EmbedBrokenMedia 마커도 없으면 게시글 없음으로 단정하지 않는다", async () => {
+      // given — 마크업이 바뀌어 파싱이 깨진 경우. POST_NOT_FOUND로 오분류하지 않고
+      // 경고 로그만 남기고 다음 경로로 넘긴다.
       mockFetch(makeEmbedHtml({ imageUrl: null }));
 
-      // when
-      const call = provider.fetchPost(URL);
-
-      // then
-      await expect(call).rejects.toMatchObject({
-        errorCode: "SCRAPER_REQUEST_FAILED",
-      });
+      // when · then
+      expect(await provider.fetch(SHORTCODE)).toBeNull();
     });
-  });
-
-  it("브라우저로 위장한 User-Agent를 보내지 않는다 (실제로 보내면 인스타가 콘텐츠 없는 빈 셀만 준다)", async () => {
-    // given
-    const getCapturedInit = mockFetchCapturingRequest(makeEmbedHtml());
-
-    // when
-    await provider.fetchPost(URL);
-
-    // then
-    const userAgent = (
-      getCapturedInit()?.headers as Record<string, string> | undefined
-    )?.["User-Agent"];
-    expect(userAgent).toBeDefined();
-    expect(userAgent).not.toMatch(/Mozilla|Chrome|Safari/);
-  });
-
-  it("reel/reels URL에서도 shortcode를 추출한다", async () => {
-    // given
-    mockFetch(makeEmbedHtml());
-
-    // when
-    const post = await provider.fetchPost(
-      "https://www.instagram.com/reel/abc123/",
-    );
-
-    // then
-    expect(post.shortcode).toBe("abc123");
   });
 
   it.each([
-    ["인스타가 아닌 호스트", "https://example.com/not-instagram"],
+    ["응답 status 오류", () => mockFetch("", 429)],
     [
-      "경로에 instagram.com 문자열이 섞인 타 도메인",
-      "https://evil.com/?x=instagram.com/p/abc123",
+      "요청 실패·타임아웃",
+      () => {
+        jest
+          .spyOn(globalThis, "fetch")
+          .mockRejectedValue(new DOMException("timed out", "TimeoutError"));
+      },
     ],
-    ["URL 형식이 아닌 값", "not-a-url"],
-  ])("지원하지 않는 URL(%s)은 INVALID_INSTAGRAM_URL을 던진다", async (_label, url) => {
-    // when
-    const call = provider.fetchPost(url);
-
-    // then
-    await expect(call).rejects.toBeInstanceOf(AppException);
-    await expect(call).rejects.toMatchObject({
-      errorCode: "INVALID_INSTAGRAM_URL",
-    });
-  });
-
-  it("응답 status가 오류면 SCRAPER_REQUEST_FAILED를 던진다", async () => {
+    [
+      "헤더는 받았지만 본문 읽기 중 실패",
+      () => {
+        const response = new Response("", { status: 200 });
+        response.text = () =>
+          Promise.reject(new DOMException("timed out", "TimeoutError"));
+        jest.spyOn(globalThis, "fetch").mockResolvedValue(response);
+      },
+    ],
+  ])("%s면 null을 돌려 다음 경로로 넘긴다", async (_label, arrange) => {
     // given
-    mockFetch("", 429);
+    arrange();
 
-    // when
-    const call = provider.fetchPost(URL);
-
-    // then
-    await expect(call).rejects.toMatchObject({
-      errorCode: "SCRAPER_REQUEST_FAILED",
-    });
-  });
-
-  it("요청이 실패/타임아웃되면 SCRAPER_REQUEST_FAILED를 던진다", async () => {
-    // given — fetch 자체가 reject (네트워크 오류/타임아웃 상황)
-    globalThis.fetch = (async () => {
-      throw new DOMException("timed out", "TimeoutError");
-    }) as unknown as typeof fetch;
-
-    // when
-    const call = provider.fetchPost(URL);
-
-    // then
-    await expect(call).rejects.toMatchObject({
-      errorCode: "SCRAPER_REQUEST_FAILED",
-    });
-  });
-
-  it("응답 헤더는 받았지만 본문 읽기 중 실패하면 SCRAPER_REQUEST_FAILED를 던진다", async () => {
-    // given — 느린 연결에서 헤더는 왔지만 스트리밍 중 타임아웃되는 상황을 흉내낸다.
-    globalThis.fetch = (async () => {
-      const response = new Response("", { status: 200 });
-      response.text = async () => {
-        throw new DOMException("timed out", "TimeoutError");
-      };
-      return response;
-    }) as unknown as typeof fetch;
-
-    // when
-    const call = provider.fetchPost(URL);
-
-    // then
-    await expect(call).rejects.toMatchObject({
-      errorCode: "SCRAPER_REQUEST_FAILED",
-    });
+    // when · then — 우리 쪽 접근 문제라 게시글 부재로 단정하지 않는다.
+    expect(await provider.fetch(SHORTCODE)).toBeNull();
   });
 });
