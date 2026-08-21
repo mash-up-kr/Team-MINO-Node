@@ -1,7 +1,10 @@
 import { HttpStatus, Injectable, Logger } from "@nestjs/common";
+import * as v from "valibot";
 import { AppException } from "../../../common/exceptions/app.exception";
 import { extractInstagramShortcode } from "../instagram.util";
 import type { ScrapedPost } from "../scraper.type";
+import { InstagramFallbackFetcher } from "./instagram.fallback";
+import { EmbedContextSchema, type EmbedShortcodeMedia } from "./instagram.type";
 
 // 인스타 응답 지연 시 무한 대기를 막기 위한 요청 타임아웃.
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -13,6 +16,17 @@ const REQUEST_TIMEOUT_MS = 10_000;
  * 확인함 — 브라우저 UA는 611KB짜리 빈 셀, 이 값은 344KB짜리 실제 콘텐츠.
  */
 const EMBED_REQUEST_USER_AGENT = "team-mino-place-extraction/1.0";
+
+/*
+ * 임베드 HTML에는 화면에 그려진 마크업(첫 장 이미지뿐)과 별개로, 페이지 렌더링에 쓰인
+ * 원본 데이터가 contextJSON이라는 이스케이프된 JSON 문자열로 통째로 들어 있다.
+ * 캐러셀 전체 이미지·캡션 전문·작성자가 다 여기 있으므로 이것이 1차 파싱 경로다.
+ * (실제 게시글로 확인: 10장 캐러셀은 물론 15장 캐러셀도 전체가 들어 있다)
+ */
+const CONTEXT_JSON_REGEX = /"contextJSON":"((?:[^"\\]|\\.)*)"/;
+// contextJSON이 null인 게시글도 있는데(오래된 게시글에서 확인), 그때도 캐러셀 여부는
+// 페이지의 이 플래그로 알 수 있다 — 단일 이미지면 마크업 파싱만으로 손실이 없다.
+const IS_SIDECAR_REGEX = /"isSidecar":(true|false)/;
 
 // 대표 이미지: <img class="EmbeddedMediaImage" ... src="...">
 const MEDIA_IMAGE_REGEX = /<img class="EmbeddedMediaImage"[^>]*\ssrc="([^"]+)"/;
@@ -67,20 +81,103 @@ function decodeHtmlEntities(value: string): string {
 export class InstagramProvider {
   private readonly logger = new Logger(InstagramProvider.name);
 
+  constructor(private readonly fallbackFetcher: InstagramFallbackFetcher) {}
+
   async fetchPost(url: string): Promise<ScrapedPost> {
     const shortcode = extractInstagramShortcode(url);
     const html = await this.fetchEmbedHtml(shortcode);
 
+    // 1차: 페이지에 내장된 원본 JSON. 캐러셀 전체 이미지가 들어 있는 유일한 경로.
+    const media = this.parseContextMedia(html, shortcode);
+    if (media) {
+      return this.toScrapedPost(media);
+    }
+
+    // 게시글 노출 자체가 거부된 페이지 — 삭제/비공개/연령제한/임베드 차단 계정.
+    // (연령제한 게시글도 이 마커로 온다는 것을 실제 게시글로 확인함)
+    if (BROKEN_MEDIA_REGEX.test(html)) {
+      return this.fallbackFetcher.fetchPost(shortcode, "EMBED_BLOCKED");
+    }
+
+    // 캐러셀인데 contextJSON이 없으면 마크업에는 첫 장만 남는다. 부분 데이터로
+    // "성공" 처리하면 뒷장에만 장소가 있는 게시글에서 품질이 조용히 떨어지므로
+    // 폴백 경계로 넘긴다.
+    if (IS_SIDECAR_REGEX.exec(html)?.[1] === "true") {
+      return this.fallbackFetcher.fetchPost(shortcode, "CAROUSEL_DATA_MISSING");
+    }
+
+    // 단일 이미지 게시글은 마크업의 대표 이미지 1장이 곧 전체다 — 손실 없이 파싱한다.
+    return this.parseFromMarkup(html, shortcode);
+  }
+
+  private parseContextMedia(
+    html: string,
+    shortcode: string,
+  ): EmbedShortcodeMedia | null {
+    const match = html.match(CONTEXT_JSON_REGEX);
+    if (!match) return null;
+
+    let payload: unknown;
+    try {
+      // 이스케이프된 문자열 리터럴이므로 두 번 파싱한다(리터럴 해제 → 객체).
+      payload = JSON.parse(JSON.parse(`"${match[1]}"`));
+    } catch {
+      this.logger.warn({ shortcode }, "인스타그램 contextJSON 파싱 실패");
+      return null;
+    }
+
+    const parsed = v.safeParse(EmbedContextSchema, payload);
+    if (!parsed.success) {
+      // 인스타 구조 변경 추적용 — 어떤 필드가 어긋났는지 남긴다.
+      this.logger.warn(
+        { shortcode, issues: v.flatten(parsed.issues).nested },
+        "인스타그램 contextJSON 구조가 예상과 다릅니다",
+      );
+      return null;
+    }
+    return parsed.output.gql_data?.shortcode_media ?? null;
+  }
+
+  private toScrapedPost(media: EmbedShortcodeMedia): ScrapedPost {
+    return {
+      shortcode: media.shortcode,
+      typename: this.toTypename(media.__typename),
+      caption: media.edge_media_to_caption?.edges[0]?.node.text ?? null,
+      imageUrls: this.toImageUrls(media),
+      owner: {
+        id: media.owner.id,
+        username: media.owner.username,
+        fullName: media.owner.full_name ?? "",
+      },
+      // 임베드의 gql_data에는 location 키 자체가 없다. AI가 사진/캡션으로 추론한다.
+      location: null,
+    };
+  }
+
+  // 접두사 변형(GraphImage / XDTGraphImage 등)은 허용하되, 미지원 타입은 조용히
+  // image로 삼키지 않고 upstream 오류로 실패시킨다(잘못된 데이터가 AI 단계로 가는 것 방지).
+  private toTypename(rawTypename: string): ScrapedPost["typename"] {
+    if (rawTypename.includes("Sidecar")) return "carousel";
+    if (rawTypename.includes("Video")) return "video";
+    if (rawTypename.includes("Image")) return "image";
+    throw this.upstreamFailed(
+      `지원하지 않는 인스타 게시물 타입입니다. (${rawTypename})`,
+    );
+  }
+
+  // 캐러셀이면 각 자식의 정지 이미지(영상은 썸네일)를, 아니면 대표 이미지 1장을 반환.
+  private toImageUrls(media: EmbedShortcodeMedia): string[] {
+    const children = media.edge_sidecar_to_children?.edges;
+    if (children && children.length > 0) {
+      return children.map((edge) => edge.node.display_url);
+    }
+    return [media.display_url];
+  }
+
+  // 마크업 파싱 폴백: contextJSON이 null인 단일 이미지 게시글 전용(isSidecar:false 확인 후).
+  private parseFromMarkup(html: string, shortcode: string): ScrapedPost {
     const imageUrl = this.extractImageUrl(html);
     if (!imageUrl) {
-      if (BROKEN_MEDIA_REGEX.test(html)) {
-        // 삭제 / 비공개 / 존재하지 않는 게시글은 인스타가 이렇게 명시적으로 알려준다.
-        throw new AppException(
-          "POST_NOT_FOUND",
-          "게시글을 찾을 수 없습니다. (삭제되었거나 비공개일 수 있습니다)",
-          HttpStatus.NOT_FOUND,
-        );
-      }
       // BROKEN_MEDIA 마커도 없이 이미지를 못 찾았다면 게시글이 없는 게 아니라
       // 인스타가 마크업을 바꿔 파싱이 깨진 것 — 다르게 알려야 조용히 묻히지 않는다.
       this.logger.warn(
@@ -92,12 +189,11 @@ export class InstagramProvider {
 
     return {
       shortcode,
-      // 임베드 페이지는 사진/영상/캐러셀을 구분해 주지 않고 대표 이미지 1장만 준다.
-      // 이 필드를 읽는 곳이 없어 구분할 필요가 없다.
+      // isSidecar:false로 확인된 게시글만 이 경로로 온다 — 이미지 1장이 전체다.
       typename: "image",
       caption: this.extractCaption(html),
       imageUrls: [imageUrl],
-      // username 외 필드는 임베드 페이지에 없다. 이 값들은 어디서도 읽히지 않는다.
+      // username 외 필드는 임베드 마크업에 없다. 이 값들은 어디서도 읽히지 않는다.
       owner: {
         id: "",
         username: this.extractUsername(html) ?? "",
