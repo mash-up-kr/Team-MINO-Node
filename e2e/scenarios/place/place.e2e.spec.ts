@@ -18,7 +18,7 @@ import { DatabaseService } from "../../../src/infrastructures/db/database.servic
 import { GEOCODER_PROVIDERS } from "../../../src/infrastructures/geocoder/geocoder.service";
 import type { GeoCandidate } from "../../../src/infrastructures/geocoder/geocoder.type";
 import { PlaceImageService } from "../../../src/infrastructures/place-image/place-image.service";
-import { InstagramProvider } from "../../../src/infrastructures/scraper/providers/instagram.provider";
+import { InstagramEmbedProvider } from "../../../src/infrastructures/scraper/providers/instagram-embed.provider";
 import type { ScrapedPost } from "../../../src/infrastructures/scraper/scraper.type";
 import { SentryErrorReporter } from "../../../src/infrastructures/sentry/sentry-reporter";
 import { TasksService } from "../../../src/infrastructures/tasks/tasks.service";
@@ -61,7 +61,7 @@ beforeAll(async () => {
       .useValue({
         enqueuePlaceExtraction,
       })
-      .overrideProvider(InstagramProvider)
+      .overrideProvider(InstagramEmbedProvider)
       .useValue(instagram)
       .overrideProvider(AiService)
       .useValue(ai)

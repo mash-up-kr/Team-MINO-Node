@@ -2,14 +2,14 @@ import "reflect-metadata";
 import { beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { ConfigModule } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
-import { InstagramProvider } from "./providers/instagram.provider";
+import { InstagramEmbedProvider } from "./providers/instagram-embed.provider";
 import { ScraperModule } from "./scraper.module";
 import { ScraperService } from "./scraper.service";
 import type { ScrapedPost } from "./scraper.type";
 
 describe("ScraperService", () => {
   let service: ScraperService;
-  let instagram: InstagramProvider;
+  let instagram: InstagramEmbedProvider;
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
@@ -19,14 +19,14 @@ describe("ScraperService", () => {
       ],
     }).compile();
     service = module.get(ScraperService);
-    instagram = module.get(InstagramProvider);
+    instagram = module.get(InstagramEmbedProvider);
   });
 
   it("DI 컨테이너에서 ScraperService를 해석한다", () => {
     expect(service).toBeInstanceOf(ScraperService);
   });
 
-  it("fetchPost는 InstagramProvider로 위임한다", async () => {
+  it("fetchPost는 InstagramEmbedProvider로 위임한다", async () => {
     // given
     const url = "https://www.instagram.com/p/abc123/";
     const post = {} as ScrapedPost;

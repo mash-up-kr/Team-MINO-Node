@@ -3,8 +3,11 @@ import * as v from "valibot";
 import { AppException } from "../../../common/exceptions/app.exception";
 import { extractInstagramShortcode } from "../instagram.util";
 import type { ScrapedPost } from "../scraper.type";
-import { InstagramFallbackFetcher } from "./instagram.fallback";
-import { EmbedContextSchema, type EmbedShortcodeMedia } from "./instagram.type";
+import { InstagramFallbackFetcher } from "./instagram-embed.fallback";
+import {
+  EmbedContextSchema,
+  type EmbedShortcodeMedia,
+} from "./instagram-embed.type";
 
 // 인스타 응답 지연 시 무한 대기를 막기 위한 요청 타임아웃.
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -78,8 +81,8 @@ function decodeHtmlEntities(value: string): string {
 }
 
 @Injectable()
-export class InstagramProvider {
-  private readonly logger = new Logger(InstagramProvider.name);
+export class InstagramEmbedProvider {
+  private readonly logger = new Logger(InstagramEmbedProvider.name);
 
   constructor(private readonly fallbackFetcher: InstagramFallbackFetcher) {}
 

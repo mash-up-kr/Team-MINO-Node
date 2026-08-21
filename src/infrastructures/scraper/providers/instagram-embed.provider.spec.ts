@@ -4,8 +4,8 @@ import type { ScrapedPost } from "../scraper.type";
 import {
   type InstagramFallbackReason,
   NoopInstagramFallbackFetcher,
-} from "./instagram.fallback";
-import { InstagramProvider } from "./instagram.provider";
+} from "./instagram-embed.fallback";
+import { InstagramEmbedProvider } from "./instagram-embed.provider";
 
 const URL = "https://www.instagram.com/p/abc123/";
 
@@ -92,11 +92,11 @@ function mockFetchCapturingRequest(body: string) {
   return () => capturedInit;
 }
 
-describe("InstagramProvider", () => {
-  let provider: InstagramProvider;
+describe("InstagramEmbedProvider", () => {
+  let provider: InstagramEmbedProvider;
 
   beforeEach(() => {
-    provider = new InstagramProvider(new NoopInstagramFallbackFetcher());
+    provider = new InstagramEmbedProvider(new NoopInstagramFallbackFetcher());
   });
 
   afterEach(() => {
@@ -264,7 +264,7 @@ describe("InstagramProvider", () => {
       // given — 첫 장만 파싱해 "성공" 처리하면 뒷장의 장소를 놓친 채 품질이
       // 조용히 떨어지므로, 부분 데이터 대신 폴백으로 넘겨야 한다.
       const { calls, fallback } = makeRecordingFallback(FALLBACK_POST);
-      provider = new InstagramProvider(fallback as never);
+      provider = new InstagramEmbedProvider(fallback as never);
       mockFetch(makeEmbedHtml({ isSidecar: true }));
 
       // when
@@ -280,7 +280,7 @@ describe("InstagramProvider", () => {
     it("EmbedBrokenMedia 마커가 있으면 폴백을 호출한다 (연령제한 게시글은 폴백이 가져올 수 있다)", async () => {
       // given
       const { calls, fallback } = makeRecordingFallback(FALLBACK_POST);
-      provider = new InstagramProvider(fallback as never);
+      provider = new InstagramEmbedProvider(fallback as never);
       mockFetch(makeEmbedHtml({ imageUrl: null, brokenMedia: true }));
 
       // when
