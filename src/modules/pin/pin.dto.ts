@@ -6,10 +6,7 @@ import {
   paginationApiSchema,
 } from "../../common/pagination/pagination.dto";
 import type { SchemaObject } from "../../common/swagger/schema";
-import {
-  isInstagramUrl,
-  normalizeInstagramUrl,
-} from "../../infrastructures/scraper/instagram.util";
+import { isInstagramUrl, normalizeInstagramUrl } from "./instagram-url.util";
 
 export const uuidParamSchema = v.pipe(v.string(), v.uuid());
 
