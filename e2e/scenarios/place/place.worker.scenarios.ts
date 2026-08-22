@@ -49,6 +49,33 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
     ).toHaveLength(2);
   });
 
+  it("서로 다른 추출 결과가 같은 실제 장소로 지오코딩되면 중복 없이 하나만 저장한다", async () => {
+    // 배치 upsert에 같은 provider+providerPlaceId가 두 번 들어가면 Postgres가
+    // "ON CONFLICT DO UPDATE command cannot affect row a second time"로 통째로
+    // 실패해 아무것도 저장되지 않는 회귀가 있었다 — 저장 전에 중복 제거해야 한다.
+    await harness.postPin();
+    harness.geocoder.search.mockImplementation(async () => [CANDIDATES[0]]);
+    const response = await harness.runTask();
+    const sourceId = harness.task?.sourceId ?? "";
+
+    expect(response.status).toBe(204);
+    expect(
+      await harness.db
+        .select()
+        .from(places)
+        .where(eq(places.providerPlaceId, "kakao-e2e-1")),
+    ).toHaveLength(1);
+    expect(
+      await harness.db
+        .select({ placeId: placeSources.placeId })
+        .from(placeSources)
+        .where(eq(placeSources.sourceId, sourceId)),
+    ).toHaveLength(1);
+    expect(
+      await harness.db.select().from(pins).where(eq(pins.roomId, harness.room)),
+    ).toHaveLength(1);
+  });
+
   it("partial transient는 성공분을 commit하고 503 후 재배달에서 누락분만 추가한다", async () => {
     await harness.postPin();
     harness.geocoder.search.mockImplementation(

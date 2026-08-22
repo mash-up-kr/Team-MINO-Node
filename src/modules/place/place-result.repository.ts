@@ -76,15 +76,16 @@ export class PlaceResultRepository {
     task: PinExtractionTask,
     matches: PlaceMatch[],
   ): Promise<PlaceSaveResult> {
-    // 재시도 가능 failure는 AppException이면서 retryable: true인 경우만.
-    // 영구 실패(502, 파싱 오류 등)는 재시도해도 소용없으므로 acknowledge 처리.
+    // retryable을 명시한 AppException은 그 값을 그대로 따르고, 명시하지 않았으면
+    // 5xx만 재시도 가능으로 본다(AppException 기본 규칙과 동일). geocoder가 모든
+    // 실패를 502로 뭉뚱그려도 retryable: false를 명시한 영구 실패(파싱 오류 등)는
+    // 여기서 재시도 대상으로 잘못 집계되지 않는다.
     const retryableFailures = matches.filter((match) => {
       if (match.geocoding.status !== "rejected") return false;
       const reason = match.geocoding.reason;
-      // 재시도 가능: 명시적 retryable=true 또는 5xx 에러
       return (
         reason instanceof AppException &&
-        (reason.retryable === true || reason.getStatus() >= 500)
+        (reason.retryable ?? reason.getStatus() >= 500)
       );
     }).length;
     const successfulMatches = matches.flatMap((match) => {
@@ -92,8 +93,21 @@ export class PlaceResultRepository {
       const candidate = match.matches[0];
       return candidate ? [candidate] : [];
     });
+    // 한 게시물에서 뽑은 서로 다른 추출 결과가 같은 실제 장소로 지오코딩되면
+    // provider+providerPlaceId가 겹친다. 그대로 배치 upsert에 넘기면 한 INSERT문
+    // 안에서 같은 충돌 대상을 두 번 건드리게 되어 Postgres가 통째로 던진다
+    // ("ON CONFLICT DO UPDATE command cannot affect row a second time") — 먼저
+    // provider+providerPlaceId 기준으로 중복을 제거한다(처음 것을 채택).
+    const uniquePlaces = Array.from(
+      new Map(
+        successfulMatches.map((candidate) => [
+          `${candidate.provider}:${candidate.providerPlaceId}`,
+          candidate,
+        ]),
+      ).values(),
+    );
 
-    if (successfulMatches.length === 0) {
+    if (uniquePlaces.length === 0) {
       return { retryableFailures, persistedPlaces: 0 };
     }
 
@@ -102,7 +116,7 @@ export class PlaceResultRepository {
       const insertedPlaces = await tx
         .insert(places)
         .values(
-          successfulMatches.map((candidate) => ({
+          uniquePlaces.map((candidate) => ({
             provider: candidate.provider,
             providerPlaceId: candidate.providerPlaceId,
             name: candidate.placeName,
@@ -130,7 +144,7 @@ export class PlaceResultRepository {
         })
         .returning({ id: places.id });
 
-      if (insertedPlaces.length !== successfulMatches.length) {
+      if (insertedPlaces.length !== uniquePlaces.length) {
         throw new AppException(
           "PLACE_UPSERT_FAILED",
           "장소를 저장하지 못했습니다.",
@@ -171,7 +185,7 @@ export class PlaceResultRepository {
 
     return {
       retryableFailures,
-      persistedPlaces: successfulMatches.length,
+      persistedPlaces: uniquePlaces.length,
     };
   }
 }
