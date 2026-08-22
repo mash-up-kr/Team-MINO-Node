@@ -123,6 +123,7 @@ async function expectAppException(
 
   expect(error).toBeInstanceOf(AppException);
   expect(error).toMatchObject({ errorCode });
+  return error;
 }
 
 describe("KakaoProvider", () => {
@@ -314,10 +315,11 @@ describe("KakaoProvider", () => {
     mockFetchJson({ error: "rate limited" }, { status: 429 });
     const provider = createProvider();
 
-    await expectAppException(
+    const error = await expectAppException(
       provider.search(regionQuery),
       "KAKAO_RATE_LIMITED",
     );
+    expect(error).toMatchObject({ retryable: true });
   });
 
   it("2xx 응답이 아니면 KAKAO_REQUEST_FAILED를 던진다", async () => {
@@ -330,13 +332,39 @@ describe("KakaoProvider", () => {
     );
   });
 
+  it("카카오가 5xx를 주면 재시도 가능(retryable: true)으로 표시한다", async () => {
+    mockFetchJson({ error: "internal error" }, { status: 500 });
+    const provider = createProvider();
+
+    const error = await expectAppException(
+      provider.search(regionQuery),
+      "KAKAO_REQUEST_FAILED",
+    );
+    expect(error).toMatchObject({ retryable: true });
+  });
+
+  it("카카오가 4xx를 주면 영구 실패(retryable: false)로 표시한다", async () => {
+    // status는 항상 502로 통일하지만, 재시도 여부는 실제 카카오 status를 따라야 한다 —
+    // 그렇지 않으면 API 키 만료 같은 영구 오류가 Cloud Tasks에서 무한 재시도된다.
+    mockFetchJson({ error: "bad request" }, { status: 400 });
+    const provider = createProvider();
+
+    const error = await expectAppException(
+      provider.search(regionQuery),
+      "KAKAO_REQUEST_FAILED",
+    );
+    expect(error).toMatchObject({ retryable: false });
+  });
+
   it("응답 형식이 다르면 KAKAO_RESPONSE_INVALID를 던진다", async () => {
     mockFetchJson(createKakaoResponse({ x: "not-a-number" }));
     const provider = createProvider();
 
-    await expectAppException(
+    const error = await expectAppException(
       provider.search(regionQuery),
       "KAKAO_RESPONSE_INVALID",
     );
+    // 같은 요청은 재시도해도 같은 파싱 오류를 반복할 뿐이라 영구 실패로 취급한다.
+    expect(error).toMatchObject({ retryable: false });
   });
 });

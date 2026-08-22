@@ -57,4 +57,6 @@ export interface PlaceMatch {
   extracted: ExtractedPlace;
   /** 이 장소에 대한 지오코딩 후보(장소 내 랭킹순, 첫 번째가 최상위). 없으면 빈 배열. */
   matches: PlaceCandidate[];
+  /** fulfilled 빈 배열과 provider 실패를 구분해 재시도 정책에 전달한다. */
+  geocoding: { status: "fulfilled" } | { status: "rejected"; reason: unknown };
 }

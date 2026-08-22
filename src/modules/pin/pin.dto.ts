@@ -6,8 +6,36 @@ import {
   paginationApiSchema,
 } from "../../common/pagination/pagination.dto";
 import type { SchemaObject } from "../../common/swagger/schema";
+import { isInstagramUrl, normalizeInstagramUrl } from "./instagram-url.util";
 
 export const uuidParamSchema = v.pipe(v.string(), v.uuid());
+
+const instagramUrlSchema = v.pipe(
+  v.string(),
+  v.url(),
+  v.check(
+    (value: string) => isInstagramUrl(value),
+    "지원하지 않는 인스타그램 URL입니다.",
+  ),
+  v.transform(normalizeInstagramUrl),
+);
+
+export const createRoomPinRequestSchema = v.object({
+  url: instagramUrlSchema,
+});
+
+export type CreateRoomPinRequest = v.InferOutput<
+  typeof createRoomPinRequestSchema
+>;
+
+export const pinExtractionTaskSchema = v.object({
+  roomId: uuidParamSchema,
+  sourceId: uuidParamSchema,
+  createdBy: uuidParamSchema,
+  url: instagramUrlSchema,
+});
+
+export type PinExtractionTask = v.InferOutput<typeof pinExtractionTaskSchema>;
 
 /**
  * page/pageSize 둘 다 미지정이면 전체를 반환한다(지도 전체 보기 보장 — PR 리뷰 확정).
@@ -34,6 +62,11 @@ export type DuplicatePinRequest = v.InferOutput<
 
 export const duplicatePinRequestApiSchema = toJsonSchema(
   duplicatePinRequestSchema,
+  { errorMode: "ignore" },
+) as SchemaObject;
+
+export const createRoomPinRequestApiSchema = toJsonSchema(
+  createRoomPinRequestSchema,
   { errorMode: "ignore" },
 ) as SchemaObject;
 
