@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, Patch, Post, Put } from "@nestjs/common";
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { AuthUid } from "../../common/decorators/auth-uid.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -8,9 +8,13 @@ import type { RequestUser } from "../../common/guards/current-user.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
 import {
   errorResponseApiSchema,
+  okResponseApiSchema,
   type RegisterUserRequest,
   registerUserRequestApiSchema,
   registerUserRequestSchema,
+  type UpdatePushTokenRequest,
+  updatePushTokenRequestApiSchema,
+  updatePushTokenRequestSchema,
   type UpdateProfileRequest,
   updateProfileRequestApiSchema,
   updateProfileRequestSchema,
@@ -69,5 +73,23 @@ export class UserController {
     body: UpdateProfileRequest,
   ): Promise<UserProfileResponse> {
     return this.userService.updateProfile(user.id, body);
+  }
+
+  @Put("me/push-token")
+  @RequireCurrentUser()
+  @ApiOperation({
+    summary: "디바이스 푸시 토큰 등록·갱신",
+    description:
+      "FCM 등록 토큰. 재설치로 새 유저가 생성되면 이전 유저 행의 토큰을 회수한다.",
+  })
+  @ApiBody({ schema: updatePushTokenRequestApiSchema })
+  @ApiResponse({ status: 200, schema: okResponseApiSchema })
+  async updatePushToken(
+    @CurrentUser() user: RequestUser,
+    @Body(new ValibotPipe(updatePushTokenRequestSchema))
+    body: UpdatePushTokenRequest,
+  ): Promise<{ ok: true }> {
+    await this.userService.updatePushToken(user.id, body.token);
+    return { ok: true };
   }
 }
