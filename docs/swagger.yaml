@@ -662,18 +662,14 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [data]
+                required: [data, pagination]
                 properties:
                   data:
-                    type: object
-                    required: [comments, pagination]
-                    properties:
-                      comments:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/Comment"
-                      pagination:
-                        $ref: "#/components/schemas/Pagination"
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Comment"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
         "400":
           $ref: "#/components/responses/CommentValidationError"
         "401":

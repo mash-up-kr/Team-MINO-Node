@@ -92,22 +92,16 @@ export const commentResponseApiSchema: SchemaObject = {
 
 export const commentListResponseApiSchema: SchemaObject = {
   type: "object",
-  required: ["data"],
+  required: ["data", "pagination"],
   properties: {
-    data: {
+    data: { type: "array", items: commentApiSchema },
+    pagination: {
       type: "object",
-      required: ["comments", "pagination"],
+      required: ["page", "pageSize", "hasNext"],
       properties: {
-        comments: { type: "array", items: commentApiSchema },
-        pagination: {
-          type: "object",
-          required: ["page", "pageSize", "hasNext"],
-          properties: {
-            page: { type: "integer", example: COMMENT_PAGE_DEFAULT },
-            pageSize: { type: "integer", example: COMMENT_PAGE_SIZE_DEFAULT },
-            hasNext: { type: "boolean" },
-          },
-        },
+        page: { type: "integer", example: COMMENT_PAGE_DEFAULT },
+        pageSize: { type: "integer", example: COMMENT_PAGE_SIZE_DEFAULT },
+        hasNext: { type: "boolean" },
       },
     },
   },

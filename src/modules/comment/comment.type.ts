@@ -21,6 +21,6 @@ export type CommentPagination = {
 };
 
 export type CommentListResponse = {
-  readonly comments: readonly CommentResponse[];
+  readonly data: readonly CommentResponse[];
   readonly pagination: CommentPagination;
 };

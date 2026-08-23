@@ -37,7 +37,7 @@ export class CommentService {
       }));
 
     return {
-      comments,
+      data: comments,
       pagination: {
         page: query.page,
         pageSize: query.pageSize,

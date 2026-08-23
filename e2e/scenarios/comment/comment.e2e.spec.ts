@@ -272,21 +272,21 @@ describe("GET /api/v1/pins/:pinId/comments", () => {
       `${commentPath(pagedPinId)}?page=0&pageSize=2`,
       ownerDeviceId,
     );
-    const { data } = await response.json();
+    const { data, pagination } = await response.json();
 
     expect(response.status).toBe(200);
-    expect(
-      data.comments.map((comment: { content: string }) => comment.content),
-    ).toEqual(["두 번째 코멘트", "세 번째 코멘트"]);
-    expect(data.comments[0]).toMatchObject({
+    expect(data.map((comment: { content: string }) => comment.content)).toEqual(
+      ["두 번째 코멘트", "세 번째 코멘트"],
+    );
+    expect(data[0]).toMatchObject({
       author: { id: memberId, nickname: "민호", avatar: null },
       canDelete: false,
     });
-    expect(data.comments[1]).toMatchObject({
+    expect(data[1]).toMatchObject({
       author: { id: departedId, nickname: "서연", avatar: { id: 3 } },
       canDelete: false,
     });
-    expect(data.pagination).toEqual({ page: 0, pageSize: 2, hasNext: true });
+    expect(pagination).toEqual({ page: 0, pageSize: 2, hasNext: true });
   });
 
   it("다음 페이지에 더 오래된 코멘트를 반환하고 범위를 넘으면 빈 목록을 반환한다", async () => {
@@ -299,14 +299,14 @@ describe("GET /api/v1/pins/:pinId/comments", () => {
       ownerDeviceId,
     );
 
-    expect((await olderResponse.json()).data).toEqual({
-      comments: [
+    expect(await olderResponse.json()).toEqual({
+      data: [
         expect.objectContaining({ content: "첫 번째 코멘트", canDelete: true }),
       ],
       pagination: { page: 1, pageSize: 2, hasNext: false },
     });
-    expect((await emptyResponse.json()).data).toEqual({
-      comments: [],
+    expect(await emptyResponse.json()).toEqual({
+      data: [],
       pagination: { page: 100, pageSize: 2, hasNext: false },
     });
   });
@@ -354,7 +354,7 @@ describe("DELETE /api/v1/pins/:pinId/comments/:commentId", () => {
 
     expect(deleted.status).toBe(200);
     expect((await deleted.json()).data).toEqual({ ok: true });
-    expect((await listed.json()).data.comments).not.toContainEqual(
+    expect((await listed.json()).data).not.toContainEqual(
       expect.objectContaining({ id: comment.id }),
     );
   });

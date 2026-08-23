@@ -12,6 +12,14 @@ export class ResponseInterceptor implements NestInterceptor {
     return next.handle().pipe(
       map((data) => {
         if (data === undefined) return data;
+        if (
+          typeof data === "object" &&
+          data !== null &&
+          "data" in data &&
+          "pagination" in data
+        ) {
+          return data;
+        }
         return { data };
       }),
     );

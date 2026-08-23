@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as v from "valibot";
 import {
   commentListQuerySchema,
+  commentListResponseApiSchema,
   commentResponseApiSchema,
   createCommentRequestSchema,
 } from "./comment.dto";
@@ -54,6 +55,19 @@ describe("commentListQuerySchema", () => {
 
     expect(negativePage.success).toBe(false);
     expect(oversizedPage.success).toBe(false);
+  });
+});
+
+it("코멘트 목록 Swagger 응답은 data 배열과 pagination을 같은 depth에 둔다", () => {
+  expect(commentListResponseApiSchema).toMatchObject({
+    required: ["data", "pagination"],
+    properties: {
+      data: { type: "array" },
+      pagination: {
+        type: "object",
+        required: ["page", "pageSize", "hasNext"],
+      },
+    },
   });
 });
 
