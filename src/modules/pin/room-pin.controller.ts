@@ -3,6 +3,7 @@ import {
   Controller,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
   Post,
 } from "@nestjs/common";
@@ -27,6 +28,8 @@ const OK = { ok: true } as const;
 @RequireCurrentUser()
 @Controller("api/v1/rooms")
 export class RoomPinController {
+  private readonly logger = new Logger(RoomPinController.name);
+
   constructor(private readonly pinService: PinService) {}
 
   @Post(":roomId/pins")
@@ -51,6 +54,10 @@ export class RoomPinController {
       if (error instanceof AppException && error.getStatus() < 500) {
         throw error;
       }
+      this.logger.error(
+        { err: error, roomId, userId: user.id },
+        "Failed to enqueue pin extraction task",
+      );
       throw new AppException(
         "ENQUEUE_FAILED",
         "작업을 큐에 등록하지 못했습니다.",

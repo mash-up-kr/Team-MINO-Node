@@ -15,6 +15,7 @@ import type { ScrapedPost } from "../../../src/infrastructures/scraper/scraper.t
 import { SentryErrorReporter } from "../../../src/infrastructures/sentry/sentry-reporter";
 import { TasksService } from "../../../src/infrastructures/tasks/tasks.service";
 import type { PinExtractionTask } from "../../../src/modules/pin/pin.dto";
+import { places } from "../../../src/modules/place/place.schema";
 import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { sources } from "../../../src/modules/source/source.schema";
@@ -116,7 +117,12 @@ export class PlaceE2eHarness {
     this.memberDevice = `e2e-pin-member-${randomUUID()}`;
     this.outsiderDevice = `e2e-pin-outsider-${randomUUID()}`;
     this.capturedTask = undefined;
-    this.enqueuePinExtraction.mockClear();
+    this.enqueuePinExtraction.mockReset();
+    this.enqueuePinExtraction.mockImplementation(
+      async (task: PinExtractionTask): Promise<void> => {
+        this.capturedTask = task;
+      },
+    );
     this.instagram.fetchPost.mockReset();
     this.ai.extract.mockReset();
     this.geocoder.search.mockReset();
@@ -142,6 +148,7 @@ export class PlaceE2eHarness {
         query.placeName === "어니언 성수" ? [CANDIDATES[0]] : [CANDIDATES[1]],
     );
     await this.db.execute(sql`truncate table ${sources} cascade`);
+    await this.db.execute(sql`truncate table ${places} cascade`);
     await this.db.execute(sql`truncate table ${users} cascade`);
 
     const [member, outsider] = await this.db

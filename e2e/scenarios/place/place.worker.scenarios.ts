@@ -147,10 +147,18 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
       await harness.db
         .select()
         .from(placeSources)
-        .where(eq(placeSources.sourceId, sourceId)),
+        .where(
+          and(
+            eq(placeSources.sourceId, sourceId),
+            isNull(placeSources.deletedAt),
+          ),
+        ),
     ).toHaveLength(2);
     expect(
-      await harness.db.select().from(pins).where(eq(pins.roomId, harness.room)),
+      await harness.db
+        .select()
+        .from(pins)
+        .where(and(eq(pins.roomId, harness.room), isNull(pins.deletedAt))),
     ).toHaveLength(2);
   });
 

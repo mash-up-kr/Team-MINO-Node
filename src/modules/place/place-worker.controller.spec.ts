@@ -80,13 +80,18 @@ describe("PlaceWorkerController retry policy", () => {
 
   it("모든 geocoder 실패는 저장 없이 503으로 재시도한다", async () => {
     const { controller, extractFromUrl, save } = createController();
-    extractFromUrl.mockResolvedValue([FAILED_MATCH]);
-    save.mockResolvedValue({ retryableFailures: 1, persistedPlaces: 0 });
+    extractFromUrl.mockRejectedValue(
+      new AppException(
+        "GEOCODER_ALL_FAILED",
+        "장소 검색이 모두 실패했습니다.",
+        HttpStatus.BAD_GATEWAY,
+      ),
+    );
 
     await expect(controller.process(TASK)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
-    expect(save).toHaveBeenCalledWith(TASK, [FAILED_MATCH]);
+    expect(save).not.toHaveBeenCalled();
   });
 
   it("fulfilled empty 결과는 재시도하지 않고 acknowledge한다", async () => {

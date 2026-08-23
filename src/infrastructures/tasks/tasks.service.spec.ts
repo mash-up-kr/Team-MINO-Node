@@ -80,12 +80,26 @@ describe("TasksService.enqueuePinExtraction", () => {
     ).toEqual(payload);
   });
 
-  it("APP_BASE_URL 끝 슬래시와 로컬 모드를 안전하게 처리한다", async () => {
+  it("APP_BASE_URL 끝 슬래시를 제거해 task URL을 만든다", async () => {
     const service = new TasksService(
-      createConfigService({
-        APP_BASE_URL: "https://api.team-mino.example/",
-        CLOUD_TASKS_MODE: "local",
-      }),
+      createConfigService({ APP_BASE_URL: "https://api.team-mino.example/" }),
+    );
+    let captured: CreateTaskArg | undefined;
+    stubClient(service, async (arg) => {
+      captured = arg;
+      return [{}];
+    });
+
+    await service.enqueuePinExtraction(payload);
+
+    expect(captured?.task.httpRequest.url).toBe(
+      "https://api.team-mino.example/api-internal/v1/tasks/pins",
+    );
+  });
+
+  it("로컬 모드에서는 task를 큐에 등록하지 않는다", async () => {
+    const service = new TasksService(
+      createConfigService({ CLOUD_TASKS_MODE: "local" }),
     );
     const client = stubClient(service, async () => {
       throw new Error("should not enqueue");
