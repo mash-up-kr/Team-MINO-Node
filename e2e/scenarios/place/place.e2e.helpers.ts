@@ -10,7 +10,7 @@ import { DatabaseService } from "../../../src/infrastructures/db/database.servic
 import { GEOCODER_PROVIDERS } from "../../../src/infrastructures/geocoder/geocoder.service";
 import type { GeoCandidate } from "../../../src/infrastructures/geocoder/geocoder.type";
 import { PlaceImageService } from "../../../src/infrastructures/place-image/place-image.service";
-import { InstagramProvider } from "../../../src/infrastructures/scraper/providers/instagram.provider";
+import { ScraperService } from "../../../src/infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../../../src/infrastructures/scraper/scraper.type";
 import { SentryErrorReporter } from "../../../src/infrastructures/sentry/sentry-reporter";
 import { TasksService } from "../../../src/infrastructures/tasks/tasks.service";
@@ -81,7 +81,7 @@ export class PlaceE2eHarness {
       Test.createTestingModule({ imports: [AppModule] })
         .overrideProvider(TasksService)
         .useValue({ enqueuePinExtraction: this.enqueuePinExtraction })
-        .overrideProvider(InstagramProvider)
+        .overrideProvider(ScraperService)
         .useValue(this.instagram)
         .overrideProvider(AiService)
         .useValue(this.ai)
