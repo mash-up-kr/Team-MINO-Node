@@ -5,17 +5,18 @@ import { GoogleAuth } from "google-auth-library";
 import type { Env } from "../../config/env.schema";
 import type { PushPayload } from "./messaging.type";
 
-const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
-const SEND_TIMEOUT_MS = 5_000;
-
 /**
  * FCM v1 발송. 실패는 여기서 삼키고 Sentry로만 보고한다 — 호출부(알림 생성)가
  * 발송 실패로 실패해서는 안 된다.
  */
 @Injectable()
 export class MessagingService {
+  private static readonly SCOPE =
+    "https://www.googleapis.com/auth/firebase.messaging";
+  private static readonly SEND_TIMEOUT_MS = 5_000;
+
   private readonly logger = new Logger(MessagingService.name);
-  private readonly auth = new GoogleAuth({ scopes: [FCM_SCOPE] });
+  private readonly auth = new GoogleAuth({ scopes: [MessagingService.SCOPE] });
   private readonly projectId: string;
 
   constructor(configService: ConfigService<Env>) {
@@ -53,7 +54,7 @@ export class MessagingService {
               },
             },
           }),
-          signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+          signal: AbortSignal.timeout(MessagingService.SEND_TIMEOUT_MS),
         },
       );
       if (!res.ok) {
