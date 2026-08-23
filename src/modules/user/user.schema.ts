@@ -1,4 +1,4 @@
-import { isNull } from "drizzle-orm";
+import { isNull, sql } from "drizzle-orm";
 import {
   jsonb,
   pgTable,
@@ -27,6 +27,8 @@ export const users = pgTable(
     nickname: varchar({ length: 15 }).notNull(),
     // 프로필 아바타 객체. 확장 필드를 수용하도록 jsonb로 보관합니다.
     avatar: jsonb().$type<UserAvatar>(),
+    // FCM 등록 토큰. 재설치로 새 유저가 생성되면 이전 유저 행의 토큰은 애플리케이션에서 회수합니다.
+    fcmToken: text(),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp({ withTimezone: true })
       .defaultNow()
@@ -41,5 +43,9 @@ export const users = pgTable(
     uniqueIndex("users_auth_uid_active_unique")
       .on(t.authUid)
       .where(isNull(t.deletedAt)),
+    // 재설치로 옛 유저 행에 토큰이 남는 경우를 대비해, 살아있는 행끼리는 토큰을 공유하지 않습니다.
+    uniqueIndex("users_fcm_token_active_unique")
+      .on(t.fcmToken)
+      .where(sql`${t.fcmToken} is not null and ${t.deletedAt} is null`),
   ],
 );
