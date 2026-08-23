@@ -647,7 +647,9 @@ paths:
     get:
       tags: [Comment]
       summary: 코멘트 목록 조회
-      description: 방 멤버만 조회 가능. 정렬은 `createdAt` 오름차순(ASC) — 최신 코멘트가 목록 맨 아래. offset 기반 페이지네이션.
+      description: |
+        활성 방 멤버만 조회할 수 있다. `page=0`은 최신 코멘트 묶음이며,
+        각 페이지 안에서는 오래된 코멘트부터 반환한다. 다음 페이지는 더 오래된 묶음이다.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
@@ -660,17 +662,29 @@ paths:
                 type: object
                 properties:
                   data:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Comment"
-                  pagination:
-                    $ref: "#/components/schemas/Pagination"
+                    type: object
+                    required: [comments, pagination]
+                    properties:
+                      comments:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Comment"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
     post:
       tags: [Comment]
       summary: 코멘트 작성
-      description: 방 멤버만 작성 가능. 수정(PATCH)은 MVP 미지원 — 삭제 후 재작성한다.
+      description: |
+        활성 방 멤버만 작성할 수 있다. 앞뒤 공백을 제거한 본문은 1~500자여야 하며,
+        중복 본문은 허용한다. 수정(PATCH)은 MVP 미지원으로 삭제 후 재작성한다.
       requestBody:
         required: true
         content:
@@ -681,6 +695,8 @@ paths:
               properties:
                 content:
                   type: string
+                  minLength: 1
+                  maxLength: 500
       responses:
         "201":
           description: 작성된 코멘트
@@ -691,14 +707,22 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/Comment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/pins/{pinId}/comments/{commentId}:
     delete:
       tags: [Comment]
       summary: 코멘트 삭제
-      description: '**작성자 본인만** 삭제할 수 있다(PR 리뷰 확정). soft delete로 처리한다.'
+      description: |
+        활성 방 멤버 중 **작성자 본인만** 삭제할 수 있다. soft delete로 처리하며,
+        이미 삭제됐거나 다른 핀에 속한 코멘트는 `COMMENT_NOT_FOUND`를 반환한다.
       parameters:
         - $ref: "#/components/parameters/PinId"
         - name: commentId
@@ -714,6 +738,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -1134,25 +1162,33 @@ components:
 
     Comment:
       type: object
+      required: [id, content, createdAt, author, canDelete]
       properties:
         id:
           type: string
           format: uuid
         author:
           type: object
+          required: [id, nickname, avatar]
           properties:
-            userId:
+            id:
               type: string
               format: uuid
             nickname:
               $ref: "#/components/schemas/Nickname"
             avatar:
               $ref: "#/components/schemas/Avatar"
+              nullable: true
         content:
           type: string
+          minLength: 1
+          maxLength: 500
         createdAt:
           type: string
           format: date-time
+          description: UTC ISO 8601
+        canDelete:
+          type: boolean
 
     Card:
       type: object
