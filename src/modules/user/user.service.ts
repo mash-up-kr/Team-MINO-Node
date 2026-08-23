@@ -32,6 +32,9 @@ export class UserService {
           color: PERSONAL_ROOM_DEFAULT_COLOR,
         },
       );
+      if (!user) {
+        throw new Error("유저 등록에 실패했습니다.");
+      }
       return user;
     } catch (error) {
       if (isUniqueViolation(error)) {

@@ -36,14 +36,14 @@ export class UserRepository extends BaseRepository {
   async createWithPersonalRoom(
     user: CreateUserInput,
     personalRoom: PersonalRoomInput,
-  ): Promise<UserProfileRow> {
+  ): Promise<UserProfileRow | undefined> {
     return await this.db.transaction(async (tx) => {
       const [created] = await tx
         .insert(users)
         .values(user)
         .returning(USER_PROFILE_COLUMNS);
       if (!created) {
-        throw new Error("유저 등록에 실패했습니다.");
+        return undefined;
       }
 
       const [room] = await tx
@@ -56,7 +56,8 @@ export class UserRepository extends BaseRepository {
         })
         .returning({ id: rooms.id });
       if (!room) {
-        throw new Error("개인방 생성에 실패했습니다.");
+        // 유저만 남는 부분 커밋을 막는다 — insert 성공 시 행이 반환되므로 도달하지 않는 방어 경로
+        tx.rollback();
       }
 
       await tx
