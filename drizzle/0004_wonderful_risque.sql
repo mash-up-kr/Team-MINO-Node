@@ -1,0 +1,1 @@
+ALTER TABLE "pin_comments" ALTER COLUMN "created_by" SET NOT NULL;

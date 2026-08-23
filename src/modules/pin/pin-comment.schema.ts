@@ -11,7 +11,9 @@ export const pinComments = pgTable(
       .references(() => pins.id, { onDelete: "no action" }),
     // 작성자. 방 멤버 여부는 애플리케이션 레벨에서 검증합니다.
     // 탈퇴해도 참조를 유지합니다. 표시 방식은 애플리케이션에서 결정합니다.
-    createdBy: uuid().references(() => users.id, { onDelete: "no action" }),
+    createdBy: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: "no action" }),
     content: text().notNull(),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp({ withTimezone: true })
