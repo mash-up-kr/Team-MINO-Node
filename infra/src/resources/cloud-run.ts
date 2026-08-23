@@ -19,7 +19,7 @@ export const service = new gcp.cloudrunv2.Service(
     template: {
       serviceAccount: serverServiceAccount.email,
       timeout: `${CLOUD_RUN_REQUEST_TIMEOUT_SECONDS}s`,
-      scaling: { minInstanceCount: 1, maxInstanceCount: 1 },
+      scaling: { minInstanceCount: 0, maxInstanceCount: 1 },
       containers: [
         {
           // Placeholder image before deployment
@@ -27,7 +27,10 @@ export const service = new gcp.cloudrunv2.Service(
           ports: { containerPort: 3000 },
           resources: {
             cpuIdle: true,
-            limits: { cpu: "0.08", memory: "256Mi" },
+            // 시작 중 vCPU 2로 부스트
+            startupCpuBoost: true,
+            // vCPU 0.46까지 프리티어 범위 내
+            limits: { cpu: "0.25", memory: "256Mi" },
           },
         },
       ],

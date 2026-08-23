@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM oven/bun:1.3.14-slim AS builder
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.0-slim AS builder
 
 WORKDIR /app
 
