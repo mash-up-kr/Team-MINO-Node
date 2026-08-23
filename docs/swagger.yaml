@@ -686,7 +686,7 @@ paths:
       tags: [Comment]
       summary: 코멘트 작성
       description: |
-        활성 방 멤버만 작성할 수 있다. 앞뒤 공백을 제거한 본문은 1~500자여야 하며,
+        활성 방 멤버만 작성할 수 있다. 앞뒤 공백을 제거한 본문은 1~200자여야 하며,
         중복 본문은 허용한다. 수정(PATCH)은 MVP 미지원으로 삭제 후 재작성한다.
         오류 코드는 `400 VALIDATION_ERROR`, `401 UNIDENTIFIED_USER`,
         `403 NOT_ROOM_MEMBER`, `404 PIN_NOT_FOUND`다.
@@ -700,7 +700,7 @@ paths:
               properties:
                 content:
                   type: string
-                  description: 앞뒤 공백 제거 후 1~500자
+                  description: 앞뒤 공백 제거 후 1~200자
       responses:
         "201":
           description: 작성된 코멘트
@@ -1284,7 +1284,7 @@ components:
         content:
           type: string
           minLength: 1
-          maxLength: 500
+          maxLength: 200
         createdAt:
           type: string
           format: date-time

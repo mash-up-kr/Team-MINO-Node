@@ -13,8 +13,8 @@ describe("createCommentRequestSchema", () => {
     expect(result).toEqual({ content: "한" });
   });
 
-  it("500자 코멘트를 허용한다", () => {
-    const content = "가".repeat(500);
+  it("200자 코멘트를 허용한다", () => {
+    const content = "가".repeat(200);
 
     expect(v.parse(createCommentRequestSchema, { content })).toEqual({
       content,
@@ -27,9 +27,9 @@ describe("createCommentRequestSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("501자 코멘트를 거절한다", () => {
+  it("201자 코멘트를 거절한다", () => {
     const result = v.safeParse(createCommentRequestSchema, {
-      content: "가".repeat(501),
+      content: "가".repeat(201),
     });
 
     expect(result.success).toBe(false);

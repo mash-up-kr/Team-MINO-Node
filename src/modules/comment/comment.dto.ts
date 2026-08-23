@@ -1,7 +1,7 @@
 import * as v from "valibot";
 import type { SchemaObject } from "../../common/swagger/schema";
 
-export const COMMENT_CONTENT_MAX_LENGTH = 500;
+export const COMMENT_CONTENT_MAX_LENGTH = 200;
 export const COMMENT_PAGE_DEFAULT = 0;
 export const COMMENT_PAGE_SIZE_DEFAULT = 20;
 export const COMMENT_PAGE_SIZE_MAX = 100;
@@ -48,7 +48,7 @@ export const createCommentRequestApiSchema: SchemaObject = {
   properties: {
     content: {
       type: "string",
-      description: "앞뒤 공백 제거 후 1~500자",
+      description: "앞뒤 공백 제거 후 1~200자",
     },
   },
 };
