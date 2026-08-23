@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -24,12 +25,14 @@ import {
   COMMENT_PAGE_SIZE_MAX,
   type CommentListQuery,
   type CreateCommentRequest,
+  commentIdParamSchema,
   commentListQuerySchema,
   commentListResponseApiSchema,
   commentResponseApiSchema,
   createCommentRequestApiSchema,
   createCommentRequestSchema,
   errorResponseApiSchema,
+  okResponseApiSchema,
   pinIdParamSchema,
 } from "./comment.dto";
 import { CommentService } from "./comment.service";
@@ -81,5 +84,22 @@ export class CommentController {
     request: CreateCommentRequest,
   ): Promise<CommentResponse> {
     return this.commentService.create(user, pinId, request);
+  }
+
+  @Delete(":commentId")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "핀 코멘트 삭제" })
+  @ApiResponse({ status: 200, schema: okResponseApiSchema })
+  @ApiResponse({ status: 400, schema: errorResponseApiSchema })
+  @ApiResponse({ status: 403, schema: errorResponseApiSchema })
+  @ApiResponse({ status: 404, schema: errorResponseApiSchema })
+  async delete(
+    @CurrentUser() user: RequestUser,
+    @Param("pinId", new ValibotPipe(pinIdParamSchema)) pinId: string,
+    @Param("commentId", new ValibotPipe(commentIdParamSchema))
+    commentId: string,
+  ): Promise<{ ok: true }> {
+    await this.commentService.delete(user, pinId, commentId);
+    return { ok: true };
   }
 }

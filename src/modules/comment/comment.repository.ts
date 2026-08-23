@@ -74,4 +74,30 @@ export class CommentRepository {
 
     return comment;
   }
+
+  async findActiveComment(pinId: string, commentId: string) {
+    const [comment] = await this.db
+      .select({ id: pinComments.id, createdBy: pinComments.createdBy })
+      .from(pinComments)
+      .where(
+        and(
+          eq(pinComments.id, commentId),
+          eq(pinComments.pinId, pinId),
+          isNull(pinComments.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    return comment;
+  }
+
+  async softDelete(commentId: string): Promise<boolean> {
+    const [deleted] = await this.db
+      .update(pinComments)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(pinComments.id, commentId), isNull(pinComments.deletedAt)))
+      .returning({ id: pinComments.id });
+
+    return deleted !== undefined;
+  }
 }

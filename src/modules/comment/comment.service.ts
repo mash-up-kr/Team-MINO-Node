@@ -79,6 +79,42 @@ export class CommentService {
     };
   }
 
+  async delete(
+    user: RequestUser,
+    pinId: string,
+    commentId: string,
+  ): Promise<void> {
+    await this.requireMembership(user.id, pinId);
+
+    const comment = await this.commentRepository.findActiveComment(
+      pinId,
+      commentId,
+    );
+    if (!comment) {
+      throw new AppException(
+        "COMMENT_NOT_FOUND",
+        "코멘트를 찾을 수 없습니다.",
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    if (comment.createdBy !== user.id) {
+      throw new AppException(
+        "COMMENT_DELETE_FORBIDDEN",
+        "작성자만 코멘트를 삭제할 수 있습니다.",
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const deleted = await this.commentRepository.softDelete(commentId);
+    if (!deleted) {
+      throw new AppException(
+        "COMMENT_NOT_FOUND",
+        "코멘트를 찾을 수 없습니다.",
+        HttpStatus.NOT_FOUND,
+      );
+    }
+  }
+
   private async requireMembership(
     userId: string,
     pinId: string,

@@ -8,6 +8,7 @@ export const COMMENT_PAGE_SIZE_DEFAULT = 20;
 export const COMMENT_PAGE_SIZE_MAX = 100;
 
 export const pinIdParamSchema = v.pipe(v.string(), v.uuid());
+export const commentIdParamSchema = v.pipe(v.string(), v.uuid());
 
 export const createCommentRequestSchema = v.object({
   content: v.pipe(
@@ -96,6 +97,16 @@ export const commentListResponseApiSchema: SchemaObject = {
           },
         },
       },
+    },
+  },
+};
+
+export const okResponseApiSchema: SchemaObject = {
+  type: "object",
+  properties: {
+    data: {
+      type: "object",
+      properties: { ok: { type: "boolean", example: true } },
     },
   },
 };
