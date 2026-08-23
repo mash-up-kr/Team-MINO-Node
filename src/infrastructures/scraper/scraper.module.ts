@@ -1,20 +1,28 @@
 import { Module } from "@nestjs/common";
-import {
-  InstagramFallbackFetcher,
-  NoopInstagramFallbackFetcher,
-} from "./providers/instagram.fallback";
-import { InstagramProvider } from "./providers/instagram.provider";
-import { ScraperService } from "./scraper.service";
+import { SentryModule } from "../sentry/sentry.module";
+import { InstagramEmbedProvider } from "./providers/instagram-embed.provider";
+import { InstagramPolarisHtmlProvider } from "./providers/instagram-polaris-html.provider";
+import { InstagramPolarisJsonProvider } from "./providers/instagram-polaris-json.provider";
+import { INSTAGRAM_PROVIDERS, ScraperService } from "./scraper.service";
+import type { InstagramProvider } from "./scraper.type";
 
 @Module({
+  imports: [SentryModule],
   providers: [
-    InstagramProvider,
-    ScraperService,
-    // 임베드로 전체 데이터를 못 얻는 게시글의 2차 경로. SaaS 구현이 생기면 여기만 교체.
+    InstagramPolarisJsonProvider,
+    InstagramPolarisHtmlProvider,
+    InstagramEmbedProvider,
     {
-      provide: InstagramFallbackFetcher,
-      useClass: NoopInstagramFallbackFetcher,
+      provide: INSTAGRAM_PROVIDERS,
+      useFactory: (...providers: InstagramProvider[]) => providers,
+      // 폴백 우선순위는 이 배열 순서 하나로만 정의된다.
+      inject: [
+        InstagramPolarisJsonProvider,
+        InstagramPolarisHtmlProvider,
+        InstagramEmbedProvider,
+      ],
     },
+    ScraperService,
   ],
   exports: [ScraperService],
 })
