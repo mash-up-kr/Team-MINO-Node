@@ -1,12 +1,13 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { and, eq, isNull } from "drizzle-orm";
-import { AppException } from "../../common/exceptions/app.exception";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
 import { sources } from "./source.schema";
 
 @Injectable()
 export class SourceRepository extends BaseRepository {
-  async ensureActiveInstagramSource(originalUrl: string): Promise<string> {
+  async ensureActiveInstagramSource(
+    originalUrl: string,
+  ): Promise<string | undefined> {
     const [existing] = await this.db
       .select({ id: sources.id })
       .from(sources)
@@ -39,13 +40,6 @@ export class SourceRepository extends BaseRepository {
         ),
       )
       .limit(1);
-    if (!source) {
-      throw new AppException(
-        "SOURCE_UPSERT_FAILED",
-        "출처를 저장하지 못했습니다.",
-        HttpStatus.BAD_GATEWAY,
-      );
-    }
-    return source.id;
+    return source?.id;
   }
 }

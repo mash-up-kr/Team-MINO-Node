@@ -39,6 +39,13 @@ export class PinService {
     const sourceId = await this.sourceRepository.ensureActiveInstagramSource(
       input.url,
     );
+    if (!sourceId) {
+      throw new AppException(
+        "SOURCE_UPSERT_FAILED",
+        "출처를 저장하지 못했습니다.",
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
     await this.tasksService.enqueuePinExtraction({
       roomId,
       sourceId,
