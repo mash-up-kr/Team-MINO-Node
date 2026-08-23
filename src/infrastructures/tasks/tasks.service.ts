@@ -1,8 +1,8 @@
 import { CloudTasksClient } from "@google-cloud/tasks";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import type { PinExtractionTask } from "../../common/tasks/pin-extraction-task.dto";
 import type { Env } from "../../config/env.schema";
-import type { PinExtractionTask } from "../../modules/pin/pin.dto";
 
 /* Cloud Tasks가 Internal endpoint 응답을 기다리는 최대 시간입니다. */
 const TASK_DISPATCH_DEADLINE_SECONDS = 9 * 60;

@@ -16,7 +16,7 @@ import { CloudTasksGuard } from "../../common/guards/cloud-tasks.guard";
 import {
   type PinExtractionTask,
   pinExtractionTaskSchema,
-} from "../pin/pin.dto";
+} from "../../common/tasks/pin-extraction-task.dto";
 import type { PlaceMatch } from "./place.type";
 
 interface PlaceExtractor {

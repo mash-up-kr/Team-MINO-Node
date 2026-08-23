@@ -1,8 +1,8 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { AppException } from "../../common/exceptions/app.exception";
+import type { PinExtractionTask } from "../../common/tasks/pin-extraction-task.dto";
 import { DatabaseService } from "../../infrastructures/db/database.service";
-import type { PinExtractionTask } from "../pin/pin.dto";
 import { pins } from "../pin/pin.schema";
 import { rooms } from "../room/room.schema";
 import { roomMembers } from "../room/room-member.schema";

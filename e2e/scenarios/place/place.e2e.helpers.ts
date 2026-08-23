@@ -5,6 +5,7 @@ import { Test } from "@nestjs/testing";
 import { sql } from "drizzle-orm";
 import { AppModule } from "../../../src/app.module";
 import { CloudTasksGuard } from "../../../src/common/guards/cloud-tasks.guard";
+import type { PinExtractionTask } from "../../../src/common/tasks/pin-extraction-task.dto";
 import { AiService } from "../../../src/infrastructures/ai/ai.service";
 import { DatabaseService } from "../../../src/infrastructures/db/database.service";
 import { GEOCODER_PROVIDERS } from "../../../src/infrastructures/geocoder/geocoder.service";
@@ -14,7 +15,6 @@ import { ScraperService } from "../../../src/infrastructures/scraper/scraper.ser
 import type { ScrapedPost } from "../../../src/infrastructures/scraper/scraper.type";
 import { SentryErrorReporter } from "../../../src/infrastructures/sentry/sentry-reporter";
 import { TasksService } from "../../../src/infrastructures/tasks/tasks.service";
-import type { PinExtractionTask } from "../../../src/modules/pin/pin.dto";
 import { places } from "../../../src/modules/place/place.schema";
 import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";

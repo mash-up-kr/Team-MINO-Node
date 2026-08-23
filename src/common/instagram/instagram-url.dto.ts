@@ -1,15 +1,9 @@
 import { HttpStatus } from "@nestjs/common";
-import { AppException } from "../../common/exceptions/app.exception";
+import * as v from "valibot";
+import { AppException } from "../exceptions/app.exception";
 
-// 인스타 경로(/p, /reel, /reels, /tv)에서 shortcode 추출. 저장·큐 전달용 URL을 만드는
-// 목적으로 스크래퍼 모듈(instagram.util.ts)과는 별도로 둔다 — 스크래퍼 쪽 shortcode
-// 추출 규칙을 이 모듈 사정으로 바꾸지 않기 위함.
 const SHORTCODE_PATH_REGEX = /^\/(p|reel|reels|tv)\/([A-Za-z0-9_-]+)\/?$/;
 
-/**
- * 검증된 인스타그램 링크를 저장·큐 전달용 단일 표현으로 만든다.
- * 입력이 HTTP여도 안전한 HTTPS deep link로 올리고, 자격증명·비표준 포트·추적값은 버린다.
- */
 export function normalizeInstagramUrl(url: string): string {
   let parsed: URL;
   try {
@@ -57,6 +51,16 @@ export function isInstagramUrl(value: unknown): value is string {
     throw error;
   }
 }
+
+export const instagramUrlSchema = v.pipe(
+  v.string(),
+  v.url(),
+  v.check(
+    (value: string) => isInstagramUrl(value),
+    "지원하지 않는 인스타그램 URL입니다.",
+  ),
+  v.transform(normalizeInstagramUrl),
+);
 
 function invalidInstagramUrl(): AppException {
   return new AppException(

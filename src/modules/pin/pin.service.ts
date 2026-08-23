@@ -4,6 +4,7 @@ import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
 } from "../../common/pagination/pagination.constant";
+import type { PinExtractionTask } from "../../common/tasks/pin-extraction-task.dto";
 import { isUniqueViolation } from "../../infrastructures/db/db.error";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
 import { SourceRepository } from "../source/source.repository";
@@ -46,12 +47,13 @@ export class PinService {
         HttpStatus.BAD_GATEWAY,
       );
     }
-    await this.tasksService.enqueuePinExtraction({
+    const task: PinExtractionTask = {
       roomId,
       sourceId,
       createdBy: userId,
       url: input.url,
-    });
+    };
+    await this.tasksService.enqueuePinExtraction(task);
   }
 
   /**

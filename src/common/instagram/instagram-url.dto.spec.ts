@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { AppException } from "../../common/exceptions/app.exception";
-import { isInstagramUrl, normalizeInstagramUrl } from "./instagram-url.util";
+import { AppException } from "../exceptions/app.exception";
+import { isInstagramUrl, normalizeInstagramUrl } from "./instagram-url.dto";
 
 describe("normalizeInstagramUrl", () => {
   it.each([
