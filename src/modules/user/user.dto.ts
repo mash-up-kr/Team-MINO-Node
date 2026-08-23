@@ -46,6 +46,13 @@ export type UpdateProfileRequest = v.InferOutput<
   typeof updateProfileRequestSchema
 >;
 
+export const updatePushTokenRequestSchema = v.object({
+  token: v.pipe(v.string(), v.minLength(1, "token이 필요합니다.")),
+});
+export type UpdatePushTokenRequest = v.InferOutput<
+  typeof updatePushTokenRequestSchema
+>;
+
 export const registerUserRequestApiSchema = toJsonSchema(
   registerUserRequestSchema,
   { errorMode: "ignore" },
@@ -53,6 +60,11 @@ export const registerUserRequestApiSchema = toJsonSchema(
 
 export const updateProfileRequestApiSchema = toJsonSchema(
   updateProfileRequestSchema,
+  { errorMode: "ignore" },
+) as SchemaObject;
+
+export const updatePushTokenRequestApiSchema = toJsonSchema(
+  updatePushTokenRequestSchema,
   { errorMode: "ignore" },
 ) as SchemaObject;
 
@@ -75,6 +87,16 @@ const userSchema: SchemaObject = {
 export const userResponseApiSchema: SchemaObject = {
   type: "object",
   properties: { data: userSchema },
+};
+
+export const okResponseApiSchema: SchemaObject = {
+  type: "object",
+  properties: {
+    data: {
+      type: "object",
+      properties: { ok: { type: "boolean", example: true } },
+    },
+  },
 };
 
 export const errorResponseApiSchema: SchemaObject = {
