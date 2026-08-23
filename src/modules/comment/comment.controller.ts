@@ -25,15 +25,20 @@ import {
   COMMENT_PAGE_SIZE_MAX,
   type CommentListQuery,
   type CreateCommentRequest,
+  commentDeleteForbiddenResponseApiSchema,
+  commentDeleteNotFoundResponseApiSchema,
   commentIdParamSchema,
   commentListQuerySchema,
   commentListResponseApiSchema,
   commentResponseApiSchema,
   createCommentRequestApiSchema,
   createCommentRequestSchema,
-  errorResponseApiSchema,
+  notRoomMemberResponseApiSchema,
   okResponseApiSchema,
   pinIdParamSchema,
+  pinNotFoundResponseApiSchema,
+  unidentifiedUserResponseApiSchema,
+  validationErrorResponseApiSchema,
 } from "./comment.dto";
 import { CommentService } from "./comment.service";
 import type { CommentListResponse, CommentResponse } from "./comment.type";
@@ -58,9 +63,10 @@ export class CommentController {
     schema: { maximum: COMMENT_PAGE_SIZE_MAX },
   })
   @ApiResponse({ status: 200, schema: commentListResponseApiSchema })
-  @ApiResponse({ status: 400, schema: errorResponseApiSchema })
-  @ApiResponse({ status: 403, schema: errorResponseApiSchema })
-  @ApiResponse({ status: 404, schema: errorResponseApiSchema })
+  @ApiResponse({ status: 400, schema: validationErrorResponseApiSchema })
+  @ApiResponse({ status: 401, schema: unidentifiedUserResponseApiSchema })
+  @ApiResponse({ status: 403, schema: notRoomMemberResponseApiSchema })
+  @ApiResponse({ status: 404, schema: pinNotFoundResponseApiSchema })
   list(
     @CurrentUser() user: RequestUser,
     @Param("pinId", new ValibotPipe(pinIdParamSchema)) pinId: string,
@@ -74,9 +80,10 @@ export class CommentController {
   @ApiOperation({ summary: "핀 코멘트 작성" })
   @ApiBody({ schema: createCommentRequestApiSchema })
   @ApiResponse({ status: 201, schema: commentResponseApiSchema })
-  @ApiResponse({ status: 400, schema: errorResponseApiSchema })
-  @ApiResponse({ status: 403, schema: errorResponseApiSchema })
-  @ApiResponse({ status: 404, schema: errorResponseApiSchema })
+  @ApiResponse({ status: 400, schema: validationErrorResponseApiSchema })
+  @ApiResponse({ status: 401, schema: unidentifiedUserResponseApiSchema })
+  @ApiResponse({ status: 403, schema: notRoomMemberResponseApiSchema })
+  @ApiResponse({ status: 404, schema: pinNotFoundResponseApiSchema })
   create(
     @CurrentUser() user: RequestUser,
     @Param("pinId", new ValibotPipe(pinIdParamSchema)) pinId: string,
@@ -90,9 +97,10 @@ export class CommentController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "핀 코멘트 삭제" })
   @ApiResponse({ status: 200, schema: okResponseApiSchema })
-  @ApiResponse({ status: 400, schema: errorResponseApiSchema })
-  @ApiResponse({ status: 403, schema: errorResponseApiSchema })
-  @ApiResponse({ status: 404, schema: errorResponseApiSchema })
+  @ApiResponse({ status: 400, schema: validationErrorResponseApiSchema })
+  @ApiResponse({ status: 401, schema: unidentifiedUserResponseApiSchema })
+  @ApiResponse({ status: 403, schema: commentDeleteForbiddenResponseApiSchema })
+  @ApiResponse({ status: 404, schema: commentDeleteNotFoundResponseApiSchema })
   async delete(
     @CurrentUser() user: RequestUser,
     @Param("pinId", new ValibotPipe(pinIdParamSchema)) pinId: string,

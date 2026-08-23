@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import * as v from "valibot";
 import {
   commentListQuerySchema,
+  commentResponseApiSchema,
   createCommentRequestSchema,
 } from "./comment.dto";
 
@@ -53,5 +54,26 @@ describe("commentListQuerySchema", () => {
 
     expect(negativePage.success).toBe(false);
     expect(oversizedPage.success).toBe(false);
+  });
+});
+
+it("코멘트 Swagger 응답은 nullable avatar를 명시한다", () => {
+  expect(commentResponseApiSchema).toMatchObject({
+    required: ["data"],
+    properties: {
+      data: {
+        properties: {
+          author: {
+            properties: {
+              avatar: {
+                type: "object",
+                nullable: true,
+                required: ["id"],
+              },
+            },
+          },
+        },
+      },
+    },
   });
 });

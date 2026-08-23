@@ -223,7 +223,10 @@ describe("POST /api/v1/pins/:pinId/comments", () => {
       canDelete: true,
       author: { id: ownerId, nickname: "지은", avatar: { id: 1 } },
     });
-    expect(data.createdAt).toBeString();
+    expect(data.updatedAt).toBeUndefined();
+    expect(data.deletedAt).toBeUndefined();
+    expect(data.author.userId).toBeUndefined();
+    expect(new Date(data.createdAt).toISOString()).toBe(data.createdAt);
   });
 
   it("개인방 핀에도 코멘트를 작성할 수 있다", async () => {
@@ -275,7 +278,10 @@ describe("GET /api/v1/pins/:pinId/comments", () => {
     expect(
       data.comments.map((comment: { content: string }) => comment.content),
     ).toEqual(["두 번째 코멘트", "세 번째 코멘트"]);
-    expect(data.comments[0].canDelete).toBe(false);
+    expect(data.comments[0]).toMatchObject({
+      author: { id: memberId, nickname: "민호", avatar: null },
+      canDelete: false,
+    });
     expect(data.comments[1]).toMatchObject({
       author: { id: departedId, nickname: "서연", avatar: { id: 3 } },
       canDelete: false,
