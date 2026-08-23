@@ -78,6 +78,10 @@ describe("TasksService.enqueuePinExtraction", () => {
     expect(
       JSON.parse(captured?.task.httpRequest.body?.toString() ?? "{}"),
     ).toEqual(payload);
+    expect(captured?.task.httpRequest.oidcToken).toEqual({
+      serviceAccountEmail: ENV.CLOUD_TASKS_INVOKER_EMAIL,
+      audience: "https://api.team-mino.example",
+    });
   });
 
   it("APP_BASE_URL 끝 슬래시를 제거해 task URL을 만든다", async () => {

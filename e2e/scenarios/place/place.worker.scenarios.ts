@@ -215,6 +215,7 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
       );
 
     expect(response.status).toBe(204);
+    expect(activeLinks).toHaveLength(2);
     expect(
       await harness.db
         .select()
@@ -228,7 +229,7 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
             isNull(places.deletedAt),
           ),
         ),
-    ).toHaveLength(activeLinks.length);
+    ).toHaveLength(2);
     expect(
       await harness.db
         .select()

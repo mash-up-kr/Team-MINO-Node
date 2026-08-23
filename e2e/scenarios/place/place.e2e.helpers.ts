@@ -221,33 +221,28 @@ export class PlaceE2eHarness {
     });
   }
 
-  async runTask(task: PinExtractionTask | undefined = this.capturedTask) {
-    return fetch(`${this.baseUrl}/api-internal/v1/tasks/pins`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-test-authorized": "yes",
-      },
-      body: JSON.stringify(task),
-    });
+  async runTask(
+    task: PinExtractionTask | undefined = this.capturedTask,
+  ): Promise<Response> {
+    return this.internalTask(task, true);
   }
 
   async runUnauthorizedTask(): Promise<Response> {
-    return fetch(`${this.baseUrl}/api-internal/v1/tasks/pins`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(this.capturedTask),
-    });
+    return this.internalTask(this.capturedTask, false);
   }
 
   async runMalformedTask(): Promise<Response> {
+    return this.internalTask({ url: POST_URL }, true);
+  }
+
+  private internalTask(body: unknown, authorized: boolean): Promise<Response> {
     return fetch(`${this.baseUrl}/api-internal/v1/tasks/pins`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-test-authorized": "yes",
+        ...(authorized ? { "x-test-authorized": "yes" } : {}),
       },
-      body: JSON.stringify({ url: POST_URL }),
+      body: JSON.stringify(body),
     });
   }
 
