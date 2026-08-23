@@ -14,6 +14,7 @@ import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
 import { DatabaseModule } from "./infrastructures/db/database.module";
 import { SentryModule } from "./infrastructures/sentry/sentry.module";
+import { CommentModule } from "./modules/comment/comment.module";
 import { InvitationModule } from "./modules/invitation/invitation.module";
 import { PlaceModule } from "./modules/place/place.module";
 
@@ -39,6 +40,7 @@ import { PlaceModule } from "./modules/place/place.module";
     DatabaseModule,
     TerminusModule,
     SentryModule,
+    CommentModule,
     PlaceModule,
     InvitationModule,
   ],
