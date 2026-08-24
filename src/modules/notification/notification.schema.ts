@@ -1,15 +1,11 @@
-import { sql } from "drizzle-orm";
 import {
   index,
   pgTable,
   text,
   timestamp,
-  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { places } from "../place/place.schema";
-import { rooms } from "../room/room.schema";
 import { users } from "../user/user.schema";
 
 export const NOTIFICATION_TYPES = [
@@ -22,6 +18,8 @@ export const NOTIFICATION_TYPES = [
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
+// 발송 시점에 완성한 표시용 문구를 그대로 저장한다. 대상 엔티티를 조인해 다시
+// 조립하지 않으므로, 알림 유형이 새 종류의 대상을 가리키게 되어도 컬럼을 늘릴 필요가 없다.
 export const notifications = pgTable(
   "notifications",
   {
@@ -30,20 +28,12 @@ export const notifications = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "no action" }),
     type: varchar({ length: 32 }).$type<NotificationType>().notNull(),
-    // 장소·방 대상 타입에서만 채운다.
-    placeId: uuid().references(() => places.id, { onDelete: "no action" }),
-    roomId: uuid().references(() => rooms.id, { onDelete: "no action" }),
-    // 문구에 다른 유저가 등장하는 타입(ROOM_MEMBER_JOINED)에서만 채운다.
-    actorId: uuid().references(() => users.id, { onDelete: "no action" }),
-    // 재전달·재실행에도 같은 사건이 중복 기록되지 않게 막는 키. 없으면 매번 새 행.
-    dedupKey: text(),
+    typeLabel: text().notNull(),
+    targetName: text().notNull(),
+    thumbnailUrl: text(),
+    url: text().notNull(),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
     deletedAt: timestamp({ withTimezone: true }),
   },
-  (t) => [
-    uniqueIndex("notifications_type_dedup_key_active_unique")
-      .on(t.type, t.dedupKey)
-      .where(sql`${t.dedupKey} is not null and ${t.deletedAt} is null`),
-    index().on(t.recipientId, t.createdAt),
-  ],
+  (t) => [index().on(t.recipientId, t.createdAt)],
 );
