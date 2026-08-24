@@ -26,7 +26,7 @@ export class UserController {
   @ApiOperation({
     summary: "유저 등록 (+ 개인방 자동 생성)",
     description:
-      "deviceId 기반 등록. 개인방(내 방) 생성이 같은 흐름에서 처리되며 응답에는 포함하지 않는다.",
+      "deviceId 기반 등록. 개인방(내 장소) 생성이 같은 흐름에서 처리되며 응답에는 포함하지 않는다.",
   })
   @ApiBody({ schema: registerUserRequestApiSchema })
   @ApiResponse({ status: 201, schema: userResponseApiSchema })

@@ -1,5 +1,5 @@
 /** 온보딩 시 자동 생성되는 개인방 표시명. */
-export const PERSONAL_ROOM_NAME = "내 방";
+export const PERSONAL_ROOM_NAME = "내 장소";
 
 /**
  * 개인방 기본 색상. 색상은 서버가 hex를 내려주지 않고 enum 키로만 관리하며,

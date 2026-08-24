@@ -14,7 +14,7 @@ export class UserService {
   constructor(private readonly userRepository: UserRepository) {}
 
   /**
-   * 유저 등록. 개인방("내 방") 자동 생성이 같은 트랜잭션에서 함께 처리된다. (PR 리뷰 확정)
+   * 유저 등록. 개인방("내 장소") 자동 생성이 같은 트랜잭션에서 함께 처리된다. (PR 리뷰 확정)
    * 이미 등록된 deviceId면 409 — 사전 조회 대신 활성 유니크 인덱스 위반을 변환해
    * 동시 등록 경합에도 같은 계약을 보장한다.
    */
