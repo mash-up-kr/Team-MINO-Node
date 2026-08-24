@@ -18,8 +18,11 @@ export const users = pgTable(
   "users",
   {
     id: uuid().primaryKey().defaultRandom(),
-    // MVP는 별도 로그인 없이 디바이스 식별자로 사용자를 구분합니다.
-    deviceId: text().notNull(),
+    /*
+     * Firebase Authentication uid. 로그인 화면 없이 익명 인증으로 발급되며,
+     * 나중에 소셜 계정을 연결(link)해도 값이 유지되므로 기존 데이터를 승계한다.
+     */
+    authUid: text().notNull(),
     // 공백 포함 한글/영문 2~15자, 특수문자 불가 (PR 리뷰 확정 정책)
     nickname: varchar({ length: 15 }).notNull(),
     // 프로필 아바타 객체. 확장 필드를 수용하도록 jsonb로 보관합니다.
@@ -32,11 +35,11 @@ export const users = pgTable(
     // soft delete 시각. NULL이면 활성 레코드입니다.
     deletedAt: timestamp({ withTimezone: true }),
   },
-  // 탈퇴 행이 device_id를 계속 점유하면 같은 기기로 재가입할 수 없으므로,
+  // 탈퇴 행이 auth_uid를 계속 점유하면 같은 계정으로 재가입할 수 없으므로,
   // 살아있는 행끼리만 유니크하도록 부분 인덱스를 씁니다.
   (t) => [
-    uniqueIndex("users_device_id_active_unique")
-      .on(t.deviceId)
+    uniqueIndex("users_auth_uid_active_unique")
+      .on(t.authUid)
       .where(isNull(t.deletedAt)),
   ],
 );

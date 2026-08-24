@@ -17,18 +17,6 @@ export class InvitationRepository {
     return this.databaseService.db;
   }
 
-  async findActiveUserByDeviceId(
-    deviceId: string,
-  ): Promise<{ id: string } | undefined> {
-    const [user] = await this.db
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.deviceId, deviceId), isNull(users.deletedAt)))
-      .limit(1);
-
-    return user;
-  }
-
   async findActiveRoom(
     roomId: string,
   ): Promise<{ id: string; type: RoomType } | undefined> {

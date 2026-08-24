@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Patch, Post } from "@nestjs/common";
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { AuthUid } from "../../common/decorators/auth-uid.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { RequireAuthUid } from "../../common/decorators/require-auth-uid.decorator";
 import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
 import type { RequestUser } from "../../common/guards/current-user.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
@@ -23,23 +25,26 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post()
+  // 등록 전이라 users 행이 없으므로, 토큰만 검증하는 가드를 쓴다.
+  @RequireAuthUid()
   @ApiOperation({
     summary: "유저 등록 (+ 개인방 자동 생성)",
     description:
-      "deviceId 기반 등록. 개인방(내 장소) 생성이 같은 흐름에서 처리되며 응답에는 포함하지 않는다.",
+      "익명 인증 토큰의 uid로 등록한다. 개인방(내 장소) 생성이 같은 흐름에서 처리되며 응답에는 포함하지 않는다.",
   })
   @ApiBody({ schema: registerUserRequestApiSchema })
   @ApiResponse({ status: 201, schema: userResponseApiSchema })
   @ApiResponse({
     status: 409,
-    description: "이미 등록된 deviceId (DEVICE_ALREADY_REGISTERED)",
+    description: "이미 등록된 계정 (USER_ALREADY_REGISTERED)",
     schema: errorResponseApiSchema,
   })
   register(
+    @AuthUid() authUid: string,
     @Body(new ValibotPipe(registerUserRequestSchema))
     body: RegisterUserRequest,
   ): Promise<UserProfileResponse> {
-    return this.userService.register(body);
+    return this.userService.register(authUid, body);
   }
 
   @Get("me")

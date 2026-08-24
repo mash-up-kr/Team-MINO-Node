@@ -26,6 +26,12 @@ export async function bootstrap(): Promise<void> {
     .setTitle("Team MINO API")
     .setDescription("Team MINO backend API documentation")
     .setVersion("1.0.0")
+    .addBearerAuth({
+      type: "http",
+      scheme: "bearer",
+      bearerFormat: "JWT",
+      description: "Firebase Authentication ID 토큰",
+    })
     .build();
 
   SwaggerModule.setup("api-docs", app, () =>

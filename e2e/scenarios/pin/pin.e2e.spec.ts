@@ -12,14 +12,15 @@ import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { sources } from "../../../src/modules/source/source.schema";
 import { users } from "../../../src/modules/user/user.schema";
+import { authHeaders, withFakeTokenVerifier } from "../../auth";
 import { startApp } from "../../start-app";
 
 let app: INestApplication;
 let baseUrl: string;
 let db: DatabaseService["db"];
 
-const memberDevice = `e2e-pin-member-${randomUUID()}`;
-const outsiderDevice = `e2e-pin-outsider-${randomUUID()}`;
+const memberAuthUid = `e2e-pin-member-${randomUUID()}`;
+const outsiderAuthUid = `e2e-pin-outsider-${randomUUID()}`;
 let memberId: string;
 let roomAId: string;
 let roomBId: string;
@@ -30,13 +31,13 @@ const sourceUrl = `https://www.instagram.com/p/e2e-${randomUUID()}/`;
 
 function api(
   path: string,
-  deviceId: string,
+  authUid: string,
   init: RequestInit = {},
 ): Promise<Response> {
   return fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
-      "X-Device-Id": deviceId,
+      ...authHeaders(authUid),
       "Content-Type": "application/json",
       ...init.headers,
     },
@@ -45,7 +46,7 @@ function api(
 
 beforeAll(async () => {
   ({ app, baseUrl } = await startApp(
-    Test.createTestingModule({ imports: [AppModule] }),
+    withFakeTokenVerifier(Test.createTestingModule({ imports: [AppModule] })),
   ));
   db = app.get(DatabaseService).db;
 
@@ -53,8 +54,8 @@ beforeAll(async () => {
   const seededUsers = await db
     .insert(users)
     .values([
-      { deviceId: memberDevice, nickname: "핀러버" },
-      { deviceId: outsiderDevice, nickname: "외부인" },
+      { authUid: memberAuthUid, nickname: "핀러버" },
+      { authUid: outsiderAuthUid, nickname: "외부인" },
     ])
     .returning({ id: users.id });
   memberId = seededUsers[0]?.id as string;
@@ -126,7 +127,7 @@ afterAll(async () => {
 
 describe("핀 목록 조회", () => {
   it("page/pageSize 미지정 시 전체를 반환하고 pagination이 없다", async () => {
-    const response = await api(`/api/v1/pins?roomId=${roomAId}`, memberDevice);
+    const response = await api(`/api/v1/pins?roomId=${roomAId}`, memberAuthUid);
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
@@ -151,7 +152,7 @@ describe("핀 목록 조회", () => {
   it("페이지네이션을 지정하면 pagination 메타가 함께 온다", async () => {
     const first = await api(
       `/api/v1/pins?roomId=${roomAId}&page=0&pageSize=2`,
-      memberDevice,
+      memberAuthUid,
     );
     const firstBody = (await first.json()) as {
       data: unknown[];
@@ -166,7 +167,7 @@ describe("핀 목록 조회", () => {
 
     const second = await api(
       `/api/v1/pins?roomId=${roomAId}&page=1&pageSize=2`,
-      memberDevice,
+      memberAuthUid,
     );
     const secondBody = (await second.json()) as {
       data: unknown[];
@@ -179,7 +180,7 @@ describe("핀 목록 조회", () => {
   it("방 멤버가 아니면 403", async () => {
     const response = await api(
       `/api/v1/pins?roomId=${roomAId}`,
-      outsiderDevice,
+      outsiderAuthUid,
     );
     expect(response.status).toBe(403);
   });
@@ -187,7 +188,7 @@ describe("핀 목록 조회", () => {
 
 describe("핀 상세 조회", () => {
   it("장소 전체 정보와 출처 링크를 반환한다", async () => {
-    const response = await api(`/api/v1/pins/${firstPinId}`, memberDevice);
+    const response = await api(`/api/v1/pins/${firstPinId}`, memberAuthUid);
 
     expect(response.status).toBe(200);
     const { data } = (await response.json()) as {
@@ -200,12 +201,12 @@ describe("핀 상세 조회", () => {
   });
 
   it("없는 핀은 404", async () => {
-    const response = await api(`/api/v1/pins/${randomUUID()}`, memberDevice);
+    const response = await api(`/api/v1/pins/${randomUUID()}`, memberAuthUid);
     expect(response.status).toBe(404);
   });
 
   it("핀이 속한 방의 멤버가 아니면 403", async () => {
-    const response = await api(`/api/v1/pins/${firstPinId}`, outsiderDevice);
+    const response = await api(`/api/v1/pins/${firstPinId}`, outsiderAuthUid);
     expect(response.status).toBe(403);
   });
 });
@@ -214,14 +215,14 @@ describe("다른 방에 핀 복제", () => {
   it("대상 방에 핀이 복제된다", async () => {
     const response = await api(
       `/api/v1/pins/${firstPinId}/duplicate`,
-      memberDevice,
+      memberAuthUid,
       { method: "POST", body: JSON.stringify({ roomIds: [roomBId] }) },
     );
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ data: { ok: true } });
 
-    const list = await api(`/api/v1/pins?roomId=${roomBId}`, memberDevice);
+    const list = await api(`/api/v1/pins?roomId=${roomBId}`, memberAuthUid);
     const body = (await list.json()) as {
       // biome-ignore lint/suspicious/noExplicitAny: 테스트 응답 검사
       data: Array<Record<string, any>>;
@@ -233,7 +234,7 @@ describe("다른 방에 핀 복제", () => {
   it("대상 방 중 하나라도 같은 장소가 있으면 409로 전체 거절한다", async () => {
     const response = await api(
       `/api/v1/pins/${firstPinId}/duplicate`,
-      memberDevice,
+      memberAuthUid,
       { method: "POST", body: JSON.stringify({ roomIds: [roomBId] }) },
     );
 
@@ -245,7 +246,7 @@ describe("다른 방에 핀 복제", () => {
   it("멤버가 아닌 방으로의 복제는 403", async () => {
     const response = await api(
       `/api/v1/pins/${firstPinId}/duplicate`,
-      memberDevice,
+      memberAuthUid,
       { method: "POST", body: JSON.stringify({ roomIds: [outsiderRoomId] }) },
     );
     expect(response.status).toBe(403);
@@ -257,7 +258,7 @@ describe("핀 접근 기록", () => {
     for (let i = 0; i < 2; i++) {
       const response = await api(
         `/api/v1/pins/${firstPinId}/accesses`,
-        memberDevice,
+        memberAuthUid,
         { method: "POST" },
       );
       expect(response.status).toBe(200);

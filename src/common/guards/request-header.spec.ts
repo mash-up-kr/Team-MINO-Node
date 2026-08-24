@@ -5,23 +5,25 @@ describe("readRequestHeader", () => {
   it("Hono 스타일 header() 함수에서 읽는다", () => {
     const request = {
       header: (name: string) =>
-        name === "x-device-id" ? "device-1" : undefined,
+        name === "authorization" ? "Bearer token-1" : undefined,
     };
-    expect(readRequestHeader(request, "x-device-id")).toBe("device-1");
+    expect(readRequestHeader(request, "authorization")).toBe("Bearer token-1");
   });
 
   it("Headers 인스턴스에서 읽는다", () => {
-    const request = { headers: new Headers({ "x-device-id": "d2" }) };
-    expect(readRequestHeader(request, "x-device-id")).toBe("d2");
+    const request = {
+      headers: new Headers({ authorization: "Bearer token-2" }),
+    };
+    expect(readRequestHeader(request, "authorization")).toBe("Bearer token-2");
   });
 
   it("일반 객체 헤더에서 읽는다", () => {
-    const request = { headers: { "x-device-id": "d3" } };
-    expect(readRequestHeader(request, "x-device-id")).toBe("d3");
+    const request = { headers: { authorization: "Bearer token-3" } };
+    expect(readRequestHeader(request, "authorization")).toBe("Bearer token-3");
   });
 
   it("헤더가 없으면 undefined를 반환한다", () => {
-    expect(readRequestHeader({}, "x-device-id")).toBeUndefined();
-    expect(readRequestHeader({ headers: {} }, "x-device-id")).toBeUndefined();
+    expect(readRequestHeader({}, "authorization")).toBeUndefined();
+    expect(readRequestHeader({ headers: {} }, "authorization")).toBeUndefined();
   });
 });

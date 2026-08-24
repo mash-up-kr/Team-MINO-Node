@@ -2,19 +2,15 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   HttpCode,
   HttpStatus,
   Param,
   Post,
 } from "@nestjs/common";
-import {
-  ApiBody,
-  ApiHeader,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from "@nestjs/swagger";
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
+import type { RequestUser } from "../../common/guards/current-user.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
 import {
   errorResponseApiSchema,
@@ -33,7 +29,6 @@ import type {
   InvitationPreviewResponse,
 } from "./invitation.type";
 
-// TODO: PR #58의 CurrentUserGuard/@CurrentUser 머지 후 x-device-id 직접 읽기를 교체.
 @ApiTags("invitation")
 @Controller("api/v1")
 export class InvitationController {
@@ -48,20 +43,11 @@ export class InvitationController {
       "멤버당 초대 1개다. 이미 발급했다면 같은 code를 돌려준다(재발급·만료 없음). " +
       "클라이언트가 gguk.org/r/{code} 형태로 링크를 조립한다. 개인방은 초대할 수 없다.",
   })
-  @ApiHeader({
-    name: "X-Device-Id",
-    description: "요청 유저 식별용 deviceId (인증 정책 TBD — 임시 계약)",
-    required: true,
-  })
+  @RequireCurrentUser()
   @ApiResponse({
     status: 200,
     description: "초대 코드 (기존 초대가 있으면 같은 값)",
     schema: invitationCodeResponseApiSchema,
-  })
-  @ApiResponse({
-    status: 401,
-    description: "요청 유저 식별 불가 (UNIDENTIFIED_USER)",
-    schema: errorResponseApiSchema,
   })
   @ApiResponse({
     status: 403,
@@ -75,10 +61,10 @@ export class InvitationController {
     schema: errorResponseApiSchema,
   })
   createInvitation(
-    @Headers("x-device-id") deviceId: string | undefined,
+    @CurrentUser() user: RequestUser,
     @Param("roomId", new ValibotPipe(roomIdParamSchema)) roomId: string,
   ): Promise<InvitationCodeResponse> {
-    return this.invitationService.create(deviceId, roomId);
+    return this.invitationService.create(user.id, roomId);
   }
 
   @Get("invitations/:code")
@@ -117,11 +103,7 @@ export class InvitationController {
       "body의 inviteCode가 path의 roomId에 속한 활성 코드인지 검증한다. " +
       "이미 멤버면 오류 대신 멱등 응답을 준다. 나갔던 방에는 다시 합류할 수 있다.",
   })
-  @ApiHeader({
-    name: "X-Device-Id",
-    description: "요청 유저 식별용 deviceId (인증 정책 TBD — 임시 계약)",
-    required: true,
-  })
+  @RequireCurrentUser()
   @ApiBody({ schema: joinRoomRequestApiSchema })
   @ApiResponse({
     status: 200,
@@ -131,11 +113,6 @@ export class InvitationController {
   @ApiResponse({
     status: 400,
     description: "코드가 요청한 방의 것이 아님 (INVALID_INVITE_CODE)",
-    schema: errorResponseApiSchema,
-  })
-  @ApiResponse({
-    status: 401,
-    description: "요청 유저 식별 불가 (UNIDENTIFIED_USER)",
     schema: errorResponseApiSchema,
   })
   @ApiResponse({
@@ -149,11 +126,11 @@ export class InvitationController {
     schema: errorResponseApiSchema,
   })
   async joinRoom(
-    @Headers("x-device-id") deviceId: string | undefined,
+    @CurrentUser() user: RequestUser,
     @Param("roomId", new ValibotPipe(roomIdParamSchema)) roomId: string,
     @Body(new ValibotPipe(joinRoomRequestSchema)) body: JoinRoomRequest,
   ): Promise<{ ok: true }> {
-    await this.invitationService.join(deviceId, roomId, body.inviteCode);
+    await this.invitationService.join(user.id, roomId, body.inviteCode);
     return { ok: true };
   }
 }
