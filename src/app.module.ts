@@ -18,6 +18,7 @@ import { InvitationModule } from "./modules/invitation/invitation.module";
 import { PinModule } from "./modules/pin/pin.module";
 import { PlaceModule } from "./modules/place/place.module";
 import { RoomModule } from "./modules/room/room.module";
+import { UserModule } from "./modules/user/user.module";
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { RoomModule } from "./modules/room/room.module";
     InvitationModule,
     PinModule,
     RoomModule,
+    UserModule,
   ],
   controllers: [HealthController],
   providers: [DrizzleHealthIndicator, DbKeepAliveService],
