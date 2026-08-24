@@ -10,6 +10,8 @@ const REQUIRED_APIS = [
   "storage.googleapis.com",
   "firebase.googleapis.com",
   "firebasehosting.googleapis.com",
+  // Firebase Authentication(익명 인증) ID 토큰 검증에 쓴다.
+  "identitytoolkit.googleapis.com",
 ];
 
 export const enabledServices = REQUIRED_APIS.map(
