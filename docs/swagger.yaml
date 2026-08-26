@@ -647,7 +647,7 @@ paths:
       description: |
         활성 방 멤버만 조회할 수 있다. `page=0`은 최신 코멘트 묶음이며,
         각 페이지 안에서는 오래된 코멘트부터 반환한다. 다음 페이지는 더 오래된 묶음이다.
-        오류 코드는 `400 VALIDATION_ERROR`, `401 UNIDENTIFIED_USER`,
+        오류 코드는 `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`,
         `403 NOT_ROOM_MEMBER`, `404 PIN_NOT_FOUND`다.
       parameters:
         - $ref: "#/components/parameters/Page"
@@ -670,7 +670,7 @@ paths:
         "400":
           $ref: "#/components/responses/CommentValidationError"
         "401":
-          $ref: "#/components/responses/CommentUnidentifiedUser"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/CommentNotRoomMember"
         "404":
@@ -681,7 +681,7 @@ paths:
       description: |
         활성 방 멤버만 작성할 수 있다. 앞뒤 공백을 제거한 본문은 1~200자여야 하며,
         중복 본문은 허용한다. 수정(PATCH)은 MVP 미지원으로 삭제 후 재작성한다.
-        오류 코드는 `400 VALIDATION_ERROR`, `401 UNIDENTIFIED_USER`,
+        오류 코드는 `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`,
         `403 NOT_ROOM_MEMBER`, `404 PIN_NOT_FOUND`다.
       requestBody:
         required: true
@@ -708,7 +708,7 @@ paths:
         "400":
           $ref: "#/components/responses/CommentValidationError"
         "401":
-          $ref: "#/components/responses/CommentUnidentifiedUser"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/CommentNotRoomMember"
         "404":
@@ -721,7 +721,7 @@ paths:
       description: |
         활성 방 멤버 중 **작성자 본인만** 삭제할 수 있다. soft delete로 처리하며,
         이미 삭제됐거나 다른 핀에 속한 코멘트는 `COMMENT_NOT_FOUND`를 반환한다.
-        오류 코드는 `400 VALIDATION_ERROR`, `401 UNIDENTIFIED_USER`,
+        오류 코드는 `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`,
         `403 NOT_ROOM_MEMBER` 또는 `COMMENT_DELETE_FORBIDDEN`,
         `404 PIN_NOT_FOUND` 또는 `COMMENT_NOT_FOUND`다.
       parameters:
@@ -742,7 +742,7 @@ paths:
         "400":
           $ref: "#/components/responses/CommentValidationError"
         "401":
-          $ref: "#/components/responses/CommentUnidentifiedUser"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/CommentDeleteForbidden"
         "404":
@@ -876,12 +876,6 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/CommentValidationError"
-    CommentUnidentifiedUser:
-      description: 유저 식별 실패 (`UNIDENTIFIED_USER`)
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/CommentUnidentifiedUser"
     CommentNotRoomMember:
       description: 활성 방 멤버 아님 (`NOT_ROOM_MEMBER`)
       content:
@@ -945,15 +939,6 @@ components:
         errorCode:
           type: string
           enum: [VALIDATION_ERROR]
-        message:
-          type: string
-    CommentUnidentifiedUser:
-      type: object
-      required: [errorCode, message]
-      properties:
-        errorCode:
-          type: string
-          enum: [UNIDENTIFIED_USER]
         message:
           type: string
     CommentNotRoomMember:
