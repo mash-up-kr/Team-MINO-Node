@@ -92,9 +92,9 @@ docker compose up -d postgres
 http://localhost:3000/api-docs
 ```
 
-## Local Place Extraction
+## Local Pin Extraction
 
-로컬에서 enqueue 요청과 Internal endpoint의 최종 `places` 저장까지 하나의 서버에서 확인하는 흐름입니다.
+로컬에서 방 핀 enqueue 요청과 Internal endpoint의 최종 `places`·`pins` 저장까지 하나의 서버에서 확인하는 흐름입니다.
 
 1. 서버를 한 번만 실행합니다.
 
@@ -105,7 +105,8 @@ bun run start:local
 2. API 호출로 추출을 enqueue합니다.
 
 ```http
-POST http://localhost:3000/api/v1/place/places
+POST http://localhost:3000/api/v1/rooms/{roomId}/pins
+X-Device-Id: {deviceId}
 Content-Type: application/json
 
 {
@@ -118,18 +119,21 @@ Content-Type: application/json
 3. 같은 서버의 Internal endpoint를 직접 실행합니다.
 
 ```http
-POST http://localhost:3000/internal/tasks/pin-extraction
+POST http://localhost:3000/api-internal/v1/tasks/pins
 
 Content-Type: application/json
 
 {
+  "roomId": "{roomId}",
+  "sourceId": "{sourceId}",
+  "createdBy": "{userId}",
   "url": "https://www.instagram.com/p/{shortcode}/"
 }
 ```
 
 `start:local`의 local 모드에서만 OIDC guard가 우회됩니다. 운영에서는 기존 API Cloud Run 서비스에 Cloud Tasks OIDC 토큰이 필요합니다.
 
-Internal endpoint가 추출한 최종 후보는 `places` 테이블에 저장됩니다. 클라이언트용 job ID나 polling API는 제공하지 않습니다.
+Internal endpoint가 추출한 최종 후보는 `places`, `place_sources`, `pins` 테이블에 저장됩니다. 클라이언트용 job ID나 polling API는 제공하지 않습니다.
 
 ## Database
 

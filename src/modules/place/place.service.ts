@@ -70,9 +70,18 @@ Respond in the same language as the source content (use Korean when the content 
 
     return queries.map((query, index) => {
       const result = settled[index];
-      const matches =
-        result.status === "fulfilled" ? this.rankCandidates(result.value) : [];
-      return { extracted: this.toExtractedPlace(query), matches };
+      if (result.status === "fulfilled") {
+        return {
+          extracted: this.toExtractedPlace(query),
+          matches: this.rankCandidates(result.value),
+          geocoding: { status: "fulfilled" as const },
+        };
+      }
+      return {
+        extracted: this.toExtractedPlace(query),
+        matches: [],
+        geocoding: { status: "rejected" as const, reason: result.reason },
+      };
     });
   }
 

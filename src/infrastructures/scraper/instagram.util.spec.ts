@@ -65,18 +65,21 @@ describe("extractInstagramShortcode", () => {
       extractInstagramShortcode(url);
       throw new Error("should have thrown");
     } catch (error) {
-      expect(error).toBeInstanceOf(AppException);
+      if (!(error instanceof AppException)) throw error;
       expect(error).toMatchObject({ errorCode: "INVALID_INSTAGRAM_URL" });
-      expect((error as AppException).getStatus()).toBe(400);
+      expect(error.getStatus()).toBe(400);
     }
   });
 
   it("파싱 도중 네트워크 호출(fetch)을 하지 않는다", () => {
     let fetchCalls = 0;
-    globalThis.fetch = (async () => {
-      fetchCalls += 1;
-      return new Response("");
-    }) as unknown as typeof fetch;
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: async (_input: RequestInfo | URL, _init?: RequestInit) => {
+        fetchCalls += 1;
+        return new Response("");
+      },
+    });
 
     extractInstagramShortcode("https://www.instagram.com/p/abc123/");
     try {

@@ -1,6 +1,7 @@
 import { CloudTasksClient } from "@google-cloud/tasks";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import type { PinExtractionTask } from "../../common/tasks/pin-extraction-task.dto";
 import type { Env } from "../../config/env.schema";
 
 /* Cloud Tasks가 Internal endpoint 응답을 기다리는 최대 시간입니다. */
@@ -50,7 +51,7 @@ export class TasksService {
   }
 
   /** API 서버가 맡는 유일한 비동기 작업 책임입니다. */
-  async enqueuePlaceExtraction(url: string): Promise<void> {
+  async enqueuePinExtraction(payload: PinExtractionTask): Promise<void> {
     if (this.isLocalMode) return;
 
     await this.client.createTask({
@@ -59,9 +60,9 @@ export class TasksService {
         dispatchDeadline: { seconds: TASK_DISPATCH_DEADLINE_SECONDS },
         httpRequest: {
           httpMethod: "POST",
-          url: `${this.targetBaseUrl}/internal/tasks/pin-extraction`,
+          url: `${this.targetBaseUrl}/api-internal/v1/tasks/pins`,
           headers: { "Content-Type": "application/json" },
-          body: Buffer.from(JSON.stringify({ url })),
+          body: Buffer.from(JSON.stringify(payload)),
           oidcToken: this.oidcToken,
         },
       },

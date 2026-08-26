@@ -92,14 +92,19 @@ export class KakaoProvider implements GeocoderProvider {
         "KAKAO_RATE_LIMITED",
         "카카오 장소 검색 요청 한도를 초과했습니다.",
         HttpStatus.TOO_MANY_REQUESTS,
+        // 순간적인 초당 제한일 수 있으므로 Cloud Tasks가 backoff 후 재시도하도록 한다.
+        { retryable: true },
       );
     }
 
     if (!response.ok) {
       throw new AppException(
         "KAKAO_REQUEST_FAILED",
-        "카카오 장소 검색 요청에 실패했습니다.",
+        `카카오 장소 검색 요청에 실패했습니다. (status: ${response.status})`,
         HttpStatus.BAD_GATEWAY,
+        // 우리 쪽 응답은 항상 502로 통일하지만, 카카오가 준 실제 status가 4xx(요청/설정
+        // 문제 등 영구 실패)면 재시도해도 소용없으므로 retryable을 명시적으로 false로 둔다.
+        { retryable: response.status >= 500 },
       );
     }
 
@@ -230,6 +235,8 @@ export class KakaoProvider implements GeocoderProvider {
       "KAKAO_RESPONSE_INVALID",
       "카카오 장소 검색 응답 형식이 올바르지 않습니다.",
       HttpStatus.BAD_GATEWAY,
+      // 같은 요청은 재시도해도 같은 파싱 오류를 반복할 뿐이라 영구 실패로 취급한다.
+      { retryable: false },
     );
   }
 }
