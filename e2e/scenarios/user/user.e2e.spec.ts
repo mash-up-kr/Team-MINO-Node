@@ -169,7 +169,7 @@ describe("PUT /users/me/push-token", () => {
   it("토큰을 등록한다", async () => {
     const uid = `e2e-user-push-a-${randomUUID()}`;
     const registered = await register(uid, {
-      nickname: "A",
+      nickname: "에이",
       avatar: { id: 1 },
     });
     const { data } = (await registered.json()) as { data: { id: string } };
@@ -192,14 +192,14 @@ describe("PUT /users/me/push-token", () => {
     const uidA = `e2e-user-push-b1-${randomUUID()}`;
     const uidB = `e2e-user-push-b2-${randomUUID()}`;
     const registeredA = await register(uidA, {
-      nickname: "B1",
+      nickname: "비원",
       avatar: { id: 1 },
     });
     const { data: userA } = (await registeredA.json()) as {
       data: { id: string };
     };
     const registeredB = await register(uidB, {
-      nickname: "B2",
+      nickname: "비투",
       avatar: { id: 1 },
     });
     const { data: userB } = (await registeredB.json()) as {
