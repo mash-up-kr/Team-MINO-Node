@@ -124,7 +124,7 @@ Figma **새 보드**(node `1512:70762`)의 섹션 번호 [000]~[007]을 기준�
 - **개인방 자동 생성은 `POST /users` 등록 흐름 안에서 함께 처리한다.** (PR 리뷰 확정) 등록 응답에 개인방 정보를 포함할지는 상세 PR에서 정한다.
 - 개인방(`rooms.type = personal`, 표시명 "내 방")의 **색상은 프디팀이 추후 결정한다**(`rooms.color`가 notNull이므로 임시로 랜덤 부여 후 수정 가능하게 하는 안이 제안됨). (→ [미결 6](#7-미결-사항-open-questions))
 - 공동방 생성 시 생성자가 `rooms.owner_id`가 된다. 초대 코드는 방 생성과 분리돼 `invitations`가 관리한다.
-- 프로필은 제공 아바타 선택 방식으로, 아바타 객체(`{ id }`, 추후 url·color 등 확장)를 `users.avatar`(jsonb)에 통째 보관한다. 별도 이미지 업로드는 없다.
+- 프로필은 제공 아바타 선택 방식으로, 아바타 객체(`{ color }` 색상 키, 추후 필드 확장)를 `users.avatar`(jsonb)에 통째 보관한다. 실제 색 매핑은 클라이언트 담당이며 별도 이미지 업로드는 없다.
 - 알림 권한 허용 시 푸시 토큰을 등록받아야 한다. ([000] 결과 알림의 전제)
 
 ### [002] 홈 탭 (카드 덱 탐색)
@@ -301,7 +301,7 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 
 | 테이블 | 역할 | 비고 |
 |---|---|---|
-| `users` | device_id 기반 사용자 | 닉네임(varchar 15)·아바타 객체(`avatar` jsonb, `{id}`+확장 필드). `device_id`는 살아있는 행끼리만 유니크 |
+| `users` | device_id 기반 사용자 | 닉네임(varchar 15)·아바타 객체(`avatar` jsonb, `{color}`+확장 필드). `device_id`는 살아있는 행끼리만 유니크 |
 | `rooms` | 방 | `type`: `personal` / `shared`, **`owner_id`(방장)**, 이름(`varchar(20)` — 정책상 최대 15자)·설명(정책 20자)·색상(hex 7자). 초대 코드는 `invitations`로 분리됐다 |
 | `room_members` | 방 멤버십 | `(room_id, user_id)` 활성 유니크. `deleted_at` = **방을 나간 시점** |
 | `invitations` | 초대 링크 | 방 참조 + **초대자 참조(`invited_by`)**, `code`(대문자 영문 + 숫자 **6자 고정**, 유니크). `(room_id, invited_by)` 유니크 = **멤버당 초대 1개** |
