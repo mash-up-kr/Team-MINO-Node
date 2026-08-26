@@ -127,6 +127,12 @@ const roomSummarySchema: SchemaObject = {
     ...roomSchema.properties,
     pinCount: { type: "integer" },
     memberCount: { type: "integer" },
+    thumbnailList: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "최근 핀 최대 4개의 장소 대표 이미지 URL(최신순). 저장된 핀이 없으면 방장 아바타 색상 키 1개.",
+    },
     hasPlace: {
       type: "boolean",
       nullable: true,

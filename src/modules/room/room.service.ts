@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { AppException } from "../../common/exceptions/app.exception";
+import { ROOM_THUMBNAIL_COUNT } from "./room.constant";
 import type {
   CreateRoomRequest,
   ListRoomsQuery,
@@ -61,13 +62,31 @@ export class RoomService {
         )
       : undefined;
 
-    return joinedRooms.map((room) => ({
-      ...room,
-      ...(roomIdsWithPlace && { hasPlace: roomIdsWithPlace.has(room.id) }),
-      ...(membersByRoom && {
-        users: (membersByRoom.get(room.id) ?? []).map(toMemberResponse),
-      }),
-    }));
+    const pinImagesByRoom = Map.groupBy(
+      await this.roomRepository.listRecentPinImages(
+        roomIds,
+        ROOM_THUMBNAIL_COUNT,
+      ),
+      (row) => row.roomId,
+    );
+
+    return joinedRooms.map(({ ownerAvatar, ...room }) => {
+      const pinImages = pinImagesByRoom.get(room.id);
+      return {
+        ...room,
+        // 핀이 없으면 방장 아바타 색상 키로 폴백. 아바타는 등록 필수라
+        // null은 사실상 없지만, 방어적으로 빈 목록을 내린다.
+        thumbnailList: pinImages?.length
+          ? pinImages.map((image) => image.imageUrl)
+          : ownerAvatar
+            ? [ownerAvatar.color]
+            : [],
+        ...(roomIdsWithPlace && { hasPlace: roomIdsWithPlace.has(room.id) }),
+        ...(membersByRoom && {
+          users: (membersByRoom.get(room.id) ?? []).map(toMemberResponse),
+        }),
+      };
+    });
   }
 
   async getRoomDetail(

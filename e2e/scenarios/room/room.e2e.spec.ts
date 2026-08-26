@@ -4,6 +4,8 @@ import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { AppModule } from "../../../src/app.module";
 import { DatabaseService } from "../../../src/infrastructures/db/database.service";
+import { pins } from "../../../src/modules/pin/pin.schema";
+import { places } from "../../../src/modules/place/place.schema";
 import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { users } from "../../../src/modules/user/user.schema";
@@ -45,8 +47,8 @@ beforeAll(async () => {
   const seeded = await db
     .insert(users)
     .values([
-      { authUid: ownerAuthUid, nickname: "방장" },
-      { authUid: memberAuthUid, nickname: "멤버" },
+      { authUid: ownerAuthUid, nickname: "방장", avatar: { color: "red" } },
+      { authUid: memberAuthUid, nickname: "멤버", avatar: { color: "blue" } },
     ])
     .returning({ id: users.id });
   ownerId = seeded[0]?.id as string;
@@ -116,6 +118,8 @@ describe("공동방 생성·조회", () => {
     expect(shared?.memberCount).toBe(1);
     expect(shared?.pinCount).toBe(0);
     expect((shared?.users as unknown[]).length).toBe(1);
+    // 핀이 없는 방은 방장 아바타 색상 키로 폴백
+    expect(shared?.thumbnailList).toEqual(["red"]);
   });
 
   it("멤버가 아닌 유저의 방 상세 조회는 403", async () => {
@@ -234,5 +238,59 @@ describe("개인방 제약", () => {
     expect(response.status).toBe(403);
     const body = (await response.json()) as { errorCode: string };
     expect(body.errorCode).toBe("PERSONAL_ROOM_NOT_ALLOWED");
+  });
+});
+
+describe("방 목록 썸네일", () => {
+  it("최근 핀의 장소 이미지 최대 4개를 최신순으로 내린다", async () => {
+    const [thumbRoom] = await db
+      .insert(rooms)
+      .values({ ownerId, type: "shared", name: "썸네일 방", color: "navy" })
+      .returning({ id: rooms.id });
+    const thumbRoomId = thumbRoom?.id as string;
+    await db
+      .insert(roomMembers)
+      .values({ roomId: thumbRoomId, userId: ownerId });
+
+    // 이미지 있는 장소 5개 + 없는 장소 1개
+    const seededPlaces = await db
+      .insert(places)
+      .values(
+        [1, 2, 3, 4, 5, 6].map((n) => ({
+          provider: "kakao" as const,
+          providerPlaceId: `e2e-thumb-${randomUUID()}`,
+          name: `썸네일 장소 ${n}`,
+          address: "서울 성동구 상원4길 10",
+          lat: 37.5445 + n * 0.001,
+          lng: 127.0559,
+          images: n <= 5 ? [`https://img.example.com/thumb-${n}.jpg`] : null,
+        })),
+      )
+      .returning({ id: places.id });
+
+    // createdAt을 명시해 저장 순서를 고정한다 — 6번(이미지 없음)이 가장 최신
+    const base = Date.parse("2026-01-01T00:00:00Z");
+    await db.insert(pins).values(
+      seededPlaces.map((place, index) => ({
+        roomId: thumbRoomId,
+        placeId: place.id,
+        createdBy: ownerId,
+        createdAt: new Date(base + (index + 1) * 60_000),
+      })),
+    );
+
+    const response = await api("/api/v1/rooms", ownerAuthUid);
+    expect(response.status).toBe(200);
+    const { data } = (await response.json()) as {
+      data: Array<Record<string, unknown>>;
+    };
+    const room = data.find((entry) => entry.id === thumbRoomId);
+    // 이미지 없는 최신 핀(6번)은 건너뛰고, 이미지 있는 핀 중 최신 4개
+    expect(room?.thumbnailList).toEqual([
+      "https://img.example.com/thumb-5.jpg",
+      "https://img.example.com/thumb-4.jpg",
+      "https://img.example.com/thumb-3.jpg",
+      "https://img.example.com/thumb-2.jpg",
+    ]);
   });
 });

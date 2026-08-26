@@ -1,15 +1,17 @@
 import { Injectable } from "@nestjs/common";
-import { and, desc, eq, exists, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, exists, inArray, isNull, lte, sql } from "drizzle-orm";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
 import { pins } from "../pin/pin.schema";
+import { places } from "../place/place.schema";
 import { users } from "../user/user.schema";
 import { rooms } from "./room.schema";
 import type {
   CreateSharedRoomInput,
+  JoinedRoomRow,
   MemberWithRoomRow,
   RoomForUserRow,
+  RoomPinImageRow,
   RoomRow,
-  RoomWithCountsRow,
   UpdateRoomInput,
 } from "./room.type";
 import { roomMembers } from "./room-member.schema";
@@ -124,22 +126,58 @@ export class RoomRepository extends BaseRepository {
    * 유저가 속한 활성 방 목록 — 핀 수·멤버 수를 서브쿼리로 함께 조회한다.
    * 정렬은 기획 미확정이라 생성 역순 잠정.
    */
-  async listJoinedRoomsWithCounts(
-    userId: string,
-  ): Promise<RoomWithCountsRow[]> {
+  async listJoinedRoomsWithCounts(userId: string): Promise<JoinedRoomRow[]> {
     return await this.db
       .select({
         ...ROOM_COLUMNS,
         pinCount: this.pinCount,
         memberCount: this.memberCount,
+        ownerAvatar: users.avatar,
       })
       .from(roomMembers)
       .innerJoin(
         rooms,
         and(eq(roomMembers.roomId, rooms.id), isNull(rooms.deletedAt)),
       )
+      .innerJoin(users, eq(rooms.ownerId, users.id))
       .where(and(eq(roomMembers.userId, userId), isNull(roomMembers.deletedAt)))
       .orderBy(desc(rooms.createdAt));
+  }
+
+  /**
+   * 방별 최근 핀의 장소 대표 이미지(images[0]) — 방 목록 썸네일용.
+   * 대표 이미지가 있는 핀만 방마다 최신순 최대 limitPerRoom개로 자른다.
+   * window 함수 안의 raw sql 컬럼은 비정규화로 렌더링돼 조인(places)과
+   * 모호해지므로, 정규화 식별자를 직접 쓴다.
+   */
+  async listRecentPinImages(
+    roomIds: string[],
+    limitPerRoom: number,
+  ): Promise<RoomPinImageRow[]> {
+    const ranked = this.db
+      .select({
+        roomId: pins.roomId,
+        imageUrl: sql<string>`${places.images} ->> 0`.as("image_url"),
+        rank: sql<number>`row_number() over (partition by "pins"."room_id" order by "pins"."created_at" desc, "pins"."id" desc)`.as(
+          "rank",
+        ),
+      })
+      .from(pins)
+      .innerJoin(places, eq(pins.placeId, places.id))
+      .where(
+        and(
+          inArray(pins.roomId, roomIds),
+          isNull(pins.deletedAt),
+          sql`${places.images} ->> 0 is not null`,
+        ),
+      )
+      .as("ranked");
+
+    return await this.db
+      .select({ roomId: ranked.roomId, imageUrl: ranked.imageUrl })
+      .from(ranked)
+      .where(lte(ranked.rank, limitPerRoom))
+      .orderBy(ranked.roomId, ranked.rank);
   }
 
   /** 지정 장소가 이미 저장된 방 id 목록 — "다른 방에 공유" 화면용. */
