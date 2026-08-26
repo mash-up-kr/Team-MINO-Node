@@ -25,7 +25,7 @@ new gcp.projects.IAMMember(`${prefix}-server-vertex-user`, {
 
 new gcp.projects.IAMMember(`${prefix}-server-fcm`, {
   project,
-  role: "roles/firebasemessaging.admin",
+  role: "roles/firebasecloudmessaging.admin",
   member: pulumi.interpolate`serviceAccount:${serverServiceAccount.email}`,
 });
 
@@ -66,7 +66,7 @@ const developerGroupRoles: Record<string, string> = {
   // Gemini(Vertex AI) 호출을 로컬 개인 ADC로 직접 테스트할 수 있게.
   "vertex-user": "roles/aiplatform.user",
   // FCM 발송을 로컬 개인 ADC로 직접 테스트할 수 있게.
-  fcm: "roles/firebasemessaging.admin",
+  fcm: "roles/firebasecloudmessaging.admin",
 };
 for (const [key, role] of Object.entries(developerGroupRoles)) {
   new gcp.projects.IAMMember(`developers-group-${key}`, {
