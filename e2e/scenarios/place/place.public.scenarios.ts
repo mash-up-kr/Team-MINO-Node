@@ -34,10 +34,10 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
   });
 
   it("tracking query와 HTTP 입력은 하나의 normalized source와 task URL을 공유한다", async () => {
-    const first = await harness.postPin(harness.memberDeviceId, {
+    const first = await harness.postPin(harness.memberAuthUid, {
       url: "http://m.instagram.com/p/e2e-pin/?utm_source=test#fragment",
     });
-    const second = await harness.postPin(harness.memberDeviceId, {
+    const second = await harness.postPin(harness.memberAuthUid, {
       url: "https://instagram.com/p/e2e-pin/?igsh=another",
     });
 
@@ -62,7 +62,7 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
   });
 
   it("잘못된 URL은 400이고 enqueue하지 않는다", async () => {
-    const response = await harness.postPin(harness.memberDeviceId, {
+    const response = await harness.postPin(harness.memberAuthUid, {
       url: "not-a-url",
     });
 
@@ -80,7 +80,7 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
     ];
 
     for (const url of invalidUrls) {
-      const response = await harness.postPin(harness.memberDeviceId, { url });
+      const response = await harness.postPin(harness.memberAuthUid, { url });
       expect(response.status).toBe(400);
     }
     expect(harness.enqueuePinExtraction).not.toHaveBeenCalled();

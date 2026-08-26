@@ -7,27 +7,28 @@ import { DatabaseService } from "../../../src/infrastructures/db/database.servic
 import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { users } from "../../../src/modules/user/user.schema";
+import { authHeaders, withFakeTokenVerifier } from "../../auth";
 import { startApp } from "../../start-app";
 
 let app: INestApplication;
 let baseUrl: string;
 let db: DatabaseService["db"];
 
-const ownerDevice = `e2e-room-owner-${randomUUID()}`;
-const memberDevice = `e2e-room-member-${randomUUID()}`;
+const ownerAuthUid = `e2e-room-owner-${randomUUID()}`;
+const memberAuthUid = `e2e-room-member-${randomUUID()}`;
 let ownerId: string;
 let memberId: string;
 let personalRoomId: string;
 
 function api(
   path: string,
-  deviceId: string,
+  authUid: string,
   init: RequestInit = {},
 ): Promise<Response> {
   return fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
-      "X-Device-Id": deviceId,
+      ...authHeaders(authUid),
       "Content-Type": "application/json",
       ...init.headers,
     },
@@ -36,7 +37,7 @@ function api(
 
 beforeAll(async () => {
   ({ app, baseUrl } = await startApp(
-    Test.createTestingModule({ imports: [AppModule] }),
+    withFakeTokenVerifier(Test.createTestingModule({ imports: [AppModule] })),
   ));
   db = app.get(DatabaseService).db;
 
@@ -44,8 +45,8 @@ beforeAll(async () => {
   const seeded = await db
     .insert(users)
     .values([
-      { deviceId: ownerDevice, nickname: "방장" },
-      { deviceId: memberDevice, nickname: "멤버" },
+      { authUid: ownerAuthUid, nickname: "방장" },
+      { authUid: memberAuthUid, nickname: "멤버" },
     ])
     .returning({ id: users.id });
   ownerId = seeded[0]?.id as string;
@@ -75,7 +76,7 @@ describe("공동방 생성·조회", () => {
   let sharedRoomId: string;
 
   it("공동방을 생성하면 생성자가 방장이 된다", async () => {
-    const response = await api("/api/v1/rooms", ownerDevice, {
+    const response = await api("/api/v1/rooms", ownerAuthUid, {
       method: "POST",
       body: JSON.stringify({
         name: "  맛집 탐방  ",
@@ -95,7 +96,7 @@ describe("공동방 생성·조회", () => {
   });
 
   it("방 이름 15자 초과는 400", async () => {
-    const response = await api("/api/v1/rooms", ownerDevice, {
+    const response = await api("/api/v1/rooms", ownerAuthUid, {
       method: "POST",
       body: JSON.stringify({ name: "가".repeat(16), color: "coral" }),
     });
@@ -103,7 +104,7 @@ describe("공동방 생성·조회", () => {
   });
 
   it("내가 속한 방 목록에 개인방과 공동방이 함께 온다", async () => {
-    const response = await api("/api/v1/rooms?showUsers=true", ownerDevice);
+    const response = await api("/api/v1/rooms?showUsers=true", ownerAuthUid);
 
     expect(response.status).toBe(200);
     const { data } = (await response.json()) as {
@@ -118,7 +119,7 @@ describe("공동방 생성·조회", () => {
   });
 
   it("멤버가 아닌 유저의 방 상세 조회는 403", async () => {
-    const response = await api(`/api/v1/rooms/${sharedRoomId}`, memberDevice);
+    const response = await api(`/api/v1/rooms/${sharedRoomId}`, memberAuthUid);
     expect(response.status).toBe(403);
   });
 
@@ -127,7 +128,7 @@ describe("공동방 생성·조회", () => {
       .insert(roomMembers)
       .values({ roomId: sharedRoomId, userId: memberId });
 
-    const response = await api(`/api/v1/rooms/${sharedRoomId}`, memberDevice, {
+    const response = await api(`/api/v1/rooms/${sharedRoomId}`, memberAuthUid, {
       method: "PATCH",
       body: JSON.stringify({ name: "바꿔버리기" }),
     });
@@ -137,7 +138,7 @@ describe("공동방 생성·조회", () => {
   });
 
   it("방장은 이름·설명·색상을 수정할 수 있다", async () => {
-    const response = await api(`/api/v1/rooms/${sharedRoomId}`, ownerDevice, {
+    const response = await api(`/api/v1/rooms/${sharedRoomId}`, ownerAuthUid, {
       method: "PATCH",
       body: JSON.stringify({ name: "새 이름", color: "navy" }),
     });
@@ -153,7 +154,7 @@ describe("공동방 생성·조회", () => {
   it("방 멤버 목록에 방장 여부가 표시된다", async () => {
     const response = await api(
       `/api/v1/rooms/${sharedRoomId}/members`,
-      memberDevice,
+      memberAuthUid,
     );
 
     expect(response.status).toBe(200);
@@ -168,7 +169,7 @@ describe("공동방 생성·조회", () => {
   it("다른 멤버가 있는 방의 방장 나가기는 409", async () => {
     const response = await api(
       `/api/v1/rooms/${sharedRoomId}/members/me`,
-      ownerDevice,
+      ownerAuthUid,
       { method: "DELETE" },
     );
 
@@ -180,7 +181,7 @@ describe("공동방 생성·조회", () => {
   it("활성 멤버가 아닌 대상으로의 위임은 400", async () => {
     const response = await api(
       `/api/v1/rooms/${sharedRoomId}/owner`,
-      ownerDevice,
+      ownerAuthUid,
       { method: "PUT", body: JSON.stringify({ nextOwnerId: randomUUID() }) },
     );
     expect(response.status).toBe(400);
@@ -189,7 +190,7 @@ describe("공동방 생성·조회", () => {
   it("위임 후에는 방장이 나갈 수 있다", async () => {
     const transfer = await api(
       `/api/v1/rooms/${sharedRoomId}/owner`,
-      ownerDevice,
+      ownerAuthUid,
       { method: "PUT", body: JSON.stringify({ nextOwnerId: memberId }) },
     );
     expect(transfer.status).toBe(200);
@@ -197,12 +198,12 @@ describe("공동방 생성·조회", () => {
 
     const leave = await api(
       `/api/v1/rooms/${sharedRoomId}/members/me`,
-      ownerDevice,
+      ownerAuthUid,
       { method: "DELETE" },
     );
     expect(leave.status).toBe(200);
 
-    const list = await api("/api/v1/rooms", ownerDevice);
+    const list = await api("/api/v1/rooms", ownerAuthUid);
     const { data } = (await list.json()) as {
       data: Array<{ id: string }>;
     };
@@ -212,12 +213,12 @@ describe("공동방 생성·조회", () => {
   it("마지막 멤버(새 방장)가 나가면 방이 삭제된다", async () => {
     const leave = await api(
       `/api/v1/rooms/${sharedRoomId}/members/me`,
-      memberDevice,
+      memberAuthUid,
       { method: "DELETE" },
     );
     expect(leave.status).toBe(200);
 
-    const detail = await api(`/api/v1/rooms/${sharedRoomId}`, memberDevice);
+    const detail = await api(`/api/v1/rooms/${sharedRoomId}`, memberAuthUid);
     expect(detail.status).toBe(404);
   });
 });
@@ -226,7 +227,7 @@ describe("개인방 제약", () => {
   it("개인방 나가기는 403", async () => {
     const response = await api(
       `/api/v1/rooms/${personalRoomId}/members/me`,
-      ownerDevice,
+      ownerAuthUid,
       { method: "DELETE" },
     );
 

@@ -20,6 +20,7 @@ import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { sources } from "../../../src/modules/source/source.schema";
 import { users } from "../../../src/modules/user/user.schema";
+import { authHeaders, withFakeTokenVerifier } from "../../auth";
 import { startApp } from "../../start-app";
 
 export const POST_URL = "https://www.instagram.com/p/e2e-pin/";
@@ -70,43 +71,47 @@ export class PlaceE2eHarness {
   private app: INestApplication | undefined;
   private database: DatabaseService["db"] | undefined;
   private baseUrl = "";
-  private memberDevice = "";
-  private outsiderDevice = "";
+  private _memberAuthUid = "";
+  private outsiderAuthUid = "";
   private memberId = "";
   private roomId = "";
   private capturedTask: PinExtractionTask | undefined;
 
   async setup(): Promise<void> {
     const started = await startApp(
-      Test.createTestingModule({ imports: [AppModule] })
-        .overrideProvider(TasksService)
-        .useValue({ enqueuePinExtraction: this.enqueuePinExtraction })
-        .overrideProvider(ScraperService)
-        .useValue(this.instagram)
-        .overrideProvider(AiService)
-        .useValue(this.ai)
-        .overrideProvider(GEOCODER_PROVIDERS)
-        .useValue([this.geocoder])
-        .overrideGuard(CloudTasksGuard)
-        .useValue({
-          canActivate: (ctx: {
-            switchToHttp: () => {
-              getRequest: () => { headers: Record<string, string | undefined> };
-            };
-          }) => {
-            if (
-              ctx.switchToHttp().getRequest().headers["x-test-authorized"] ===
-              "yes"
-            ) {
-              return true;
-            }
-            throw new UnauthorizedException("missing OIDC token");
-          },
-        })
-        .overrideProvider(PlaceImageService)
-        .useValue(this.placeImage)
-        .overrideProvider(SentryErrorReporter)
-        .useValue({ report: () => undefined }),
+      withFakeTokenVerifier(
+        Test.createTestingModule({ imports: [AppModule] })
+          .overrideProvider(TasksService)
+          .useValue({ enqueuePinExtraction: this.enqueuePinExtraction })
+          .overrideProvider(ScraperService)
+          .useValue(this.instagram)
+          .overrideProvider(AiService)
+          .useValue(this.ai)
+          .overrideProvider(GEOCODER_PROVIDERS)
+          .useValue([this.geocoder])
+          .overrideGuard(CloudTasksGuard)
+          .useValue({
+            canActivate: (ctx: {
+              switchToHttp: () => {
+                getRequest: () => {
+                  headers: Record<string, string | undefined>;
+                };
+              };
+            }) => {
+              if (
+                ctx.switchToHttp().getRequest().headers["x-test-authorized"] ===
+                "yes"
+              ) {
+                return true;
+              }
+              throw new UnauthorizedException("missing OIDC token");
+            },
+          })
+          .overrideProvider(PlaceImageService)
+          .useValue(this.placeImage)
+          .overrideProvider(SentryErrorReporter)
+          .useValue({ report: () => undefined }),
+      ),
     );
     this.app = started.app;
     this.baseUrl = started.baseUrl;
@@ -114,8 +119,8 @@ export class PlaceE2eHarness {
   }
 
   async reset(): Promise<void> {
-    this.memberDevice = `e2e-pin-member-${randomUUID()}`;
-    this.outsiderDevice = `e2e-pin-outsider-${randomUUID()}`;
+    this._memberAuthUid = `e2e-pin-member-${randomUUID()}`;
+    this.outsiderAuthUid = `e2e-pin-outsider-${randomUUID()}`;
     this.capturedTask = undefined;
     this.enqueuePinExtraction.mockReset();
     this.enqueuePinExtraction.mockImplementation(
@@ -154,8 +159,8 @@ export class PlaceE2eHarness {
     const [member, outsider] = await this.db
       .insert(users)
       .values([
-        { deviceId: this.memberDevice, nickname: "핀러버" },
-        { deviceId: this.outsiderDevice, nickname: "외부인" },
+        { authUid: this._memberAuthUid, nickname: "핀러버" },
+        { authUid: this.outsiderAuthUid, nickname: "외부인" },
       ])
       .returning({ id: users.id });
     this.memberId = member?.id ?? "";
@@ -199,8 +204,8 @@ export class PlaceE2eHarness {
     return this.memberId;
   }
 
-  get memberDeviceId(): string {
-    return this.memberDevice;
+  get memberAuthUid(): string {
+    return this._memberAuthUid;
   }
 
   get room(): string {
@@ -208,14 +213,14 @@ export class PlaceE2eHarness {
   }
 
   get outsider(): string {
-    return this.outsiderDevice;
+    return this.outsiderAuthUid;
   }
 
   async postPin(
-    deviceId = this.memberDevice,
+    authUid = this._memberAuthUid,
     body: unknown = { url: POST_URL },
   ): Promise<Response> {
-    return this.api(`/api/v1/rooms/${this.roomId}/pins`, deviceId, {
+    return this.api(`/api/v1/rooms/${this.roomId}/pins`, authUid, {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -246,11 +251,11 @@ export class PlaceE2eHarness {
     });
   }
 
-  private api(path: string, deviceId: string, init: RequestInit = {}) {
+  private api(path: string, authUid: string, init: RequestInit = {}) {
     return fetch(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
-        "X-Device-Id": deviceId,
+        ...authHeaders(authUid),
         "Content-Type": "application/json",
         ...init.headers,
       },
