@@ -10,6 +10,7 @@ import {
   ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common";
+import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import * as v from "valibot";
 import { AppException } from "../../common/exceptions/app.exception";
 import { CloudTasksGuard } from "../../common/guards/cloud-tasks.guard";
@@ -38,6 +39,7 @@ export const PLACE_EXTRACTOR = Symbol("PLACE_EXTRACTOR");
 export const PLACE_RESULT_STORE = Symbol("PLACE_RESULT_STORE");
 
 /** Cloud Tasks 전용 장소 추출 worker. 모든 영구 실패는 204로 소비한다. */
+@ApiTags("Internal")
 @Controller("api-internal/v1/tasks")
 @UseGuards(CloudTasksGuard)
 export class PlaceWorkerController {
@@ -51,6 +53,10 @@ export class PlaceWorkerController {
   ) {}
 
   @Post("pins")
+  @ApiOperation({
+    summary: "Cloud Tasks 전용 내부 작업 처리 API",
+    description: "클라이언트에서 직접 호출하지 않음",
+  })
   @HttpCode(HttpStatus.NO_CONTENT)
   async process(@Body() rawBody: unknown): Promise<void> {
     const parsed = v.safeParse(pinExtractionTaskSchema, rawBody);
