@@ -12,12 +12,12 @@ import {
   type RegisterUserRequest,
   registerUserRequestApiSchema,
   registerUserRequestSchema,
-  type UpdatePushTokenRequest,
-  updatePushTokenRequestApiSchema,
-  updatePushTokenRequestSchema,
   type UpdateProfileRequest,
+  type UpdatePushTokenRequest,
   updateProfileRequestApiSchema,
   updateProfileRequestSchema,
+  updatePushTokenRequestApiSchema,
+  updatePushTokenRequestSchema,
   userResponseApiSchema,
 } from "./user.dto";
 import { UserService } from "./user.service";
