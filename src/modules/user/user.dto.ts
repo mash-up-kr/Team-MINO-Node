@@ -20,7 +20,6 @@ export const avatarSchema = v.object({
 });
 
 export const registerUserRequestSchema = v.object({
-  deviceId: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(255)),
   nickname: nicknameSchema,
   // 닉네임·프로필 이미지는 최초 진입 시 1회 필수 입력(PRD) — 등록에서 avatar 필수
   avatar: avatarSchema,
@@ -77,7 +76,7 @@ export const userResponseApiSchema: SchemaObject = {
 export const errorResponseApiSchema: SchemaObject = {
   type: "object",
   properties: {
-    errorCode: { type: "string", example: "DEVICE_ALREADY_REGISTERED" },
+    errorCode: { type: "string", example: "USER_ALREADY_REGISTERED" },
     message: { type: "string" },
   },
 };

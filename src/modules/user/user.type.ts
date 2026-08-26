@@ -8,7 +8,7 @@ export type UserProfileRow = {
 };
 
 export type CreateUserInput = {
-  deviceId: string;
+  authUid: string;
   nickname: string;
   avatar: UserAvatar;
 };
