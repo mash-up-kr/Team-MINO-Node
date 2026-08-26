@@ -132,7 +132,7 @@ export class PinService {
   }
 
   /**
-   * 핀 접근 기록(사용자별). 개인별 카드 큐레이션의 재생성 제외 조건이자
+   * 핀 접근 기록(사용자별). 홈 카드 덱의 묵힘(마지막으로 열어본 시점) 계산과
    * "친구들이 많이 본 곳"(클릭수) 집계의 원천 데이터. append-only.
    */
   async recordAccess(userId: string, pinId: string): Promise<void> {
