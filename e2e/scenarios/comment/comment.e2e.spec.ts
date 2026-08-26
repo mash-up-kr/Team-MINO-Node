@@ -12,16 +12,17 @@ import { places } from "../../../src/modules/place/place.schema";
 import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { users } from "../../../src/modules/user/user.schema";
+import { authHeaders, withFakeTokenVerifier } from "../../auth";
 import { startApp } from "../../start-app";
 
 let app: INestApplication;
 let baseUrl: string;
 let db: DatabaseService["db"];
 
-const ownerDeviceId = `e2e-comment-owner-${randomUUID()}`;
-const memberDeviceId = `e2e-comment-member-${randomUUID()}`;
-const outsiderDeviceId = `e2e-comment-outsider-${randomUUID()}`;
-const departedDeviceId = `e2e-comment-departed-${randomUUID()}`;
+const ownerAuthUid = `e2e-comment-owner-${randomUUID()}`;
+const memberAuthUid = `e2e-comment-member-${randomUUID()}`;
+const outsiderAuthUid = `e2e-comment-outsider-${randomUUID()}`;
+const departedAuthUid = `e2e-comment-departed-${randomUUID()}`;
 
 let ownerId: string;
 let memberId: string;
@@ -36,14 +37,14 @@ let pagedPinId: string;
 
 function api(
   path: string,
-  deviceId: string | null,
+  authUid: string,
   init: RequestInit = {},
 ): Promise<Response> {
   return fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
+      ...authHeaders(authUid),
       "content-type": "application/json",
-      ...(deviceId ? { "X-Device-Id": deviceId } : {}),
       ...init.headers,
     },
   });
@@ -55,10 +56,10 @@ function commentPath(pinId: string): string {
 
 async function createComment(
   pinId: string,
-  deviceId: string,
+  authUid: string,
   content: string,
 ): Promise<Response> {
-  return api(commentPath(pinId), deviceId, {
+  return api(commentPath(pinId), authUid, {
     method: "POST",
     body: JSON.stringify({ content }),
   });
@@ -94,9 +95,11 @@ async function createPin(roomId: string, name: string): Promise<string> {
 
 beforeAll(async () => {
   ({ app, baseUrl } = await startApp(
-    Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(SentryErrorReporter)
-      .useValue({ report: () => undefined }),
+    withFakeTokenVerifier(
+      Test.createTestingModule({ imports: [AppModule] })
+        .overrideProvider(SentryErrorReporter)
+        .useValue({ report: () => undefined }),
+    ),
   ));
   db = app.get(DatabaseService).db;
 
@@ -104,24 +107,24 @@ beforeAll(async () => {
     .insert(users)
     .values([
       {
-        deviceId: ownerDeviceId,
+        authUid: ownerAuthUid,
         nickname: "지은",
         avatar: { id: 1 },
       },
-      { deviceId: memberDeviceId, nickname: "민호", avatar: null },
-      { deviceId: outsiderDeviceId, nickname: "외부인" },
-      { deviceId: departedDeviceId, nickname: "서연", avatar: { id: 3 } },
+      { authUid: memberAuthUid, nickname: "민호", avatar: null },
+      { authUid: outsiderAuthUid, nickname: "외부인" },
+      { authUid: departedAuthUid, nickname: "서연", avatar: { id: 3 } },
     ])
-    .returning({ id: users.id, deviceId: users.deviceId });
+    .returning({ id: users.id, authUid: users.authUid });
 
-  const userIdOf = (deviceId: string): string => {
-    const user = insertedUsers.find((entry) => entry.deviceId === deviceId);
+  const userIdOf = (authUid: string): string => {
+    const user = insertedUsers.find((entry) => entry.authUid === authUid);
     if (!user) throw new Error("유저 픽스처 생성 실패");
     return user.id;
   };
-  ownerId = userIdOf(ownerDeviceId);
-  memberId = userIdOf(memberDeviceId);
-  departedId = userIdOf(departedDeviceId);
+  ownerId = userIdOf(ownerAuthUid);
+  memberId = userIdOf(memberAuthUid);
+  departedId = userIdOf(departedAuthUid);
 
   const insertedRooms = await db
     .insert(rooms)
@@ -212,7 +215,7 @@ describe("POST /api/v1/pins/:pinId/comments", () => {
   it("방 멤버가 공동방 핀에 코멘트를 작성하고 작성자 정보를 받는다", async () => {
     const response = await createComment(
       sharedPinId,
-      ownerDeviceId,
+      ownerAuthUid,
       "  좋아요 😀\n  ",
     );
     const { data } = await response.json();
@@ -230,7 +233,7 @@ describe("POST /api/v1/pins/:pinId/comments", () => {
   });
 
   it("개인방 핀에도 코멘트를 작성할 수 있다", async () => {
-    const response = await createComment(personalPinId, ownerDeviceId, "메모");
+    const response = await createComment(personalPinId, ownerAuthUid, "메모");
 
     expect(response.status).toBe(201);
   });
@@ -238,12 +241,12 @@ describe("POST /api/v1/pins/:pinId/comments", () => {
   it("같은 내용의 코멘트를 각각 저장한다", async () => {
     const first = await createComment(
       sharedPinId,
-      ownerDeviceId,
+      ownerAuthUid,
       "또 가고 싶어요",
     );
     const second = await createComment(
       sharedPinId,
-      ownerDeviceId,
+      ownerAuthUid,
       "또 가고 싶어요",
     );
     const firstData = (await first.json()).data;
@@ -257,7 +260,7 @@ describe("POST /api/v1/pins/:pinId/comments", () => {
   it("비멤버의 작성 요청을 막는다", async () => {
     const response = await createComment(
       sharedPinId,
-      outsiderDeviceId,
+      outsiderAuthUid,
       "몰래 작성",
     );
 
@@ -270,7 +273,7 @@ describe("GET /api/v1/pins/:pinId/comments", () => {
   it("최신 페이지를 오래된 순으로 반환하고 탈퇴 작성자 정보를 유지한다", async () => {
     const response = await api(
       `${commentPath(pagedPinId)}?page=0&pageSize=2`,
-      ownerDeviceId,
+      ownerAuthUid,
     );
     const { data, pagination } = await response.json();
 
@@ -292,11 +295,11 @@ describe("GET /api/v1/pins/:pinId/comments", () => {
   it("다음 페이지에 더 오래된 코멘트를 반환하고 범위를 넘으면 빈 목록을 반환한다", async () => {
     const olderResponse = await api(
       `${commentPath(pagedPinId)}?page=1&pageSize=2`,
-      ownerDeviceId,
+      ownerAuthUid,
     );
     const emptyResponse = await api(
       `${commentPath(pagedPinId)}?page=100&pageSize=2`,
-      ownerDeviceId,
+      ownerAuthUid,
     );
 
     expect(await olderResponse.json()).toEqual({
@@ -314,11 +317,11 @@ describe("GET /api/v1/pins/:pinId/comments", () => {
   it("삭제된 핀과 삭제된 방의 핀에는 접근할 수 없다", async () => {
     const deletedPinResponse = await api(
       commentPath(deletedPinId),
-      ownerDeviceId,
+      ownerAuthUid,
     );
     const deletedRoomResponse = await api(
       commentPath(deletedRoomPinId),
-      ownerDeviceId,
+      ownerAuthUid,
     );
 
     expect(deletedPinResponse.status).toBe(404);
@@ -328,7 +331,7 @@ describe("GET /api/v1/pins/:pinId/comments", () => {
   });
 
   it("비멤버의 조회 요청을 막는다", async () => {
-    const response = await api(commentPath(sharedPinId), outsiderDeviceId);
+    const response = await api(commentPath(sharedPinId), outsiderAuthUid);
 
     expect(response.status).toBe(403);
     expect((await response.json()).errorCode).toBe("NOT_ROOM_MEMBER");
@@ -339,18 +342,18 @@ describe("DELETE /api/v1/pins/:pinId/comments/:commentId", () => {
   it("작성자가 코멘트를 삭제하면 목록에서 제외한다", async () => {
     const created = await createComment(
       sharedPinId,
-      ownerDeviceId,
+      ownerAuthUid,
       "삭제할 코멘트",
     );
     const { data: comment } = await created.json();
     const deleted = await api(
       `${commentPath(sharedPinId)}/${comment.id}`,
-      ownerDeviceId,
+      ownerAuthUid,
       {
         method: "DELETE",
       },
     );
-    const listed = await api(commentPath(sharedPinId), ownerDeviceId);
+    const listed = await api(commentPath(sharedPinId), ownerAuthUid);
 
     expect(deleted.status).toBe(200);
     expect((await deleted.json()).data).toEqual({ ok: true });
@@ -362,20 +365,20 @@ describe("DELETE /api/v1/pins/:pinId/comments/:commentId", () => {
   it("다른 작성자의 코멘트 삭제와 다른 핀의 코멘트 삭제를 막는다", async () => {
     const created = await createComment(
       sharedPinId,
-      ownerDeviceId,
+      ownerAuthUid,
       "작성자 전용",
     );
     const { data: comment } = await created.json();
     const forbidden = await api(
       `${commentPath(sharedPinId)}/${comment.id}`,
-      memberDeviceId,
+      memberAuthUid,
       {
         method: "DELETE",
       },
     );
     const wrongPin = await api(
       `${commentPath(secondSharedPinId)}/${comment.id}`,
-      ownerDeviceId,
+      ownerAuthUid,
       { method: "DELETE" },
     );
 
@@ -388,16 +391,16 @@ describe("DELETE /api/v1/pins/:pinId/comments/:commentId", () => {
   it("이미 삭제한 코멘트는 다시 삭제할 수 없다", async () => {
     const created = await createComment(
       sharedPinId,
-      ownerDeviceId,
+      ownerAuthUid,
       "한 번만 삭제",
     );
     const { data: comment } = await created.json();
-    await api(`${commentPath(sharedPinId)}/${comment.id}`, ownerDeviceId, {
+    await api(`${commentPath(sharedPinId)}/${comment.id}`, ownerAuthUid, {
       method: "DELETE",
     });
     const repeated = await api(
       `${commentPath(sharedPinId)}/${comment.id}`,
-      ownerDeviceId,
+      ownerAuthUid,
       {
         method: "DELETE",
       },
@@ -408,20 +411,16 @@ describe("DELETE /api/v1/pins/:pinId/comments/:commentId", () => {
   });
 
   it("비멤버의 삭제 요청과 존재하지 않는 코멘트 삭제를 막는다", async () => {
-    const created = await createComment(
-      sharedPinId,
-      ownerDeviceId,
-      "권한 확인",
-    );
+    const created = await createComment(sharedPinId, ownerAuthUid, "권한 확인");
     const { data: comment } = await created.json();
     const nonMember = await api(
       `${commentPath(sharedPinId)}/${comment.id}`,
-      outsiderDeviceId,
+      outsiderAuthUid,
       { method: "DELETE" },
     );
     const missing = await api(
       `${commentPath(sharedPinId)}/${randomUUID()}`,
-      ownerDeviceId,
+      ownerAuthUid,
       { method: "DELETE" },
     );
 
@@ -436,13 +435,9 @@ describe("코멘트 API 입력 검증", () => {
   it("잘못된 UUID와 공백만 있는 코멘트를 거절한다", async () => {
     const invalidId = await api(
       "/api/v1/pins/not-a-uuid/comments",
-      ownerDeviceId,
+      ownerAuthUid,
     );
-    const blankContent = await createComment(
-      sharedPinId,
-      ownerDeviceId,
-      " \n ",
-    );
+    const blankContent = await createComment(sharedPinId, ownerAuthUid, " \n ");
 
     expect(invalidId.status).toBe(400);
     expect((await invalidId.json()).errorCode).toBe("VALIDATION_ERROR");
@@ -450,11 +445,13 @@ describe("코멘트 API 입력 검증", () => {
     expect((await blankContent.json()).errorCode).toBe("VALIDATION_ERROR");
   });
 
-  it("유저 식별 헤더가 없으면 거절한다", async () => {
-    const response = await api(commentPath(sharedPinId), null);
+  it("인증 헤더가 없으면 거절한다", async () => {
+    const response = await fetch(`${baseUrl}${commentPath(sharedPinId)}`, {
+      headers: { "content-type": "application/json" },
+    });
 
     expect(response.status).toBe(401);
-    expect((await response.json()).errorCode).toBe("UNIDENTIFIED_USER");
+    expect((await response.json()).errorCode).toBe("UNAUTHORIZED");
   });
 });
 

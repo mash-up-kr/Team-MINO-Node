@@ -13,17 +13,18 @@ import { places } from "../../../src/modules/place/place.schema";
 import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { users } from "../../../src/modules/user/user.schema";
+import { authHeaders, withFakeTokenVerifier } from "../../auth";
 import { startApp } from "../../start-app";
 
 let app: INestApplication;
 let baseUrl: string;
 let db: DatabaseService["db"];
 
-// 시나리오 파일끼리 DB를 공유하므로 기기 식별자를 매 실행 고유하게 만듭니다.
-const ownerDeviceId = `e2e-invite-owner-${randomUUID()}`;
-const memberDeviceId = `e2e-invite-member-${randomUUID()}`;
-const joinerDeviceId = `e2e-invite-joiner-${randomUUID()}`;
-const outsiderDeviceId = `e2e-invite-outsider-${randomUUID()}`;
+// 시나리오 파일끼리 DB를 공유하므로 인증 식별자를 매 실행 고유하게 만듭니다.
+const ownerAuthUid = `e2e-invite-owner-${randomUUID()}`;
+const memberAuthUid = `e2e-invite-member-${randomUUID()}`;
+const joinerAuthUid = `e2e-invite-joiner-${randomUUID()}`;
+const outsiderAuthUid = `e2e-invite-outsider-${randomUUID()}`;
 const personalInviteCode = randomUUID()
   .replace(/[^a-z0-9]/g, "")
   .slice(0, 6)
@@ -35,27 +36,27 @@ let personalRoomId: string;
 
 function api(
   path: string,
-  deviceId: string | null,
+  authUid: string | null,
   init: RequestInit = {},
 ): Promise<Response> {
   return fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
-      ...(deviceId ? { "X-Device-Id": deviceId } : {}),
+      ...(authUid ? authHeaders(authUid) : {}),
       ...init.headers,
     },
   });
 }
 
-function createInvitation(roomId: string, deviceId: string) {
-  return api(`/api/v1/rooms/${roomId}/invitations`, deviceId, {
+function createInvitation(roomId: string, authUid: string) {
+  return api(`/api/v1/rooms/${roomId}/invitations`, authUid, {
     method: "POST",
   });
 }
 
-function joinRoom(roomId: string, deviceId: string, inviteCode: string) {
-  return api(`/api/v1/rooms/${roomId}/members`, deviceId, {
+function joinRoom(roomId: string, authUid: string, inviteCode: string) {
+  return api(`/api/v1/rooms/${roomId}/members`, authUid, {
     method: "POST",
     body: JSON.stringify({ inviteCode }),
   });
@@ -74,41 +75,43 @@ function activeMemberships(roomId: string, userId: string) {
     );
 }
 
-async function createdCode(roomId: string, deviceId: string): Promise<string> {
-  const response = await createInvitation(roomId, deviceId);
+async function createdCode(roomId: string, authUid: string): Promise<string> {
+  const response = await createInvitation(roomId, authUid);
   const { data } = await response.json();
   return data.code;
 }
 
 beforeAll(async () => {
   ({ app, baseUrl } = await startApp(
-    Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(SentryErrorReporter)
-      .useValue({ report: () => undefined }),
+    withFakeTokenVerifier(
+      Test.createTestingModule({ imports: [AppModule] })
+        .overrideProvider(SentryErrorReporter)
+        .useValue({ report: () => undefined }),
+    ),
   ));
   db = app.get(DatabaseService).db;
 
-  // 반환 순서에 기대지 않도록 device_id로 되짚습니다.
+  // 반환 순서에 기대지 않도록 auth_uid로 되짚습니다.
   const insertedUsers = await db
     .insert(users)
     .values([
       {
-        deviceId: ownerDeviceId,
+        authUid: ownerAuthUid,
         nickname: "지은",
         avatar: { id: 1 },
       },
-      { deviceId: memberDeviceId, nickname: "민호" },
-      { deviceId: joinerDeviceId, nickname: "재성" },
-      { deviceId: outsiderDeviceId, nickname: "외부인" },
+      { authUid: memberAuthUid, nickname: "민호" },
+      { authUid: joinerAuthUid, nickname: "재성" },
+      { authUid: outsiderAuthUid, nickname: "외부인" },
     ])
-    .returning({ id: users.id, deviceId: users.deviceId });
-  const userIdOf = (deviceId: string): string => {
-    const id = insertedUsers.find((u) => u.deviceId === deviceId)?.id;
-    if (!id) throw new Error(`유저 픽스처 없음: ${deviceId}`);
+    .returning({ id: users.id, authUid: users.authUid });
+  const userIdOf = (authUid: string): string => {
+    const id = insertedUsers.find((u) => u.authUid === authUid)?.id;
+    if (!id) throw new Error(`유저 픽스처 없음: ${authUid}`);
     return id;
   };
-  const ownerId = userIdOf(ownerDeviceId);
-  joinerId = userIdOf(joinerDeviceId);
+  const ownerId = userIdOf(ownerAuthUid);
+  joinerId = userIdOf(joinerAuthUid);
 
   const insertedRooms = await db
     .insert(rooms)
@@ -132,7 +135,7 @@ beforeAll(async () => {
 
   await db.insert(roomMembers).values([
     { roomId: sharedRoomId, userId: ownerId },
-    { roomId: sharedRoomId, userId: userIdOf(memberDeviceId) },
+    { roomId: sharedRoomId, userId: userIdOf(memberAuthUid) },
     { roomId: personalRoomId, userId: ownerId },
   ]);
 
@@ -166,9 +169,9 @@ afterAll(async () => {
 describe("POST /api/v1/rooms/:roomId/invitations", () => {
   it("같은 멤버가 다시 요청하면 같은 코드를 돌려준다", async () => {
     // when
-    const response = await createInvitation(sharedRoomId, ownerDeviceId);
+    const response = await createInvitation(sharedRoomId, ownerAuthUid);
     const first = (await response.json()).data.code;
-    const second = await createdCode(sharedRoomId, ownerDeviceId);
+    const second = await createdCode(sharedRoomId, ownerAuthUid);
 
     // then
     // 생성이 아니라 get-or-create라 201이 아닌 200이다.
@@ -178,8 +181,8 @@ describe("POST /api/v1/rooms/:roomId/invitations", () => {
 
   it("멤버마다 다른 코드를 발급한다", async () => {
     // when
-    const ownerCode = await createdCode(sharedRoomId, ownerDeviceId);
-    const memberCode = await createdCode(sharedRoomId, memberDeviceId);
+    const ownerCode = await createdCode(sharedRoomId, ownerAuthUid);
+    const memberCode = await createdCode(sharedRoomId, memberAuthUid);
 
     // then
     expect(ownerCode).not.toBe(memberCode);
@@ -187,7 +190,7 @@ describe("POST /api/v1/rooms/:roomId/invitations", () => {
 
   it("방 멤버가 아니면 403을 반환한다", async () => {
     // when
-    const response = await createInvitation(sharedRoomId, outsiderDeviceId);
+    const response = await createInvitation(sharedRoomId, outsiderAuthUid);
 
     // then
     expect(response.status).toBe(403);
@@ -196,14 +199,14 @@ describe("POST /api/v1/rooms/:roomId/invitations", () => {
 
   it("개인방은 초대할 수 없다", async () => {
     // when
-    const response = await createInvitation(personalRoomId, ownerDeviceId);
+    const response = await createInvitation(personalRoomId, ownerAuthUid);
 
     // then
     expect(response.status).toBe(403);
     expect((await response.json()).errorCode).toBe("PERSONAL_ROOM_NOT_ALLOWED");
   });
 
-  it("유저를 식별할 수 없으면 401을 반환한다", async () => {
+  it("인증 정보가 없으면 401을 반환한다", async () => {
     // when
     const response = await api(
       `/api/v1/rooms/${sharedRoomId}/invitations`,
@@ -213,14 +216,14 @@ describe("POST /api/v1/rooms/:roomId/invitations", () => {
 
     // then
     expect(response.status).toBe(401);
-    expect((await response.json()).errorCode).toBe("UNIDENTIFIED_USER");
+    expect((await response.json()).errorCode).toBe("UNAUTHORIZED");
   });
 });
 
 describe("GET /api/v1/invitations/:code", () => {
   it("인증 헤더 없이도 방과 초대자를 보여준다", async () => {
     // given
-    const code = await createdCode(sharedRoomId, ownerDeviceId);
+    const code = await createdCode(sharedRoomId, ownerAuthUid);
 
     // when
     const response = await api(`/api/v1/invitations/${code}`, null);
@@ -241,7 +244,7 @@ describe("GET /api/v1/invitations/:code", () => {
 
   it("초대자가 다르면 미리보기의 초대자도 다르다", async () => {
     // given
-    const memberCode = await createdCode(sharedRoomId, memberDeviceId);
+    const memberCode = await createdCode(sharedRoomId, memberAuthUid);
 
     // when
     const response = await api(`/api/v1/invitations/${memberCode}`, null);
@@ -276,11 +279,11 @@ describe("GET /api/v1/invitations/:code", () => {
 describe("POST /api/v1/rooms/:roomId/members", () => {
   it("초대 코드로 합류하고, 다시 요청해도 멱등하게 성공한다", async () => {
     // given
-    const code = await createdCode(sharedRoomId, ownerDeviceId);
+    const code = await createdCode(sharedRoomId, ownerAuthUid);
 
     // when
-    const first = await joinRoom(sharedRoomId, joinerDeviceId, code);
-    const second = await joinRoom(sharedRoomId, joinerDeviceId, code);
+    const first = await joinRoom(sharedRoomId, joinerAuthUid, code);
+    const second = await joinRoom(sharedRoomId, joinerAuthUid, code);
 
     // then
     expect(first.status).toBe(200);
@@ -291,8 +294,8 @@ describe("POST /api/v1/rooms/:roomId/members", () => {
 
   it("나갔던 방에 다시 합류할 수 있다", async () => {
     // given
-    const code = await createdCode(sharedRoomId, ownerDeviceId);
-    await joinRoom(sharedRoomId, joinerDeviceId, code);
+    const code = await createdCode(sharedRoomId, ownerAuthUid);
+    await joinRoom(sharedRoomId, joinerAuthUid, code);
     // 방 나가기 API는 아직 없어 soft delete를 직접 기록합니다.
     await db
       .update(roomMembers)
@@ -306,7 +309,7 @@ describe("POST /api/v1/rooms/:roomId/members", () => {
     expect(await activeMemberships(sharedRoomId, joinerId)).toHaveLength(0);
 
     // when
-    const response = await joinRoom(sharedRoomId, joinerDeviceId, code);
+    const response = await joinRoom(sharedRoomId, joinerAuthUid, code);
 
     // then
     expect(response.status).toBe(200);
@@ -315,10 +318,10 @@ describe("POST /api/v1/rooms/:roomId/members", () => {
 
   it("코드가 다른 방의 것이면 400을 반환한다", async () => {
     // given
-    const code = await createdCode(sharedRoomId, ownerDeviceId);
+    const code = await createdCode(sharedRoomId, ownerAuthUid);
 
     // when
-    const response = await joinRoom(personalRoomId, joinerDeviceId, code);
+    const response = await joinRoom(personalRoomId, joinerAuthUid, code);
 
     // then
     expect(response.status).toBe(400);
@@ -329,7 +332,7 @@ describe("POST /api/v1/rooms/:roomId/members", () => {
     // when
     const response = await joinRoom(
       personalRoomId,
-      joinerDeviceId,
+      joinerAuthUid,
       personalInviteCode,
     );
 
@@ -348,7 +351,7 @@ describe("초대 코드 충돌", () => {
     const [requester] = await db
       .insert(users)
       .values({
-        deviceId: `e2e-invite-collision-${randomUUID()}`,
+        authUid: `e2e-invite-collision-${randomUUID()}`,
         nickname: "충돌",
       })
       .returning({ id: users.id });

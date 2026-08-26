@@ -1,42 +1,92 @@
-import "reflect-metadata";
-import { beforeEach, describe, expect, it, spyOn } from "bun:test";
-import { ConfigModule } from "@nestjs/config";
-import { Test } from "@nestjs/testing";
-import { InstagramProvider } from "./providers/instagram.provider";
-import { ScraperModule } from "./scraper.module";
+import { describe, expect, it, jest } from "bun:test";
+import { HttpStatus } from "@nestjs/common";
+import { AppException } from "../../common/exceptions/app.exception";
 import { ScraperService } from "./scraper.service";
-import type { ScrapedPost } from "./scraper.type";
+import type { InstagramProvider, ScrapedPost } from "./scraper.type";
+
+const URL = "https://www.instagram.com/p/abc123/";
+const POST = { shortcode: "abc123" } as ScrapedPost;
+
+function stub(
+  name: InstagramProvider["name"],
+  result: ScrapedPost | null | AppException,
+) {
+  const fetch = jest.fn(async () => {
+    if (result instanceof AppException) throw result;
+    return result;
+  });
+  return { name, fetch } as unknown as InstagramProvider & {
+    fetch: ReturnType<typeof jest.fn>;
+  };
+}
+
+function createService(...providers: InstagramProvider[]) {
+  return new ScraperService(providers);
+}
 
 describe("ScraperService", () => {
-  let service: ScraperService;
-  let instagram: InstagramProvider;
+  it("1순위가 성공하면 뒤 경로는 호출하지 않는다", async () => {
+    const first = stub("polaris-json", POST);
+    const second = stub("polaris-html", POST);
 
-  beforeEach(async () => {
-    const module = await Test.createTestingModule({
-      imports: [
-        ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
-        ScraperModule,
-      ],
-    }).compile();
-    service = module.get(ScraperService);
-    instagram = module.get(InstagramProvider);
+    const result = await createService(first, second).fetchPost(URL);
+
+    expect(result).toBe(POST);
+    expect(first.fetch).toHaveBeenCalledWith("abc123");
+    expect(second.fetch).not.toHaveBeenCalled();
   });
 
-  it("DI 컨테이너에서 ScraperService를 해석한다", () => {
-    expect(service).toBeInstanceOf(ScraperService);
+  it("null을 돌리면 다음 경로로 넘어간다", async () => {
+    const first = stub("polaris-json", null);
+    const second = stub("polaris-html", null);
+    const third = stub("embed", POST);
+
+    const result = await createService(first, second, third).fetchPost(URL);
+
+    expect(result).toBe(POST);
+    expect(second.fetch).toHaveBeenCalled();
+    expect(third.fetch).toHaveBeenCalled();
   });
 
-  it("fetchPost는 InstagramProvider로 위임한다", async () => {
-    // given
-    const url = "https://www.instagram.com/p/abc123/";
-    const post = {} as ScrapedPost;
-    const spy = spyOn(instagram, "fetchPost").mockResolvedValue(post);
+  it("provider가 던진 예외는 그대로 전파하고 뒤 경로를 시도하지 않는다", async () => {
+    const notFound = new AppException(
+      "POST_NOT_FOUND",
+      "없음",
+      HttpStatus.NOT_FOUND,
+    );
+    const first = stub("polaris-json", notFound);
+    const second = stub("polaris-html", POST);
 
-    // when
-    const result = await service.fetchPost(url);
+    const promise = createService(first, second).fetchPost(URL);
 
-    // then
-    expect(spy).toHaveBeenCalledWith(url);
-    expect(result).toBe(post);
+    await expect(promise).rejects.toBe(notFound);
+    expect(second.fetch).not.toHaveBeenCalled();
+  });
+
+  it("모든 경로가 실패하면 SCRAPER_REQUEST_FAILED로 끝낸다", async () => {
+    const service = createService(
+      stub("polaris-json", null),
+      stub("polaris-html", null),
+      stub("embed", null),
+    );
+
+    const promise = service.fetchPost(URL);
+
+    await expect(promise).rejects.toMatchObject({
+      errorCode: "SCRAPER_REQUEST_FAILED",
+    });
+  });
+
+  it("인스타 URL이 아니면 경로를 타지 않고 거부한다", async () => {
+    const only = stub("polaris-json", POST);
+
+    const promise = createService(only).fetchPost(
+      "https://evil.test/p/abc123/",
+    );
+
+    await expect(promise).rejects.toMatchObject({
+      errorCode: "INVALID_INSTAGRAM_URL",
+    });
+    expect(only.fetch).not.toHaveBeenCalled();
   });
 });

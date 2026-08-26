@@ -13,21 +13,20 @@ export class InvitationService {
   constructor(private readonly invitationRepository: InvitationRepository) {}
 
   async create(
-    deviceId: string | undefined,
+    userId: string,
     roomId: string,
   ): Promise<InvitationCodeResponse> {
-    const user = await this.requireUser(deviceId);
     await this.requireSharedRoom(roomId);
-    await this.requireMembership(roomId, user.id);
+    await this.requireMembership(roomId, userId);
 
     const existing =
       await this.invitationRepository.findActiveInvitationByMember(
         roomId,
-        user.id,
+        userId,
       );
     if (existing) return existing;
 
-    return this.invitationRepository.createInvitation(roomId, user.id);
+    return this.invitationRepository.createInvitation(roomId, userId);
   }
 
   async preview(code: string): Promise<InvitationPreviewResponse> {
@@ -64,11 +63,10 @@ export class InvitationService {
   }
 
   async join(
-    deviceId: string | undefined,
+    userId: string,
     roomId: string,
     inviteCode: string,
   ): Promise<void> {
-    const user = await this.requireUser(deviceId);
     const invitation = await this.requireInvitation(inviteCode);
 
     // 코드와 경로의 방이 다르면 엉뚱한 방에 가입시키게 됩니다.
@@ -84,11 +82,11 @@ export class InvitationService {
 
     const membership = await this.invitationRepository.findActiveMembership(
       roomId,
-      user.id,
+      userId,
     );
     if (membership) return;
 
-    await this.invitationRepository.addMember(roomId, user.id);
+    await this.invitationRepository.addMember(roomId, userId);
   }
 
   private async requireInvitation(code: string) {
@@ -104,24 +102,6 @@ export class InvitationService {
     }
 
     return invitation;
-  }
-
-  private async requireUser(
-    deviceId: string | undefined,
-  ): Promise<{ id: string }> {
-    const trimmed = deviceId?.trim();
-
-    if (trimmed) {
-      const user =
-        await this.invitationRepository.findActiveUserByDeviceId(trimmed);
-      if (user) return user;
-    }
-
-    throw new AppException(
-      "UNIDENTIFIED_USER",
-      "요청 유저를 식별할 수 없습니다.",
-      HttpStatus.UNAUTHORIZED,
-    );
   }
 
   private async requireSharedRoom(roomId: string): Promise<void> {

@@ -30,6 +30,11 @@ const envSchema = v.pipe(
     ),
     // GCP 프로젝트 ID(Vertex project 겸 Maps X-Goog-User-Project)
     GOOGLE_CLOUD_PROJECT: v.pipe(v.string(), v.minLength(1)),
+    /*
+     * Firebase Authentication 프로젝트 ID. ID 토큰의 iss/aud 검증 기준값이다.
+     * Firebase 프로젝트는 GCP 프로젝트 위에 얹히므로, 미설정 시 GOOGLE_CLOUD_PROJECT를 쓴다.
+     */
+    FIREBASE_PROJECT_ID: v.optional(v.pipe(v.string(), v.minLength(1))),
     // Gemini 3.1 Flash-Lite 지원 location 중 이 앱의 기본값은 "global"이다.
     GOOGLE_VERTEX_LOCATION: v.optional(v.string(), "global"),
     /*
@@ -48,6 +53,11 @@ const envSchema = v.pipe(
       v.pipe(v.string(), v.url(), v.startsWith("https://")),
     ),
     SUPABASE_API_KEY: v.optional(v.pipe(v.string(), v.minLength(1))),
+    /*
+     * 인스타 로그아웃 GraphQL의 persisted query id. 인스타가 주기적으로 교체하므로
+     * 재배포 없이 갱신할 수 있도록 env에 둔다. 낡으면 게시글 HTML 경로로 자동 폴백한다.
+     */
+    INSTAGRAM_DOC_ID: v.pipe(v.string(), v.minLength(1)),
     // Cloud Tasks가 워커(/internal/*) 호출 시 쓰는 SA 이메일. OIDC 토큰의 email 클레임과 대조.
     CLOUD_TASKS_INVOKER_EMAIL: v.pipe(v.string(), v.minLength(1)),
     /*

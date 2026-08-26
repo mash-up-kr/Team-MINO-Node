@@ -1,5 +1,5 @@
 {
-  "id": "0b898b69-286d-4429-a30c-96e977a39899",
+  "id": "60de6190-cb0e-46a6-93d8-672fa9b7e8a7",
   "prevId": "594aa9fd-1c84-4c7a-88c0-df4331246df6",
   "version": "7",
   "dialect": "postgresql",
@@ -227,7 +227,7 @@
           "name": "created_by",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "content": {
           "name": "content",
@@ -997,8 +997,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "device_id": {
-          "name": "device_id",
+        "auth_uid": {
+          "name": "auth_uid",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -1037,11 +1037,11 @@
         }
       },
       "indexes": {
-        "users_device_id_active_unique": {
-          "name": "users_device_id_active_unique",
+        "users_auth_uid_active_unique": {
+          "name": "users_auth_uid_active_unique",
           "columns": [
             {
-              "expression": "device_id",
+              "expression": "auth_uid",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
