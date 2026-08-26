@@ -9,9 +9,9 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-/** 프로필 아바타. id 외 표현 필드(url·color·sunglass 등)는 기획 확정에 따라 확장된다. */
+/** 프로필 아바타. color 외 표현 필드는 기획 확정에 따라 확장된다. */
 export type UserAvatar = {
-  id: number;
+  color: string;
 };
 
 export const users = pgTable(

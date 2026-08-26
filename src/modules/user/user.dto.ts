@@ -14,9 +14,10 @@ export const nicknameSchema = v.pipe(
   ),
 );
 
-/** 프로필 아바타. jsonb로 통째 저장하며 id 외 필드(url·color 등)는 스키마에 추가해 확장한다. */
+/** 프로필 아바타. jsonb로 통째 저장하며 color 외 필드는 스키마에 추가해 확장한다. */
 export const avatarSchema = v.object({
-  id: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  // 색상 키 — 실제 색 매핑은 클라이언트 담당(방 색상과 동일 정책, 키셋 확정은 #71)
+  color: v.pipe(v.string(), v.minLength(1), v.maxLength(20)),
 });
 
 export const registerUserRequestSchema = v.object({
@@ -62,7 +63,7 @@ const userSchema: SchemaObject = {
     avatar: {
       type: "object",
       nullable: true,
-      properties: { id: { type: "integer", example: 1 } },
+      properties: { color: { type: "string", example: "red" } },
     },
     createdAt: { type: "string", format: "date-time" },
   },

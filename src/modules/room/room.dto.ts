@@ -114,7 +114,7 @@ const roomMemberSchema: SchemaObject = {
     avatar: {
       type: "object",
       nullable: true,
-      properties: { id: { type: "integer" } },
+      properties: { color: { type: "string", example: "red" } },
     },
     isOwner: { type: "boolean" },
     joinedAt: { type: "string", format: "date-time" },
