@@ -9,7 +9,7 @@ import { isUniqueViolation } from "../../infrastructures/db/db.error";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
 import { SourceRepository } from "../source/source.repository";
 import type {
-  CreateRoomPinRequest,
+  CreateRoomPinsRequest,
   DuplicatePinRequest,
   ListPinsQuery,
 } from "./pin.dto";
@@ -28,12 +28,18 @@ export class PinService {
     private readonly tasksService: TasksService,
   ) {}
 
-  async enqueueRoomPin(
+  async enqueueRoomPins(
     userId: string,
-    roomId: string,
-    input: CreateRoomPinRequest,
+    input: CreateRoomPinsRequest,
   ): Promise<void> {
-    if (!(await this.pinRepository.isActiveMemberOfRoom(roomId, userId))) {
+    const targetRooms = await this.pinRepository.listTargetRoomsWithMembership(
+      input.roomIds,
+      userId,
+    );
+    if (
+      targetRooms.length !== input.roomIds.length ||
+      targetRooms.some((room) => !room.isMember)
+    ) {
       throw this.notRoomMember();
     }
 
@@ -48,7 +54,7 @@ export class PinService {
       );
     }
     const task: PinExtractionTask = {
-      roomId,
+      roomIds: input.roomIds,
       sourceId,
       createdBy: userId,
       url: input.url,

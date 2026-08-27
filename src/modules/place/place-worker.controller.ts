@@ -25,7 +25,7 @@ interface PlaceExtractor {
 }
 
 interface PlaceResultStore {
-  isActiveTaskTarget(task: PinExtractionTask): Promise<boolean>;
+  activeRoomIdsForTask(task: PinExtractionTask): Promise<string[]>;
   save(
     task: PinExtractionTask,
     matches: PlaceMatch[],
@@ -66,10 +66,12 @@ export class PlaceWorkerController {
     }
     const task: PinExtractionTask = parsed.output;
 
-    if (!(await this.placeResultRepository.isActiveTaskTarget(task))) {
+    const activeRoomIds =
+      await this.placeResultRepository.activeRoomIdsForTask(task);
+    if (activeRoomIds.length === 0) {
       this.logger.warn(
         {
-          roomId: task.roomId,
+          roomIds: task.roomIds,
           sourceId: task.sourceId,
           createdBy: task.createdBy,
         },
@@ -77,10 +79,11 @@ export class PlaceWorkerController {
       );
       return;
     }
+    const activeTask: PinExtractionTask = { ...task, roomIds: activeRoomIds };
 
     try {
-      const matches = await this.placeService.extractFromUrl(task.url);
-      const result = await this.placeResultRepository.save(task, matches);
+      const matches = await this.placeService.extractFromUrl(activeTask.url);
+      const result = await this.placeResultRepository.save(activeTask, matches);
       if (result.retryableFailures > 0) {
         throw new ServiceUnavailableException(
           "일부 장소 검색이 일시적으로 실패했습니다.",
@@ -98,7 +101,7 @@ export class PlaceWorkerController {
       this.logger.warn(
         {
           err: error,
-          roomId: task.roomId,
+          roomIds: activeTask.roomIds,
           sourceId: task.sourceId,
           createdBy: task.createdBy,
           errorCode:

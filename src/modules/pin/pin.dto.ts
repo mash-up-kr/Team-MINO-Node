@@ -10,12 +10,20 @@ import type { SchemaObject } from "../../common/swagger/schema";
 
 export const uuidParamSchema = v.pipe(v.string(), v.uuid());
 
-export const createRoomPinRequestSchema = v.object({
+export const createRoomPinsRequestSchema = v.object({
   url: instagramUrlSchema,
+  roomIds: v.pipe(
+    v.array(uuidParamSchema),
+    v.minLength(1, "저장할 방이 최소 하나 필요합니다."),
+    v.check(
+      (roomIds) => new Set(roomIds).size === roomIds.length,
+      "중복된 방을 선택할 수 없습니다.",
+    ),
+  ),
 });
 
-export type CreateRoomPinRequest = v.InferOutput<
-  typeof createRoomPinRequestSchema
+export type CreateRoomPinsRequest = v.InferOutput<
+  typeof createRoomPinsRequestSchema
 >;
 
 /**
@@ -46,8 +54,8 @@ export const duplicatePinRequestApiSchema = toJsonSchema(
   { errorMode: "ignore" },
 ) as SchemaObject;
 
-export const createRoomPinRequestApiSchema = toJsonSchema(
-  createRoomPinRequestSchema,
+export const createRoomPinsRequestApiSchema = toJsonSchema(
+  createRoomPinsRequestSchema,
   { errorMode: "ignore" },
 ) as SchemaObject;
 

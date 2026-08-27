@@ -4,10 +4,79 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { AppException } from "../../../src/common/exceptions/app.exception";
 import { pins } from "../../../src/modules/pin/pin.schema";
 import { places } from "../../../src/modules/place/place.schema";
+import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { placeSources } from "../../../src/modules/source/place-source.schema";
 import { CANDIDATES, PlaceE2eHarness } from "./place.e2e.helpers";
 
 export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
+  it("worker는 한 번 추출한 장소를 선택한 모든 방에 저장한다", async () => {
+    await harness.postPin(harness.memberAuthUid, {
+      url: "https://instagram.com/p/e2e-pin/",
+      roomIds: [harness.room, harness.secondRoom],
+    });
+
+    const response = await harness.runTask();
+
+    expect(response.status).toBe(204);
+    expect(harness.instagram.fetchPost).toHaveBeenCalledTimes(1);
+    expect(
+      await harness.db.select().from(pins).where(eq(pins.roomId, harness.room)),
+    ).toHaveLength(2);
+    expect(
+      await harness.db
+        .select()
+        .from(pins)
+        .where(eq(pins.roomId, harness.secondRoom)),
+    ).toHaveLength(2);
+  });
+
+  it("작업 대기 중 나간 방은 제외하고 남은 방에만 저장한다", async () => {
+    await harness.postPin(harness.memberAuthUid, {
+      url: "https://instagram.com/p/e2e-pin/",
+      roomIds: [harness.room, harness.secondRoom],
+    });
+    await harness.db
+      .update(roomMembers)
+      .set({ deletedAt: new Date() })
+      .where(
+        and(
+          eq(roomMembers.roomId, harness.secondRoom),
+          eq(roomMembers.userId, harness.member),
+        ),
+      );
+
+    const response = await harness.runTask();
+
+    expect(response.status).toBe(204);
+    expect(
+      await harness.db.select().from(pins).where(eq(pins.roomId, harness.room)),
+    ).toHaveLength(2);
+    expect(
+      await harness.db
+        .select()
+        .from(pins)
+        .where(eq(pins.roomId, harness.secondRoom)),
+    ).toHaveLength(0);
+  });
+
+  it("모든 대상 방이 무효해지면 추출하지 않고 acknowledge한다", async () => {
+    await harness.postPin();
+    await harness.db
+      .update(roomMembers)
+      .set({ deletedAt: new Date() })
+      .where(
+        and(
+          eq(roomMembers.roomId, harness.room),
+          eq(roomMembers.userId, harness.member),
+        ),
+      );
+
+    const response = await harness.runTask();
+
+    expect(response.status).toBe(204);
+    expect(harness.instagram.fetchPost).not.toHaveBeenCalled();
+  });
+
   it("worker는 logical place마다 ranked top1만 저장하고 source/place/pin 연결을 만든다", async () => {
     await harness.postPin();
     harness.geocoder.search.mockImplementation(

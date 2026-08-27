@@ -4,7 +4,6 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
-  Param,
   Post,
 } from "@nestjs/common";
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
@@ -14,11 +13,10 @@ import { AppException } from "../../common/exceptions/app.exception";
 import type { RequestUser } from "../../common/guards/current-user.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
 import {
-  type CreateRoomPinRequest,
-  createRoomPinRequestApiSchema,
-  createRoomPinRequestSchema,
+  type CreateRoomPinsRequest,
+  createRoomPinsRequestApiSchema,
+  createRoomPinsRequestSchema,
   errorResponseApiSchema,
-  uuidParamSchema,
 } from "./pin.dto";
 import { PinService } from "./pin.service";
 
@@ -32,30 +30,29 @@ export class RoomPinController {
 
   constructor(private readonly pinService: PinService) {}
 
-  @Post(":roomId/pins")
+  @Post("pins")
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
-    summary: "인스타그램 링크에서 장소를 추출해 방에 핀을 추가한다",
+    summary: "인스타그램 링크에서 장소를 추출해 여러 방에 핀을 추가한다",
   })
-  @ApiBody({ schema: createRoomPinRequestApiSchema })
+  @ApiBody({ schema: createRoomPinsRequestApiSchema })
   @ApiResponse({ status: 202, description: "장소 추출 작업 등록 완료" })
   @ApiResponse({ status: 400, schema: errorResponseApiSchema })
   @ApiResponse({ status: 403, schema: errorResponseApiSchema })
   @ApiResponse({ status: 502, schema: errorResponseApiSchema })
   async create(
     @CurrentUser() user: RequestUser,
-    @Param("roomId", new ValibotPipe(uuidParamSchema)) roomId: string,
-    @Body(new ValibotPipe(createRoomPinRequestSchema))
-    body: CreateRoomPinRequest,
+    @Body(new ValibotPipe(createRoomPinsRequestSchema))
+    body: CreateRoomPinsRequest,
   ): Promise<typeof OK> {
     try {
-      await this.pinService.enqueueRoomPin(user.id, roomId, body);
+      await this.pinService.enqueueRoomPins(user.id, body);
     } catch (error) {
       if (error instanceof AppException && error.getStatus() < 500) {
         throw error;
       }
       this.logger.error(
-        { err: error, roomId, userId: user.id },
+        { err: error, roomIds: body.roomIds, userId: user.id },
         "Failed to enqueue pin extraction task",
       );
       throw new AppException(

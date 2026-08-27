@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { AppException } from "../../common/exceptions/app.exception";
 import type { PinExtractionTask } from "../../common/tasks/pin-extraction-task.dto";
 import { DatabaseService } from "../../infrastructures/db/database.service";
@@ -26,16 +26,11 @@ export class PlaceResultRepository {
    * 작업이 여전히 유효한 대상에게 향하는지 확인.
    *
    * TOCTOU 방어: enqueue 시점과 저장 시점 사이(수 분)에 사용자가 방을 나갔을 수 있음.
-   * 방/source/user 존재 여부는 기본 확인이고, createdBy가 여전히 roomId의 활성 멤버인지도
+   * source/user 존재 여부를 확인하고, createdBy가 여전히 각 roomId의 활성 멤버인지도
    * 함께 검증해서 더 이상 멤버가 아닌 사용자의 핀이 저장되는 것을 차단.
    */
-  async isActiveTaskTarget(task: PinExtractionTask): Promise<boolean> {
-    const [room, source, user, membership] = await Promise.all([
-      this.databaseService.db
-        .select({ id: rooms.id })
-        .from(rooms)
-        .where(and(eq(rooms.id, task.roomId), isNull(rooms.deletedAt)))
-        .limit(1),
+  async activeRoomIdsForTask(task: PinExtractionTask): Promise<string[]> {
+    const [source, user] = await Promise.all([
       this.databaseService.db
         .select({ id: sources.id })
         .from(sources)
@@ -52,24 +47,22 @@ export class PlaceResultRepository {
         .from(users)
         .where(and(eq(users.id, task.createdBy), isNull(users.deletedAt)))
         .limit(1),
-      this.databaseService.db
-        .select({ id: roomMembers.id })
-        .from(roomMembers)
-        .where(
-          and(
-            eq(roomMembers.roomId, task.roomId),
-            eq(roomMembers.userId, task.createdBy),
-            isNull(roomMembers.deletedAt),
-          ),
-        )
-        .limit(1),
     ]);
-    return (
-      room.length > 0 &&
-      source.length > 0 &&
-      user.length > 0 &&
-      membership.length > 0
-    );
+    if (source.length === 0 || user.length === 0) return [];
+
+    const activeRooms = await this.databaseService.db
+      .select({ roomId: rooms.id })
+      .from(rooms)
+      .innerJoin(
+        roomMembers,
+        and(
+          eq(roomMembers.roomId, rooms.id),
+          eq(roomMembers.userId, task.createdBy),
+          isNull(roomMembers.deletedAt),
+        ),
+      )
+      .where(and(inArray(rooms.id, task.roomIds), isNull(rooms.deletedAt)));
+    return activeRooms.map((room) => room.roomId);
   }
 
   async save(
@@ -170,12 +163,14 @@ export class PlaceResultRepository {
       await tx
         .insert(pins)
         .values(
-          insertedPlaces.map((place) => ({
-            roomId: task.roomId,
-            placeId: place.id,
-            sourceId: task.sourceId,
-            createdBy: task.createdBy,
-          })),
+          task.roomIds.flatMap((roomId) =>
+            insertedPlaces.map((place) => ({
+              roomId,
+              placeId: place.id,
+              sourceId: task.sourceId,
+              createdBy: task.createdBy,
+            })),
+          ),
         )
         .onConflictDoNothing({
           target: [pins.roomId, pins.placeId],

@@ -75,6 +75,7 @@ export class PlaceE2eHarness {
   private outsiderAuthUid = "";
   private memberId = "";
   private roomId = "";
+  private secondRoomId = "";
   private capturedTask: PinExtractionTask | undefined;
 
   async setup(): Promise<void> {
@@ -179,6 +180,20 @@ export class PlaceE2eHarness {
       roomId: this.roomId,
       userId: this.memberId,
     });
+    const [secondRoom] = await this.db
+      .insert(rooms)
+      .values({
+        ownerId: this.memberId,
+        type: "shared",
+        name: "두 번째 핀 방",
+        color: "black",
+      })
+      .returning({ id: rooms.id });
+    this.secondRoomId = secondRoom?.id ?? "";
+    await this.db.insert(roomMembers).values({
+      roomId: this.secondRoomId,
+      userId: this.memberId,
+    });
     await this.db.insert(rooms).values({
       ownerId: outsiderId,
       type: "shared",
@@ -212,15 +227,19 @@ export class PlaceE2eHarness {
     return this.roomId;
   }
 
+  get secondRoom(): string {
+    return this.secondRoomId;
+  }
+
   get outsider(): string {
     return this.outsiderAuthUid;
   }
 
   async postPin(
     authUid = this._memberAuthUid,
-    body: unknown = { url: POST_URL },
+    body: unknown = { url: POST_URL, roomIds: [this.roomId] },
   ): Promise<Response> {
-    return this.api(`/api/v1/rooms/${this.roomId}/pins`, authUid, {
+    return this.api("/api/v1/rooms/pins", authUid, {
       method: "POST",
       body: JSON.stringify(body),
     });
