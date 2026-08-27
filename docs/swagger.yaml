@@ -484,9 +484,8 @@ paths:
                 roomIds:
                   type: array
                   minItems: 1
-                  maxItems: 10
                   uniqueItems: true
-                  description: 핀을 저장할 방 ID 목록(현재 임시 최대 10개). 모든 방의 활성 멤버여야 한다. 이 상한은 MVP 운영·사용 패턴을 확인한 뒤 변경될 수 있다.
+                  description: 핀을 저장할 방 ID 목록. 모든 방의 활성 멤버여야 한다.
                   items:
                     type: string
                     format: uuid
@@ -671,7 +670,6 @@ paths:
       summary: 다른 방에 핀 복제 ("다른 방에 공유")
       description: |
         원본 핀의 장소를 대상 방들에 복제한다. 신규 저장 경로가 아니다(신규 저장은 링크 분석 워커가 처리).
-        대상 방은 현재 최대 10개까지 선택할 수 있으며, 이 상한은 MVP 운영·사용 패턴을 확인한 뒤 변경될 수 있다.
         원본 핀의 방과 **모든 대상 방**의 멤버십을 검증한다.
         **대상 방 중 하나라도 같은 장소가 이미 저장돼 있으면 `409`로 전체 거절한다.**
       parameters:
@@ -687,11 +685,10 @@ paths:
                 roomIds:
                   type: array
                   minItems: 1
-                  maxItems: 10
                   items:
                     type: string
                     format: uuid
-                  description: 복제 대상 방 목록(현재 임시 최대 10개)
+                  description: 복제 대상 방 목록
       responses:
         "200":
           description: 복제 완료

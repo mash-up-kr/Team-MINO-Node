@@ -118,18 +118,21 @@ describe("PlaceWorkerController retry policy", () => {
     expect(extractFromUrl).not.toHaveBeenCalled();
   });
 
-  it("방이 11개인 task는 추출하지 않고 acknowledge한다", async () => {
-    const { controller, extractFromUrl } = createController();
+  it("방이 11개인 task도 추출한다", async () => {
+    const { controller, extractFromUrl, activeRoomIdsForTask } =
+      createController();
     const roomIds = Array.from(
       { length: 11 },
       (_, index) =>
         `11111111-1111-4111-8111-${String(index).padStart(12, "0")}`,
     );
+    activeRoomIdsForTask.mockResolvedValue(roomIds);
+    extractFromUrl.mockResolvedValue([]);
 
     await expect(
       controller.process({ ...TASK, roomIds }),
     ).resolves.toBeUndefined();
-    expect(extractFromUrl).not.toHaveBeenCalled();
+    expect(extractFromUrl).toHaveBeenCalledWith(URL);
   });
 
   it("retryable=true인 4xx는 503으로 변환해 Cloud Tasks 재시도를 보장한다", async () => {

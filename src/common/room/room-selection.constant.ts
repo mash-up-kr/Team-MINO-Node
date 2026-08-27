@@ -1,1 +1,0 @@
-export const MAX_ROOM_SELECTION_COUNT = 10;

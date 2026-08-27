@@ -6,7 +6,6 @@ import {
   pageSizeQuerySchema,
   paginationApiSchema,
 } from "../../common/pagination/pagination.dto";
-import { MAX_ROOM_SELECTION_COUNT } from "../../common/room/room-selection.constant";
 import type { SchemaObject } from "../../common/swagger/schema";
 
 export const uuidParamSchema = v.pipe(v.string(), v.uuid());
@@ -16,10 +15,6 @@ export const createRoomPinsRequestSchema = v.object({
   roomIds: v.pipe(
     v.array(uuidParamSchema),
     v.minLength(1, "저장할 방이 최소 하나 필요합니다."),
-    v.maxLength(
-      MAX_ROOM_SELECTION_COUNT,
-      `저장할 방은 최대 ${MAX_ROOM_SELECTION_COUNT}개까지 선택할 수 있습니다.`,
-    ),
     v.check(
       (roomIds) => new Set(roomIds).size === roomIds.length,
       "중복된 방을 선택할 수 없습니다.",
@@ -47,10 +42,6 @@ export const duplicatePinRequestSchema = v.object({
   roomIds: v.pipe(
     v.array(uuidParamSchema),
     v.minLength(1, "복제 대상 방이 최소 하나 필요합니다."),
-    v.maxLength(
-      MAX_ROOM_SELECTION_COUNT,
-      `복제 대상 방은 최대 ${MAX_ROOM_SELECTION_COUNT}개까지 선택할 수 있습니다.`,
-    ),
   ),
 });
 

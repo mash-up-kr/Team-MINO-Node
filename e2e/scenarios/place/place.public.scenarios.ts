@@ -113,13 +113,13 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
     expect(harness.enqueuePinExtraction).not.toHaveBeenCalled();
   });
 
-  it("방을 11개 선택하면 enqueue하지 않는다", async () => {
+  it("방을 11개 선택해도 멤버십 검증까지 진행한다", async () => {
     const response = await harness.postPin(harness.memberAuthUid, {
       url: NORMALIZED_POST_URL,
       roomIds: Array.from({ length: 11 }, randomUUID),
     });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(403);
     expect(harness.enqueuePinExtraction).not.toHaveBeenCalled();
   });
 
