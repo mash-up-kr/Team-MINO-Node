@@ -11,16 +11,17 @@ import { places } from "../../../src/modules/place/place.schema";
 import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { users } from "../../../src/modules/user/user.schema";
+import { authHeaders, withFakeTokenVerifier } from "../../auth";
 import { startApp } from "../../start-app";
 
 let app: INestApplication;
 let baseUrl: string;
 let db: DatabaseService["db"];
 
-// 시나리오 파일끼리 DB를 공유하므로 기기 식별자를 매 실행 고유하게 만듭니다.
-const memberDeviceId = `e2e-card-member-${randomUUID()}`;
-const otherDeviceId = `e2e-card-other-${randomUUID()}`;
-const outsiderDeviceId = `e2e-card-outsider-${randomUUID()}`;
+// 시나리오 파일끼리 DB를 공유하므로 인증 식별자를 매 실행 고유하게 만듭니다.
+const memberAuthUid = `e2e-card-member-${randomUUID()}`;
+const otherAuthUid = `e2e-card-other-${randomUUID()}`;
+const outsiderAuthUid = `e2e-card-outsider-${randomUUID()}`;
 
 let memberId: string;
 let otherId: string;
@@ -34,12 +35,12 @@ const pinIds: string[] = [];
 const ORIGIN = { lat: 37.5665, lng: 126.978 };
 const DAY = 86_400_000;
 
-function api(path: string, deviceId: string) {
-  return fetch(`${baseUrl}${path}`, { headers: { "X-Device-Id": deviceId } });
+function api(path: string, authUid: string) {
+  return fetch(`${baseUrl}${path}`, { headers: authHeaders(authUid) });
 }
 
-async function cards(path: string, deviceId = memberDeviceId) {
-  const response = await api(path, deviceId);
+async function cards(path: string, authUid = memberAuthUid) {
+  const response = await api(path, authUid);
   return { status: response.status, body: await response.json() };
 }
 
@@ -118,22 +119,22 @@ async function seedFreshRoom() {
 
 beforeAll(async () => {
   ({ app, baseUrl } = await startApp(
-    Test.createTestingModule({ imports: [AppModule] }),
+    withFakeTokenVerifier(Test.createTestingModule({ imports: [AppModule] })),
   ));
   db = app.get(DatabaseService).db;
 
   const insertedUsers = await db
     .insert(users)
     .values([
-      { deviceId: memberDeviceId, nickname: "민호", avatar: { id: 1 } },
-      { deviceId: otherDeviceId, nickname: "재성" },
-      { deviceId: outsiderDeviceId, nickname: "외부인" },
+      { authUid: memberAuthUid, nickname: "민호", avatar: { id: 1 } },
+      { authUid: otherAuthUid, nickname: "재성" },
+      { authUid: outsiderAuthUid, nickname: "외부인" },
     ])
-    .returning({ id: users.id, deviceId: users.deviceId });
-  const idOf = (deviceId: string) =>
-    insertedUsers.find((user) => user.deviceId === deviceId)?.id as string;
-  memberId = idOf(memberDeviceId);
-  otherId = idOf(otherDeviceId);
+    .returning({ id: users.id, authUid: users.authUid });
+  const idOf = (authUid: string) =>
+    insertedUsers.find((user) => user.authUid === authUid)?.id as string;
+  memberId = idOf(memberAuthUid);
+  otherId = idOf(otherAuthUid);
 
   const insertedRooms = await db
     .insert(rooms)
@@ -162,14 +163,14 @@ describe("GET /api/v1/rooms/:roomId/cards", () => {
   it("방 멤버가 아니면 403을 반환한다", async () => {
     const { status, body } = await cards(
       `/api/v1/rooms/${roomId}/cards`,
-      outsiderDeviceId,
+      outsiderAuthUid,
     );
 
     expect(status).toBe(403);
     expect(body.errorCode).toBe("NOT_ROOM_MEMBER");
   });
 
-  it("식별 헤더가 없으면 401을 반환한다", async () => {
+  it("인증 토큰이 없으면 401을 반환한다", async () => {
     const response = await fetch(`${baseUrl}/api/v1/rooms/${roomId}/cards`);
 
     expect(response.status).toBe(401);
