@@ -126,7 +126,7 @@ beforeAll(async () => {
   const insertedUsers = await db
     .insert(users)
     .values([
-      { authUid: memberAuthUid, nickname: "민호", avatar: { id: 1 } },
+      { authUid: memberAuthUid, nickname: "민호", avatar: { color: "red" } },
       { authUid: otherAuthUid, nickname: "재성" },
       { authUid: outsiderAuthUid, nickname: "외부인" },
     ])
