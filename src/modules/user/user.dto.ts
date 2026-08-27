@@ -1,5 +1,6 @@
 import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
+import { COLOR_KEYS } from "../../common/colors/color.constant";
 import type { SchemaObject } from "../../common/swagger/schema";
 
 /** 닉네임 정책: 공백 포함 한글/영문 2~15자, 특수문자 불가 (PR 리뷰 확정) */
@@ -16,8 +17,8 @@ export const nicknameSchema = v.pipe(
 
 /** 프로필 아바타. jsonb로 통째 저장하며 color 외 필드는 스키마에 추가해 확장한다. */
 export const avatarSchema = v.object({
-  // 색상 키 — 실제 색 매핑은 클라이언트 담당(방 색상과 동일 정책, 키셋 확정은 #71)
-  color: v.pipe(v.string(), v.minLength(1), v.maxLength(20)),
+  // 방 색상과 같은 13색 팔레트 키 — 실제 색 매핑은 클라이언트 담당
+  color: v.picklist(COLOR_KEYS, "색상은 팔레트 키 중 하나여야 합니다."),
 });
 
 export const registerUserRequestSchema = v.object({
@@ -63,7 +64,9 @@ const userSchema: SchemaObject = {
     avatar: {
       type: "object",
       nullable: true,
-      properties: { color: { type: "string", example: "red" } },
+      properties: {
+        color: { type: "string", enum: [...COLOR_KEYS], example: "red" },
+      },
     },
     createdAt: { type: "string", format: "date-time" },
   },

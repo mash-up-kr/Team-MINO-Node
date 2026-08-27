@@ -1,0 +1,1 @@
+ALTER TABLE "rooms" ALTER COLUMN "color" SET DATA TYPE varchar(16);

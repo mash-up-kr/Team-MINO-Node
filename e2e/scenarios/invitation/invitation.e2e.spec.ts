@@ -121,7 +121,7 @@ beforeAll(async () => {
         type,
         name: type === "shared" ? "5월의 약속 : 우리끼리" : "내 방",
         description: "우리 모임 장소 픽업 공간.",
-        color: "#FF6B6B",
+        color: "red",
       })),
     )
     .returning({ id: rooms.id, type: rooms.type });

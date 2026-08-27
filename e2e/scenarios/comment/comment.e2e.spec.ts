@@ -113,7 +113,7 @@ beforeAll(async () => {
       },
       { authUid: memberAuthUid, nickname: "민호", avatar: null },
       { authUid: outsiderAuthUid, nickname: "외부인" },
-      { authUid: departedAuthUid, nickname: "서연", avatar: { color: "navy" } },
+      { authUid: departedAuthUid, nickname: "서연", avatar: { color: "blue" } },
     ])
     .returning({ id: users.id, authUid: users.authUid });
 
@@ -286,7 +286,7 @@ describe("GET /api/v1/pins/:pinId/comments", () => {
       canDelete: false,
     });
     expect(data[1]).toMatchObject({
-      author: { id: departedId, nickname: "서연", avatar: { color: "navy" } },
+      author: { id: departedId, nickname: "서연", avatar: { color: "blue" } },
       canDelete: false,
     });
     expect(pagination).toEqual({ page: 0, pageSize: 2, hasNext: true });

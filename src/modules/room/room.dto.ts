@@ -1,5 +1,6 @@
 import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
+import { COLOR_KEYS } from "../../common/colors/color.constant";
 import type { SchemaObject } from "../../common/swagger/schema";
 
 export const uuidParamSchema = v.pipe(v.string(), v.uuid());
@@ -21,15 +22,10 @@ const roomDescriptionSchema = v.nullable(
   ),
 );
 
-/**
- * 색상은 서버가 hex를 내려주지 않고 enum 키로만 관리하며, 실제 색 매핑은
- * 클라이언트가 담당한다(리뷰 방향 픽스). 키셋이 디자인 확정 전이라
- * 우선 rooms.color(varchar(7)) 한도의 길이만 검증한다.
- */
-const roomColorSchema = v.pipe(
-  v.string(),
-  v.minLength(1, "색상 키가 필요합니다."),
-  v.maxLength(7, "색상 키는 7자 이하여야 합니다."),
+/** 색상은 확정 팔레트 키(13색)만 허용한다. 실제 색 매핑은 클라이언트 담당. */
+const roomColorSchema = v.picklist(
+  COLOR_KEYS,
+  "색상은 팔레트 키 중 하나여야 합니다.",
 );
 
 export const createRoomRequestSchema = v.object({
@@ -100,7 +96,13 @@ const roomSchema: SchemaObject = {
     type: { type: "string", enum: ["personal", "shared"] },
     name: { type: "string", example: "맛집 탐방" },
     description: { type: "string", nullable: true },
-    color: { type: "string", example: "black" },
+    color: {
+      type: "string",
+      enum: [...COLOR_KEYS],
+      example: "red",
+      description:
+        "팔레트 색상 키(13색, snake_case). 실제 색 매핑은 클라이언트 담당, 개인방 기본은 gray.",
+    },
     ownerId: { type: "string", format: "uuid" },
     createdAt: { type: "string", format: "date-time" },
   },
