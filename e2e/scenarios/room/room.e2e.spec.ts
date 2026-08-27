@@ -130,6 +130,36 @@ describe("공동방 생성·조회", () => {
     expect(shared?.thumbnailList).toEqual(["red"]);
   });
 
+  it("방 설명은 30자까지 허용하고 31자는 400", async () => {
+    const ok = await api("/api/v1/rooms", ownerAuthUid, {
+      method: "POST",
+      body: JSON.stringify({
+        name: "설명 30자 방",
+        description: "가".repeat(30),
+        color: "pink",
+      }),
+    });
+    expect(ok.status).toBe(201);
+
+    const tooLong = await api("/api/v1/rooms", ownerAuthUid, {
+      method: "POST",
+      body: JSON.stringify({
+        name: "설명 31자 방",
+        description: "가".repeat(31),
+        color: "pink",
+      }),
+    });
+    expect(tooLong.status).toBe(400);
+  });
+
+  it("방 이름에 허용 외 문자(이모지)는 400", async () => {
+    const response = await api("/api/v1/rooms", ownerAuthUid, {
+      method: "POST",
+      body: JSON.stringify({ name: "맛집 🍕", color: "pink" }),
+    });
+    expect(response.status).toBe(400);
+  });
+
   it("멤버가 아닌 유저의 방 상세 조회는 403", async () => {
     const response = await api(`/api/v1/rooms/${sharedRoomId}`, memberAuthUid);
     expect(response.status).toBe(403);
