@@ -1192,7 +1192,7 @@ components:
               type: integer
             thumbnailList:
               type: array
-              description: 최근 핀 최대 4개의 장소 대표 이미지 URL(최신순). 저장된 핀이 없으면 방장 아바타 색상 키 1개
+              description: 최근 핀 최대 4개의 장소 대표 이미지 URL(최신순). 저장된 핀이 없으면 방 대표 색상 키 1개(클라이언트는 색+캐릭터로 렌더링)
               items:
                 type: string
               example: ["https://img.example.com/a.jpg", "https://img.example.com/b.jpg"]

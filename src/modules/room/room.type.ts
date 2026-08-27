@@ -32,11 +32,6 @@ export type RoomWithCountsRow = RoomRow & {
   memberCount: number;
 };
 
-/** 방 목록 조회 행 — 썸네일 폴백용 방장 아바타까지 함께 내려온다. */
-export type JoinedRoomRow = RoomWithCountsRow & {
-  ownerAvatar: UserAvatar | null;
-};
-
 /** 방별 최근 핀의 장소 대표 이미지 행 — 방 목록 썸네일용. */
 export type RoomPinImageRow = {
   roomId: string;

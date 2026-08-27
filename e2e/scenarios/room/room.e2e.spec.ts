@@ -126,8 +126,8 @@ describe("공동방 생성·조회", () => {
     expect(shared?.memberCount).toBe(1);
     expect(shared?.pinCount).toBe(0);
     expect((shared?.users as unknown[]).length).toBe(1);
-    // 핀이 없는 방은 방장 아바타 색상 키로 폴백
-    expect(shared?.thumbnailList).toEqual(["red"]);
+    // 핀이 없는 방은 방 대표 색상 키로 폴백 (기획: 색+캐릭터 렌더링)
+    expect(shared?.thumbnailList).toEqual(["pink"]);
   });
 
   it("멤버가 아닌 유저의 방 상세 조회는 403", async () => {
