@@ -24,8 +24,9 @@ export const rooms = pgTable(
     type: varchar({ length: 16 }).$type<RoomType>().notNull(),
     name: varchar({ length: 20 }).notNull(),
     description: text(),
-    // 색상 enum 키(예: "black"). 실제 색 매핑은 클라이언트 담당, 키셋은 디자인 확정 전
-    color: varchar({ length: 7 }).notNull(),
+    // 팔레트 색상 키(13색, kebab-case — 예: "red-orange"). 실제 색 매핑은
+    // 클라이언트 담당, 개인방 기본은 grey. 최장 키 "light-blue"(10자) 수용 길이.
+    color: varchar({ length: 16 }).notNull(),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp({ withTimezone: true })
       .defaultNow()

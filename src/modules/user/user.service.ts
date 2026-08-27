@@ -31,7 +31,6 @@ export class UserService {
         },
         {
           name: PERSONAL_ROOM_NAME,
-          // 개인방 색상 정책은 미결 — 확정 전까지 임시 고정값
           color: PERSONAL_ROOM_DEFAULT_COLOR,
         },
       );

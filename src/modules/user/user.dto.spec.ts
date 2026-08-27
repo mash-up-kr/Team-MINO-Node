@@ -43,10 +43,10 @@ describe("registerUserRequestSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("avatar color가 빈 문자열이면 거절한다", () => {
+  it("avatar color는 팔레트 외 값을 거절한다", () => {
     const result = v.safeParse(registerUserRequestSchema, {
       nickname: "꾹이",
-      avatar: { color: "" },
+      avatar: { color: "#FF6B6B" },
     });
     expect(result.success).toBe(false);
   });

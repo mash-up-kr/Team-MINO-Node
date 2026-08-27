@@ -61,7 +61,7 @@ beforeAll(async () => {
       ownerId,
       type: "personal",
       name: "내 방",
-      color: "black",
+      color: "grey",
     })
     .returning({ id: rooms.id });
   personalRoomId = personalRoom?.id as string;
@@ -83,7 +83,7 @@ describe("공동방 생성·조회", () => {
       body: JSON.stringify({
         name: "  맛집 탐방  ",
         description: "우리끼리",
-        color: "coral",
+        color: "pink",
       }),
     });
 
@@ -97,10 +97,18 @@ describe("공동방 생성·조회", () => {
     sharedRoomId = data.id as string;
   });
 
+  it("팔레트 외 색상은 400", async () => {
+    const response = await api("/api/v1/rooms", ownerAuthUid, {
+      method: "POST",
+      body: JSON.stringify({ name: "색상 검증", color: "#FF6B6B" }),
+    });
+    expect(response.status).toBe(400);
+  });
+
   it("방 이름 15자 초과는 400", async () => {
     const response = await api("/api/v1/rooms", ownerAuthUid, {
       method: "POST",
-      body: JSON.stringify({ name: "가".repeat(16), color: "coral" }),
+      body: JSON.stringify({ name: "가".repeat(16), color: "pink" }),
     });
     expect(response.status).toBe(400);
   });
@@ -144,7 +152,7 @@ describe("공동방 생성·조회", () => {
   it("방장은 이름·설명·색상을 수정할 수 있다", async () => {
     const response = await api(`/api/v1/rooms/${sharedRoomId}`, ownerAuthUid, {
       method: "PATCH",
-      body: JSON.stringify({ name: "새 이름", color: "navy" }),
+      body: JSON.stringify({ name: "새 이름", color: "blue" }),
     });
 
     expect(response.status).toBe(200);
@@ -152,7 +160,7 @@ describe("공동방 생성·조회", () => {
       data: { name: string; color: string };
     };
     expect(data.name).toBe("새 이름");
-    expect(data.color).toBe("navy");
+    expect(data.color).toBe("blue");
   });
 
   it("방 멤버 목록에 방장 여부가 표시된다", async () => {
@@ -245,7 +253,7 @@ describe("방 목록 썸네일", () => {
   it("최근 핀의 장소 이미지 최대 4개를 최신순으로 내린다", async () => {
     const [thumbRoom] = await db
       .insert(rooms)
-      .values({ ownerId, type: "shared", name: "썸네일 방", color: "navy" })
+      .values({ ownerId, type: "shared", name: "썸네일 방", color: "blue" })
       .returning({ id: rooms.id });
     const thumbRoomId = thumbRoom?.id as string;
     await db
@@ -301,7 +309,7 @@ describe("방 목록 썸네일", () => {
         ownerId,
         type: "shared",
         name: "이미지 없는 방",
-        color: "coral",
+        color: "pink",
       })
       .returning({ id: rooms.id });
     const imagelessRoomId = imagelessRoom?.id as string;

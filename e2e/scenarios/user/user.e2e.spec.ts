@@ -133,7 +133,10 @@ describe("내 프로필", () => {
         ...authHeaders(authUid),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ nickname: "새 꾹이", avatar: { color: "navy" } }),
+      body: JSON.stringify({
+        nickname: "새 꾹이",
+        avatar: { color: "purple" },
+      }),
     });
 
     expect(response.status).toBe(200);
@@ -141,7 +144,7 @@ describe("내 프로필", () => {
       data: { nickname: string; avatar: { color: string } };
     };
     expect(data.nickname).toBe("새 꾹이");
-    expect(data.avatar).toEqual({ color: "navy" });
+    expect(data.avatar).toEqual({ color: "purple" });
   });
 
   it("빈 수정 요청은 400", async () => {

@@ -71,7 +71,7 @@ beforeAll(async () => {
       ].map((room) => ({
         ...room,
         type: "shared" as const,
-        color: "black",
+        color: "grey",
       })),
     )
     .returning({ id: rooms.id });
