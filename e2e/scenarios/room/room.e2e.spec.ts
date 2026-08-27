@@ -293,4 +293,47 @@ describe("방 목록 썸네일", () => {
       "https://img.example.com/thumb-2.jpg",
     ]);
   });
+
+  it("핀은 있지만 대표 이미지가 전부 없으면 색상 폴백 없이 빈 목록을 내린다", async () => {
+    const [imagelessRoom] = await db
+      .insert(rooms)
+      .values({
+        ownerId,
+        type: "shared",
+        name: "이미지 없는 방",
+        color: "coral",
+      })
+      .returning({ id: rooms.id });
+    const imagelessRoomId = imagelessRoom?.id as string;
+    await db
+      .insert(roomMembers)
+      .values({ roomId: imagelessRoomId, userId: ownerId });
+
+    const [place] = await db
+      .insert(places)
+      .values({
+        provider: "kakao" as const,
+        providerPlaceId: `e2e-thumb-${randomUUID()}`,
+        name: "이미지 없는 장소",
+        address: "서울 성동구 상원4길 10",
+        lat: 37.51,
+        lng: 127.0559,
+        images: null,
+      })
+      .returning({ id: places.id });
+    await db.insert(pins).values({
+      roomId: imagelessRoomId,
+      placeId: place?.id as string,
+      createdBy: ownerId,
+    });
+
+    const response = await api("/api/v1/rooms", ownerAuthUid);
+    expect(response.status).toBe(200);
+    const { data } = (await response.json()) as {
+      data: Array<Record<string, unknown>>;
+    };
+    const room = data.find((entry) => entry.id === imagelessRoomId);
+    expect(room?.pinCount).toBe(1);
+    expect(room?.thumbnailList).toEqual([]);
+  });
 });
