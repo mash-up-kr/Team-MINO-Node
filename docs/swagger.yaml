@@ -168,8 +168,7 @@ paths:
                   maxLength: 20
                   nullable: true
                 color:
-                  type: string
-                  description: '팔레트 5색 중 하나의 hex 값 (예: "#FF6B6B")'
+                  $ref: "#/components/schemas/ColorKey"
       responses:
         "201":
           description: 생성된 방
@@ -257,7 +256,7 @@ paths:
                   maxLength: 20
                   nullable: true
                 color:
-                  type: string
+                  $ref: "#/components/schemas/ColorKey"
       responses:
         "200":
           description: 수정된 방
@@ -1101,14 +1100,34 @@ components:
       maxLength: 15
       description: 공백 포함 한글/영문 2~15자, 특수문자 불가 (PR 리뷰 확정)
 
+    ColorKey:
+      type: string
+      description: |
+        색상 팔레트 키(총 13색, kebab-case). 실제 색 매핑(그라데이션 등)은 클라이언트가 담당한다.
+        grey는 개인방 기본값(클라이언트는 회색 기본 이미지로 렌더링).
+      enum:
+        - red
+        - red-orange
+        - orange
+        - lime
+        - green
+        - cyan
+        - violet
+        - pink
+        - blue
+        - brown
+        - light-blue
+        - purple
+        - grey
+      example: red
+
     Avatar:
       type: object
       description: 프로필 아바타. 색상 키 기반으로 저장하며(실제 색 매핑은 클라이언트), 추후 필드 확장 가능
       required: [color]
       properties:
         color:
-          type: string
-          example: red
+          $ref: "#/components/schemas/ColorKey"
 
     User:
       type: object
@@ -1141,8 +1160,7 @@ components:
           maxLength: 20
           nullable: true
         color:
-          type: string
-          description: 'hex 값 (예: "#FF6B6B")'
+          $ref: "#/components/schemas/ColorKey"
         ownerId:
           type: string
           format: uuid
@@ -1210,7 +1228,6 @@ components:
 
         엔티티 단위로 묶어 클라이언트가 Room/User 타입을 그대로 재사용할 수 있게 한다.
 
-        현재 구현과의 차이: 팔레트 색상 객체가 아직 스키마에 없어 `color`는 hex 문자열을 반환한다.
       properties:
         room:
           type: object
@@ -1228,12 +1245,7 @@ components:
               nullable: true
               description: 방 설명
             color:
-              type: object
-              description: 팔레트 색상 객체 (avatar와 같은 id 참조 구조)
-              required: [id]
-              properties:
-                id:
-                  type: integer
+              $ref: "#/components/schemas/ColorKey"
             pinCount:
               type: integer
               description: 방에 저장된 장소 수. "999+" 같은 절삭 표기는 클라이언트가 담당한다
