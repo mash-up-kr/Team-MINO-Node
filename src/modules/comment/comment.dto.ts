@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { COLOR_KEYS } from "../../common/colors/color.constant";
 import type { SchemaObject } from "../../common/swagger/schema";
 
 export const COMMENT_CONTENT_MAX_LENGTH = 200;
@@ -62,8 +63,10 @@ const authorApiSchema: SchemaObject = {
     avatar: {
       type: "object",
       nullable: true,
-      required: ["id"],
-      properties: { id: { type: "integer", example: 3 } },
+      required: ["color"],
+      properties: {
+        color: { type: "string", enum: [...COLOR_KEYS], example: "red" },
+      },
     },
   },
 };
