@@ -22,6 +22,9 @@ const pg = new EmbeddedPostgres({
   user: "postgres",
   password: "postgres",
   persistent: false,
+  // initdb는 로케일이 C/POSIX면 인코딩을 SQL_ASCII로 잡는데, 그러면 varchar(n)이
+  // 글자가 아니라 바이트를 세서 한글 값이 운영(UTF8)과 다르게 거부된다.
+  initdbFlags: ["--encoding=UTF8", "--locale=C"],
   onLog: () => undefined,
 });
 const db = drizzle({

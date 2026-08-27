@@ -95,7 +95,7 @@ export class PinController {
   @ApiOperation({
     summary: "핀 접근 기록 (사용자별)",
     description:
-      "개인별 카드 큐레이션의 재생성 제외 조건이자 클릭수 집계의 원천. append-only 로그.",
+      "홈 카드 덱의 묵힘 계산과 클릭수 집계의 원천. append-only 로그.",
   })
   @ApiResponse({ status: 200, schema: okResponseApiSchema })
   @ApiResponse({ status: 403, schema: errorResponseApiSchema })

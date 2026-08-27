@@ -109,11 +109,11 @@ beforeAll(async () => {
       {
         authUid: ownerAuthUid,
         nickname: "지은",
-        avatar: { id: 1 },
+        avatar: { color: "red" },
       },
       { authUid: memberAuthUid, nickname: "민호", avatar: null },
       { authUid: outsiderAuthUid, nickname: "외부인" },
-      { authUid: departedAuthUid, nickname: "서연", avatar: { id: 3 } },
+      { authUid: departedAuthUid, nickname: "서연", avatar: { color: "navy" } },
     ])
     .returning({ id: users.id, authUid: users.authUid });
 
@@ -224,7 +224,7 @@ describe("POST /api/v1/pins/:pinId/comments", () => {
     expect(data).toMatchObject({
       content: "좋아요 😀",
       canDelete: true,
-      author: { id: ownerId, nickname: "지은", avatar: { id: 1 } },
+      author: { id: ownerId, nickname: "지은", avatar: { color: "red" } },
     });
     expect(data.updatedAt).toBeUndefined();
     expect(data.deletedAt).toBeUndefined();
@@ -286,7 +286,7 @@ describe("GET /api/v1/pins/:pinId/comments", () => {
       canDelete: false,
     });
     expect(data[1]).toMatchObject({
-      author: { id: departedId, nickname: "서연", avatar: { id: 3 } },
+      author: { id: departedId, nickname: "서연", avatar: { color: "navy" } },
       canDelete: false,
     });
     expect(pagination).toEqual({ page: 0, pageSize: 2, hasNext: true });

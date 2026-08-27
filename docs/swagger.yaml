@@ -499,16 +499,57 @@ paths:
   /api/v1/rooms/{roomId}/cards:
     get:
       tags: [Pin]
-      summary: "[TBD] 홈 카드 피드 조회"
+      summary: 홈 카드 피드 조회
       description: |
-        **TBD — 홈 카드 큐레이션 기획 변경 진행 중.** 라벨 그룹 4종(클릭수/코멘트수/중복 저장/오래된 랜덤)
-        큐레이션이 후보로 등장했으나 확정 전이라 파라미터·응답 구성은 잠정이다.
-        확정분: 카드 10개 노출, 재생성 시 사용자별 접근 기록으로 이미 본 카드 제외, 개인별 큐레이션.
+        `sort`로 후보 **10장**을 뽑고, 각 카드에 장소분류 라벨을 붙인다.
+
+        **후보 (`sort`)** — 조건과 정렬을 함께 정한다.
+        - `ggukPick`(기본): 조건 없음, **묵힘** 오래된 순
+        - `latest`: 최근 14일 이내, 저장일 최신순
+        - `nearby`: 반경 3km 이내, 거리 가까운 순 (`lat`·`lng` 필수)
+
+        묵힘은 `coalesce(마지막으로 열어본 시점, 저장일)`이다. 스와이프는 기록하지 않으므로
+        장소 상세로 들어간 클릭만 묵힘을 되돌린다. 열어본 핀은 스스로 뒤로 밀리므로
+        "이미 본 카드 제외" 같은 조건이 필요 없다.
+
+        **라벨 배정** — 아래 순서대로, 앞 라벨이 가져간 장소는 제외한다.
+        1. `worthVisiting` 가볼 만한 곳 — 자격 없음, 묵힘 오래된 순, 4장
+        2. `manySaves` 여럿이 저장한 곳 — 저장된 방 2곳 이상, 많은 순, 2장
+        3. `manyComments` 이야기 많은 곳 — 코멘트 1건 이상, 많은 순, 2장
+        4. `manyViews` 친구들이 많이 본 곳 — 클릭 1회 이상, 많은 순, 2장
+
+        자격 미달로 남은 자리는 `worthVisiting`이 흡수한다. 그래서 지표가 전부 0인 신규 방은
+        10장 모두 `worthVisiting`이 되고, 후보가 10장이면 덱도 10장이 된다.
+        동점은 묵힌 순으로 깬다. **응답은 후보 정렬 순서를 그대로 유지한다** — 라벨별로 묶지 않는다.
+
+        페이지네이션과 재생성 계약은 두지 않는다. 매 호출마다 새로 계산하며,
+        다시 부르는 시점은 클라이언트가 정한다.
       parameters:
         - $ref: "#/components/parameters/RoomId"
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ggukPick, latest, nearby]
+            default: ggukPick
+        - name: lat
+          in: query
+          required: false
+          description: "`sort=nearby`일 때 필수"
+          schema:
+            type: number
+            format: double
+        - name: lng
+          in: query
+          required: false
+          description: "`sort=nearby`일 때 필수"
+          schema:
+            type: number
+            format: double
       responses:
         "200":
-          description: 카드 10개 (잠정)
+          description: 최대 10장. 방의 후보가 적으면 그만큼 짧다
           content:
             application/json:
               schema:
@@ -519,6 +560,8 @@ paths:
                     maxItems: 10
                     items:
                       $ref: "#/components/schemas/Card"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "403":
           $ref: "#/components/responses/Forbidden"
 
@@ -529,7 +572,14 @@ paths:
       description: |
         `roomId`의 핀 목록(좌표 포함). 요청 유저의 해당 방 멤버십을 검증한다.
         **`page`/`pageSize` 미지정 시 전체를 반환한다** — 지도 전체 보기는 페이지네이션 구분이 애매해 전체 조회를 보장한다(성능 저하 확인 시 리팩토링, PR 리뷰 확정). 리스트 뷰 등에서는 offset 기반 페이지네이션한다.
-        정렬/필터(5종)·카드형/리스트형 뷰는 기획 TBD — 확정 후 파라미터를 추가한다.
+        **목록 정렬 5종** (`sort`, 기본 `all`) — 홈 카드 덱의 정렬 칩과 별개다.
+        - `all` 전체 / `ggukPick` 저장일 오래된 순 상위 30% / `latest` 저장일 최신순
+        - `distance` 요청 좌표 기준 반경 3km 이내 (`lat`·`lng` 필수) / `commented` 코멘트 수 상위 30%
+
+        `ggukPick`의 판정 기준은 홈 카드 덱과 동일하다.
+        **장소분류 라벨(`labelGroup`)은 이 응답에 없다** — 라벨은 홈 카드 덱이 부여하는 값이다.
+
+        카드형/리스트형 뷰 전환은 기획 미확정이나, 조회 계약이 아니라 클라 표현 문제로 본다.
       parameters:
         - name: roomId
           in: query
@@ -537,6 +587,35 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, ggukPick, latest, distance, commented]
+            default: all
+        - name: category
+          in: query
+          required: false
+          description: 지도 상단 카테고리 필터. 3종 고정
+          schema:
+            type: string
+            enum: [all, cafe, restaurant]
+            default: all
+        - name: lat
+          in: query
+          required: false
+          description: "`sort=distance`일 때 필수"
+          schema:
+            type: number
+            format: double
+        - name: lng
+          in: query
+          required: false
+          description: "`sort=distance`일 때 필수"
+          schema:
+            type: number
+            format: double
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -624,8 +703,10 @@ paths:
       tags: [Pin]
       summary: 핀 접근 기록 (사용자별)
       description: |
-        카드 탐색/장소 상세 진입 시 요청 유저 기준으로 접근 행을 남긴다.
-        개인별 큐레이션의 재생성 제외 조건이자 "친구들이 많이 본 곳"(클릭수) 집계의 원천 데이터다.
+        장소 상세 진입 시 요청 유저 기준으로 접근 행을 남긴다.
+        홈 카드 덱의 묵힘(`coalesce(마지막으로 열어본 시점, 저장일)`) 계산과
+        "친구들이 많이 본 곳"(클릭수) 집계의 원천 데이터를 겸한다.
+        스와이프는 기록하지 않는다 — 넘긴 카드는 아직 안 본 것으로 남는다.
       parameters:
         - $ref: "#/components/parameters/PinId"
       responses:
@@ -1204,7 +1285,9 @@ components:
         category:
           type: string
           nullable: true
-          description: provider별 카테고리 정규화 규칙 정의 예정
+          description: |
+            provider 원본 카테고리 문자열. 지도 상단 필터는 이 값을
+            `cafe`/`restaurant`/그 외 3분류로 접어서 판정한다 (매핑 규칙 정의 예정)
         phone:
           type: string
           nullable: true
@@ -1299,10 +1382,18 @@ components:
 
     Card:
       type: object
-      description: 홈 카드 (TBD — 큐레이션 확정 후 라벨 그룹 등 필드 확정)
+      description: 홈 카드. 장소분류 라벨은 서버가 판정해 내려준다
       properties:
         pin:
           $ref: "#/components/schemas/Pin"
+        labelGroup:
+          type: string
+          description: |
+            `worthVisiting` 가볼 만한 곳 / `manyComments` 이야기 많은 곳 /
+            `manySaves` 여럿이 저장한 곳 / `manyViews` 친구들이 많이 본 곳.
+            `worthVisiting`이 자격 미달분을 흡수하므로 라벨이 비는 카드는 없다
+          enum: [worthVisiting, manyComments, manySaves, manyViews]
+      required: [pin, labelGroup]
 
     Notification:
       type: object

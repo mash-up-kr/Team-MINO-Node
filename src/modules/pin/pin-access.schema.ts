@@ -4,7 +4,7 @@ import { pins } from "./pin.schema";
 
 /**
  * 사용자별 핀 접근 로그. 접근마다 행을 추가하는 append-only 구조로,
- * 카드 재생성 시 "이미 본 카드" 제외 조건과 "친구들이 많이 본 곳"
+ * 홈 카드 덱의 묵힘(마지막으로 열어본 시점) 계산과 "친구들이 많이 본 곳"
  * 클릭수 집계의 원천을 겸합니다. 로그 성격이라 soft delete를 두지 않습니다.
  */
 export const pinAccesses = pgTable(
