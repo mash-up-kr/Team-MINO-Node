@@ -37,7 +37,7 @@ describe("유저 등록", () => {
   it("등록에 성공하면 프로필을 반환한다 (개인방은 응답에 미포함)", async () => {
     const response = await register(authUid, {
       nickname: "꾹이",
-      avatar: { id: 2 },
+      avatar: { color: "red" },
     });
 
     expect(response.status).toBe(201);
@@ -45,7 +45,7 @@ describe("유저 등록", () => {
       data: Record<string, unknown>;
     };
     expect(data.nickname).toBe("꾹이");
-    expect(data.avatar).toEqual({ id: 2 });
+    expect(data.avatar).toEqual({ color: "red" });
     expect(data.id).toBeString();
     expect(data).not.toContainKey("personalRoom");
   });
@@ -53,7 +53,7 @@ describe("유저 등록", () => {
   it("같은 계정으로 재등록하면 409를 반환한다", async () => {
     const response = await register(authUid, {
       nickname: "다른이름",
-      avatar: { id: 1 },
+      avatar: { color: "blue" },
     });
 
     expect(response.status).toBe(409);
@@ -64,7 +64,7 @@ describe("유저 등록", () => {
   it("인증 정보가 없으면 401을 반환한다", async () => {
     const response = await register(null, {
       nickname: "꾹이",
-      avatar: { id: 1 },
+      avatar: { color: "blue" },
     });
 
     expect(response.status).toBe(401);
@@ -75,7 +75,7 @@ describe("유저 등록", () => {
   it("닉네임 정책 위반은 400 VALIDATION_ERROR", async () => {
     const response = await register(`e2e-user-${randomUUID()}`, {
       nickname: "꾹!",
-      avatar: { id: 1 },
+      avatar: { color: "blue" },
     });
 
     expect(response.status).toBe(400);
@@ -102,10 +102,10 @@ describe("내 프로필", () => {
 
     expect(response.status).toBe(200);
     const { data } = (await response.json()) as {
-      data: { nickname: string; avatar: { id: number } };
+      data: { nickname: string; avatar: { color: string } };
     };
     expect(data.nickname).toBe("꾹이");
-    expect(data.avatar).toEqual({ id: 2 });
+    expect(data.avatar).toEqual({ color: "red" });
   });
 
   it("인증 정보가 없으면 401", async () => {
@@ -133,15 +133,15 @@ describe("내 프로필", () => {
         ...authHeaders(authUid),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ nickname: "새 꾹이", avatar: { id: 4 } }),
+      body: JSON.stringify({ nickname: "새 꾹이", avatar: { color: "navy" } }),
     });
 
     expect(response.status).toBe(200);
     const { data } = (await response.json()) as {
-      data: { nickname: string; avatar: { id: number } };
+      data: { nickname: string; avatar: { color: string } };
     };
     expect(data.nickname).toBe("새 꾹이");
-    expect(data.avatar).toEqual({ id: 4 });
+    expect(data.avatar).toEqual({ color: "navy" });
   });
 
   it("빈 수정 요청은 400", async () => {

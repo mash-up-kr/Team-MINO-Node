@@ -10,7 +10,7 @@ import { CurrentUserGuard } from "./current-user.guard";
 const REGISTERED_USER = {
   id: "11111111-1111-4111-8111-111111111111",
   nickname: "지은",
-  avatar: { id: 1 },
+  avatar: { color: "red" },
 };
 
 function createContext(headers: Record<string, string>): ExecutionContext {
