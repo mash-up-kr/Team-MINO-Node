@@ -18,8 +18,7 @@ export const NOTIFICATION_TYPES = [
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
-// 발송 시점에 완성한 표시용 문구를 그대로 저장한다. 대상 엔티티를 조인해 다시
-// 조립하지 않으므로, 알림 유형이 새 종류의 대상을 가리키게 되어도 컬럼을 늘릴 필요가 없다.
+// 발송 시점에 완성한 문구를 그대로 저장한다 — 대상 타입이 늘어도 컬럼을 추가할 필요가 없다.
 export const notifications = pgTable(
   "notifications",
   {
