@@ -1,12 +1,17 @@
 import { expect, it } from "bun:test";
+import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { sources } from "../../../src/modules/source/source.schema";
 import { NORMALIZED_POST_URL, PlaceE2eHarness } from "./place.e2e.helpers";
 
 export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
-  it("멤버십을 먼저 확인하고 source를 재사용하며 exact task payload를 enqueue한다", async () => {
-    const first = await harness.postPin();
-    const second = await harness.postPin();
+  it("여러 방 멤버십을 먼저 확인하고 source를 재사용하며 task 하나를 enqueue한다", async () => {
+    const request = {
+      url: NORMALIZED_POST_URL,
+      roomIds: [harness.room, harness.secondRoom],
+    };
+    const first = await harness.postPin(harness.memberAuthUid, request);
+    const second = await harness.postPin(harness.memberAuthUid, request);
     const firstBody = await first.json();
     const body = await second.json();
 
@@ -16,7 +21,7 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
     expect(second.status).toBe(202);
     expect(harness.enqueuePinExtraction).toHaveBeenCalledTimes(2);
     expect(harness.task).toMatchObject({
-      roomId: harness.room,
+      roomIds: [harness.room, harness.secondRoom],
       createdBy: harness.member,
       url: NORMALIZED_POST_URL,
     });
@@ -36,9 +41,11 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
   it("tracking query와 HTTP 입력은 하나의 normalized source와 task URL을 공유한다", async () => {
     const first = await harness.postPin(harness.memberAuthUid, {
       url: "http://m.instagram.com/p/e2e-pin/?utm_source=test#fragment",
+      roomIds: [harness.room],
     });
     const second = await harness.postPin(harness.memberAuthUid, {
       url: "https://instagram.com/p/e2e-pin/?igsh=another",
+      roomIds: [harness.room],
     });
 
     expect(first.status).toBe(202);
@@ -64,6 +71,7 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
   it("잘못된 URL은 400이고 enqueue하지 않는다", async () => {
     const response = await harness.postPin(harness.memberAuthUid, {
       url: "not-a-url",
+      roomIds: [harness.room],
     });
 
     expect(response.status).toBe(400);
@@ -80,11 +88,39 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
     ];
 
     for (const url of invalidUrls) {
-      const response = await harness.postPin(harness.memberAuthUid, { url });
+      const response = await harness.postPin(harness.memberAuthUid, {
+        url,
+        roomIds: [harness.room],
+      });
       expect(response.status).toBe(400);
     }
     expect(harness.enqueuePinExtraction).not.toHaveBeenCalled();
     expect(await harness.db.select().from(sources)).toHaveLength(0);
+  });
+
+  it("빈 배열 또는 중복 방 ID는 enqueue하지 않는다", async () => {
+    const empty = await harness.postPin(harness.memberAuthUid, {
+      url: NORMALIZED_POST_URL,
+      roomIds: [],
+    });
+    const duplicate = await harness.postPin(harness.memberAuthUid, {
+      url: NORMALIZED_POST_URL,
+      roomIds: [harness.room, harness.room],
+    });
+
+    expect(empty.status).toBe(400);
+    expect(duplicate.status).toBe(400);
+    expect(harness.enqueuePinExtraction).not.toHaveBeenCalled();
+  });
+
+  it("방을 11개 선택해도 멤버십 검증까지 진행한다", async () => {
+    const response = await harness.postPin(harness.memberAuthUid, {
+      url: NORMALIZED_POST_URL,
+      roomIds: Array.from({ length: 11 }, randomUUID),
+    });
+
+    expect(response.status).toBe(403);
+    expect(harness.enqueuePinExtraction).not.toHaveBeenCalled();
   });
 
   it("enqueue 실패는 502지만 방금 upsert한 source는 다음 요청에서 재사용된다", async () => {

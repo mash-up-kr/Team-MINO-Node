@@ -7,11 +7,13 @@ import { SourceRepository } from "../source/source.repository";
 import { PinRepository } from "./pin.repository";
 import { PinService } from "./pin.service";
 
-describe("PinService.enqueueRoomPin", () => {
+describe("PinService.enqueueRoomPins", () => {
   it("source 저장 결과가 없으면 SOURCE_UPSERT_FAILED를 던지고 enqueue하지 않는다", async () => {
     // given
     const pinRepository = {
-      isActiveMemberOfRoom: jest.fn(async () => true),
+      listTargetRoomsWithMembership: jest.fn(async () => [
+        { roomId: "room-id", isMember: true },
+      ]),
     };
     const sourceRepository = {
       ensureActiveInstagramSource: jest.fn(async () => undefined),
@@ -30,8 +32,9 @@ describe("PinService.enqueueRoomPin", () => {
     const service = module.get(PinService);
 
     // when
-    const promise = service.enqueueRoomPin("user-id", "room-id", {
+    const promise = service.enqueueRoomPins("user-id", {
       url: "https://instagram.com/p/abc123/",
+      roomIds: ["room-id"],
     });
 
     // then

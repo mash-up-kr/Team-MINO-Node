@@ -212,6 +212,21 @@ describe("핀 상세 조회", () => {
 });
 
 describe("다른 방에 핀 복제", () => {
+  it("대상 방을 11개 선택해도 대상 방 조회까지 진행한다", async () => {
+    const response = await api(
+      `/api/v1/pins/${firstPinId}/duplicate`,
+      memberAuthUid,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          roomIds: Array.from({ length: 11 }, randomUUID),
+        }),
+      },
+    );
+
+    expect(response.status).toBe(404);
+  });
+
   it("대상 방에 핀이 복제된다", async () => {
     const response = await api(
       `/api/v1/pins/${firstPinId}/duplicate`,

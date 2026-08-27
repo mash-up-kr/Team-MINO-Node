@@ -105,12 +105,13 @@ bun run start:local
 2. API 호출로 추출을 enqueue합니다.
 
 ```http
-POST http://localhost:3000/api/v1/rooms/{roomId}/pins
-X-Device-Id: {deviceId}
+POST http://localhost:3000/api/v1/rooms/pins
+Authorization: Bearer {idToken}
 Content-Type: application/json
 
 {
-  "url": "https://www.instagram.com/p/{shortcode}/"
+  "url": "https://www.instagram.com/p/{shortcode}/",
+  "roomIds": ["{roomId}", "{anotherRoomId}"]
 }
 ```
 
@@ -124,7 +125,7 @@ POST http://localhost:3000/api-internal/v1/tasks/pins
 Content-Type: application/json
 
 {
-  "roomId": "{roomId}",
+  "roomIds": ["{roomId}", "{anotherRoomId}"],
   "sourceId": "{sourceId}",
   "createdBy": "{userId}",
   "url": "https://www.instagram.com/p/{shortcode}/"

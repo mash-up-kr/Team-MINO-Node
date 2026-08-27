@@ -9,7 +9,7 @@ import { PlaceWorkerController } from "./place-worker.controller";
 
 const URL = "https://instagram.com/p/abc123/";
 const TASK = {
-  roomId: "11111111-1111-4111-8111-111111111111",
+  roomIds: ["11111111-1111-4111-8111-111111111111"],
   sourceId: "22222222-2222-4222-8222-222222222222",
   createdBy: "33333333-3333-4333-8333-333333333333",
   url: URL,
@@ -17,7 +17,7 @@ const TASK = {
 
 function createController() {
   const extractFromUrl = jest.fn();
-  const isActiveTaskTarget = jest.fn().mockResolvedValue(true);
+  const activeRoomIdsForTask = jest.fn().mockResolvedValue(TASK.roomIds);
   const save = jest.fn().mockResolvedValue({
     retryableFailures: 0,
     persistedPlaces: 0,
@@ -27,16 +27,16 @@ function createController() {
   };
   const placeResultRepository: Pick<
     PlaceResultRepository,
-    "isActiveTaskTarget" | "save"
+    "activeRoomIdsForTask" | "save"
   > = {
-    isActiveTaskTarget,
+    activeRoomIdsForTask,
     save,
   };
 
   return {
     controller: new PlaceWorkerController(placeService, placeResultRepository),
     extractFromUrl,
-    isActiveTaskTarget,
+    activeRoomIdsForTask,
     save,
   };
 }
@@ -103,9 +103,9 @@ describe("PlaceWorkerController retry policy", () => {
   });
 
   it("stale task는 추출하지 않고 acknowledge한다", async () => {
-    const { controller, extractFromUrl, isActiveTaskTarget } =
+    const { controller, extractFromUrl, activeRoomIdsForTask } =
       createController();
-    isActiveTaskTarget.mockResolvedValue(false);
+    activeRoomIdsForTask.mockResolvedValue([]);
 
     await expect(controller.process(TASK)).resolves.toBeUndefined();
     expect(extractFromUrl).not.toHaveBeenCalled();
@@ -116,6 +116,23 @@ describe("PlaceWorkerController retry policy", () => {
 
     await expect(controller.process({ url: URL })).resolves.toBeUndefined();
     expect(extractFromUrl).not.toHaveBeenCalled();
+  });
+
+  it("방이 11개인 task도 추출한다", async () => {
+    const { controller, extractFromUrl, activeRoomIdsForTask } =
+      createController();
+    const roomIds = Array.from(
+      { length: 11 },
+      (_, index) =>
+        `11111111-1111-4111-8111-${String(index).padStart(12, "0")}`,
+    );
+    activeRoomIdsForTask.mockResolvedValue(roomIds);
+    extractFromUrl.mockResolvedValue([]);
+
+    await expect(
+      controller.process({ ...TASK, roomIds }),
+    ).resolves.toBeUndefined();
+    expect(extractFromUrl).toHaveBeenCalledWith(URL);
   });
 
   it("retryable=true인 4xx는 503으로 변환해 Cloud Tasks 재시도를 보장한다", async () => {

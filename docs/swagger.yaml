@@ -458,32 +458,37 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
-  /api/v1/rooms/{roomId}/pins:
+  /api/v1/rooms/pins:
     post:
       tags: [LinkAnalysis]
-      summary: "[TBD] 링크로 핀 생성 요청 (링크 분석, 비동기 접수)"
+      summary: 링크로 여러 방에 핀 생성 요청 (비동기 접수)
       description: |
-        **TBD — 링크 분석 계약은 기획/설계 변경 여지가 있어 잠정이다.**
-        공유/붙여넣기된 링크를 접수해 방에 핀을 생성하는 비동기 요청. enqueue 전에 `roomId`에 대한 요청 유저의 멤버십을 검증한다.
+        공유/붙여넣기된 링크를 접수해 선택한 여러 방에 핀을 생성하는 비동기 요청. enqueue 전에 모든 `roomIds`에 대한 요청 유저의 멤버십을 검증한다.
         서버는 `sources` 등록과 Cloud Tasks enqueue까지만 동기로 수행하고 즉시 응답한다.
         **별도 상태 조회 API는 없다** — 처리 결과는 푸시(중복·실패)와 알림함으로 안내한다.
-        백그라운드 처리는 Cloud Tasks 워커(내부 전용 엔드포인트, 외부 비공개·스펙 비공개)가 수행한다.
+        백그라운드 처리는 Cloud Tasks 워커가 URL을 한 번 분석한 뒤 유효한 대상 방들에 핀을 저장한다.
         MVP 지원 출처는 인스타그램 링크뿐이며 그 외 URL은 명시적으로 거절한다.
         한 게시물에서 장소가 여러 개 추출되는 경우의 처리(핀 N개·부분 성공·푸시 횟수)는 미결 — 확정 후 계약에 반영.
-      parameters:
-        - $ref: "#/components/parameters/RoomId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [url]
+              required: [url, roomIds]
               properties:
                 url:
                   type: string
                   format: uri
                   description: 인스타그램 게시물 URL만 허용
+                roomIds:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  description: 핀을 저장할 방 ID 목록. 모든 방의 활성 멤버여야 한다.
+                  items:
+                    type: string
+                    format: uuid
       responses:
         "202":
           description: 접수됨
@@ -495,6 +500,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "502":
+          $ref: "#/components/responses/BadGateway"
 
   /api/v1/rooms/{roomId}/cards:
     get:
@@ -1007,6 +1014,12 @@ components:
             $ref: "#/components/schemas/Error"
     Conflict:
       description: 충돌 (중복 등록 등)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadGateway:
+      description: Cloud Tasks enqueue 실패
       content:
         application/json:
           schema:

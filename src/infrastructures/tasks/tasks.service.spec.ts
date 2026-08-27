@@ -56,13 +56,13 @@ function stubClient(
 
 describe("TasksService.enqueuePinExtraction", () => {
   const payload = {
-    roomId: "11111111-1111-4111-8111-111111111111",
+    roomIds: ["11111111-1111-4111-8111-111111111111"],
     sourceId: "22222222-2222-4222-8222-222222222222",
     createdBy: "33333333-3333-4333-8333-333333333333",
     url: "https://www.instagram.com/p/abc123/",
   };
 
-  it("방·출처·생성자·URL을 그대로 internal 핀 task에 담는다", async () => {
+  it("방 목록·출처·생성자·URL을 그대로 internal 핀 task에 담는다", async () => {
     const service = new TasksService(createConfigService());
     let captured: CreateTaskArg | undefined;
     stubClient(service, async (arg) => {

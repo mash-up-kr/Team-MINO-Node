@@ -4,7 +4,11 @@ import { instagramUrlSchema } from "../instagram/instagram-url.dto";
 const taskIdSchema = v.pipe(v.string(), v.uuid());
 
 export const pinExtractionTaskSchema = v.object({
-  roomId: taskIdSchema,
+  roomIds: v.pipe(
+    v.array(taskIdSchema),
+    v.minLength(1),
+    v.check((roomIds) => new Set(roomIds).size === roomIds.length),
+  ),
   sourceId: taskIdSchema,
   createdBy: taskIdSchema,
   url: instagramUrlSchema,
