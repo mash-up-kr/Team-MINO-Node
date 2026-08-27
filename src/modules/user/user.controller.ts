@@ -59,7 +59,7 @@ export class UserController {
   @RequireCurrentUser()
   @ApiOperation({
     summary: "프로필 수정",
-    description: "닉네임(공백 포함 한글/영문 2~15자)·아바타 수정",
+    description: "닉네임(한글/영문 2~15자, 공백·숫자 불가)·아바타 수정",
   })
   @ApiBody({ schema: updateProfileRequestApiSchema })
   @ApiResponse({ status: 200, schema: userResponseApiSchema })
