@@ -1,4 +1,5 @@
 import { expect, it } from "bun:test";
+import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { sources } from "../../../src/modules/source/source.schema";
 import { NORMALIZED_POST_URL, PlaceE2eHarness } from "./place.e2e.helpers";
@@ -109,6 +110,16 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
 
     expect(empty.status).toBe(400);
     expect(duplicate.status).toBe(400);
+    expect(harness.enqueuePinExtraction).not.toHaveBeenCalled();
+  });
+
+  it("방을 11개 선택하면 enqueue하지 않는다", async () => {
+    const response = await harness.postPin(harness.memberAuthUid, {
+      url: NORMALIZED_POST_URL,
+      roomIds: Array.from({ length: 11 }, randomUUID),
+    });
+
+    expect(response.status).toBe(400);
     expect(harness.enqueuePinExtraction).not.toHaveBeenCalled();
   });
 
