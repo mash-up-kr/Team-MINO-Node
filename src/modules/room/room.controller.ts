@@ -95,7 +95,10 @@ export class RoomController {
   }
 
   @Patch(":roomId")
-  @ApiOperation({ summary: "방 편집 (방장만)" })
+  @ApiOperation({
+    summary: "방 편집 (방장만)",
+    description: "개인방은 편집 대상이 아니다(403 PERSONAL_ROOM_NOT_ALLOWED).",
+  })
   @ApiBody({ schema: updateRoomRequestApiSchema })
   @ApiResponse({ status: 200, schema: roomResponseApiSchema })
   @ApiResponse({ status: 403, schema: errorResponseApiSchema })

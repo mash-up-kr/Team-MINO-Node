@@ -104,7 +104,7 @@ export class RoomService {
     return room;
   }
 
-  /** 방 편집. 방장만 가능하다. */
+  /** 방 편집. 방장만 가능하며, 개인방은 편집 대상이 아니다(기획 확정). */
   async updateRoom(
     userId: string,
     roomId: string,
@@ -112,6 +112,7 @@ export class RoomService {
   ): Promise<RoomResponse> {
     const room = await this.findActiveRoom(roomId);
     this.assertOwner(room, userId);
+    this.assertNotPersonal(room);
 
     const updated = await this.roomRepository.updateActiveById(roomId, {
       ...(input.name !== undefined && { name: input.name }),
@@ -253,7 +254,7 @@ export class RoomService {
     if (room.type === "personal") {
       throw new AppException(
         "PERSONAL_ROOM_NOT_ALLOWED",
-        "개인방은 나가기·위임 대상이 아닙니다.",
+        "개인방은 편집·나가기·위임 대상이 아닙니다.",
         HttpStatus.FORBIDDEN,
       );
     }
