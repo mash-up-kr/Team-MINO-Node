@@ -15,6 +15,7 @@ import { HealthController } from "./health/health.controller";
 import { DatabaseModule } from "./infrastructures/db/database.module";
 import { SentryModule } from "./infrastructures/sentry/sentry.module";
 import { CardModule } from "./modules/card/card.module";
+import { CommentModule } from "./modules/comment/comment.module";
 import { InvitationModule } from "./modules/invitation/invitation.module";
 import { PinModule } from "./modules/pin/pin.module";
 import { PlaceModule } from "./modules/place/place.module";
@@ -43,6 +44,7 @@ import { UserModule } from "./modules/user/user.module";
     DatabaseModule,
     TerminusModule,
     SentryModule,
+    CommentModule,
     PlaceModule,
     InvitationModule,
     PinModule,

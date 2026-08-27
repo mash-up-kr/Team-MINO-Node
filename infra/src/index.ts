@@ -1,3 +1,4 @@
+import { authConfig } from "@/resources/auth";
 import { service } from "@/resources/cloud-run";
 import { customDomain } from "@/resources/hosting";
 import { developer, serverServiceAccount } from "@/resources/identity";
@@ -29,3 +30,6 @@ export const taskInvokerServiceAccountEmail = taskInvokerServiceAccount.email;
 export const placeImagesLocalBucketName = placeImagesLocalBucket.name;
 export const placeImagesProdBucketName = placeImagesProdBucket.name;
 export const customDomainDnsUpdates = customDomain.requiredDnsUpdates;
+export const anonymousAuthEnabled = authConfig.signIn.apply(
+  (signIn) => signIn?.anonymous?.enabled ?? false,
+);

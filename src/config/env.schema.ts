@@ -30,6 +30,11 @@ const envSchema = v.pipe(
     ),
     // GCP 프로젝트 ID(Vertex project 겸 Maps X-Goog-User-Project)
     GOOGLE_CLOUD_PROJECT: v.pipe(v.string(), v.minLength(1)),
+    /*
+     * Firebase Authentication 프로젝트 ID. ID 토큰의 iss/aud 검증 기준값이다.
+     * Firebase 프로젝트는 GCP 프로젝트 위에 얹히므로, 미설정 시 GOOGLE_CLOUD_PROJECT를 쓴다.
+     */
+    FIREBASE_PROJECT_ID: v.optional(v.pipe(v.string(), v.minLength(1))),
     // Gemini 3.1 Flash-Lite 지원 location 중 이 앱의 기본값은 "global"이다.
     GOOGLE_VERTEX_LOCATION: v.optional(v.string(), "global"),
     /*

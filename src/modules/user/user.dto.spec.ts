@@ -38,7 +38,6 @@ describe("nicknameSchema", () => {
 describe("registerUserRequestSchema", () => {
   it("avatar가 없으면 거절한다 (최초 진입 시 필수 입력)", () => {
     const result = v.safeParse(registerUserRequestSchema, {
-      deviceId: "device-1",
       nickname: "꾹이",
     });
     expect(result.success).toBe(false);
@@ -46,7 +45,6 @@ describe("registerUserRequestSchema", () => {
 
   it("avatar id는 음수를 거절한다", () => {
     const result = v.safeParse(registerUserRequestSchema, {
-      deviceId: "device-1",
       nickname: "꾹이",
       avatar: { id: -1 },
     });

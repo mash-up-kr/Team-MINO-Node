@@ -15,14 +15,17 @@ export class UserService {
 
   /**
    * 유저 등록. 개인방("내 장소") 자동 생성이 같은 트랜잭션에서 함께 처리된다. (PR 리뷰 확정)
-   * 이미 등록된 deviceId면 409 — 사전 조회 대신 활성 유니크 인덱스 위반을 변환해
+   * 이미 등록된 계정이면 409 — 사전 조회 대신 활성 유니크 인덱스 위반을 변환해
    * 동시 등록 경합에도 같은 계약을 보장한다.
    */
-  async register(input: RegisterUserRequest): Promise<UserProfileResponse> {
+  async register(
+    authUid: string,
+    input: RegisterUserRequest,
+  ): Promise<UserProfileResponse> {
     try {
       const user = await this.userRepository.createWithPersonalRoom(
         {
-          deviceId: input.deviceId,
+          authUid,
           nickname: input.nickname,
           avatar: input.avatar,
         },
@@ -39,8 +42,8 @@ export class UserService {
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new AppException(
-          "DEVICE_ALREADY_REGISTERED",
-          "이미 등록된 디바이스입니다.",
+          "USER_ALREADY_REGISTERED",
+          "이미 등록된 유저입니다.",
           HttpStatus.CONFLICT,
         );
       }

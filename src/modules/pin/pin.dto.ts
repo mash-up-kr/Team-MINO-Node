@@ -1,5 +1,6 @@
 import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
+import { instagramUrlSchema } from "../../common/instagram/instagram-url.dto";
 import {
   pageQuerySchema,
   pageSizeQuerySchema,
@@ -8,6 +9,14 @@ import {
 import type { SchemaObject } from "../../common/swagger/schema";
 
 export const uuidParamSchema = v.pipe(v.string(), v.uuid());
+
+export const createRoomPinRequestSchema = v.object({
+  url: instagramUrlSchema,
+});
+
+export type CreateRoomPinRequest = v.InferOutput<
+  typeof createRoomPinRequestSchema
+>;
 
 /**
  * page/pageSize 둘 다 미지정이면 전체를 반환한다(지도 전체 보기 보장 — PR 리뷰 확정).
@@ -34,6 +43,11 @@ export type DuplicatePinRequest = v.InferOutput<
 
 export const duplicatePinRequestApiSchema = toJsonSchema(
   duplicatePinRequestSchema,
+  { errorMode: "ignore" },
+) as SchemaObject;
+
+export const createRoomPinRequestApiSchema = toJsonSchema(
+  createRoomPinRequestSchema,
   { errorMode: "ignore" },
 ) as SchemaObject;
 

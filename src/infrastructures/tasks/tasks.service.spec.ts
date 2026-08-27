@@ -54,8 +54,15 @@ function stubClient(
   return client;
 }
 
-describe("TasksService.enqueuePlaceExtraction", () => {
-  it("URL payload와 internal endpoint를 사용해 태스크를 만든다", async () => {
+describe("TasksService.enqueuePinExtraction", () => {
+  const payload = {
+    roomId: "11111111-1111-4111-8111-111111111111",
+    sourceId: "22222222-2222-4222-8222-222222222222",
+    createdBy: "33333333-3333-4333-8333-333333333333",
+    url: "https://www.instagram.com/p/abc123/",
+  };
+
+  it("방·출처·생성자·URL을 그대로 internal 핀 task에 담는다", async () => {
     const service = new TasksService(createConfigService());
     let captured: CreateTaskArg | undefined;
     stubClient(service, async (arg) => {
@@ -63,29 +70,21 @@ describe("TasksService.enqueuePlaceExtraction", () => {
       return [{}];
     });
 
-    await service.enqueuePlaceExtraction("https://www.instagram.com/p/abc123/");
+    await service.enqueuePinExtraction(payload);
 
-    expect(captured?.parent).toBe(
-      "projects/team-mino-prod/locations/asia-northeast3/queues/team-mino-prod-place-extraction",
-    );
-    expect(captured?.task.dispatchDeadline).toEqual({ seconds: 9 * 60 });
-    expect(captured?.task.httpRequest.httpMethod).toBe("POST");
     expect(captured?.task.httpRequest.url).toBe(
-      "https://api.team-mino.example/internal/tasks/pin-extraction",
+      "https://api.team-mino.example/api-internal/v1/tasks/pins",
     );
-    expect(captured?.task.httpRequest.headers).toEqual({
-      "Content-Type": "application/json",
-    });
     expect(
       JSON.parse(captured?.task.httpRequest.body?.toString() ?? "{}"),
-    ).toEqual({ url: "https://www.instagram.com/p/abc123/" });
+    ).toEqual(payload);
     expect(captured?.task.httpRequest.oidcToken).toEqual({
       serviceAccountEmail: ENV.CLOUD_TASKS_INVOKER_EMAIL,
-      audience: ENV.APP_BASE_URL,
+      audience: "https://api.team-mino.example",
     });
   });
 
-  it("APP_BASE_URL 끝 슬래시가 있어도 internal url이 깨지지 않는다", async () => {
+  it("APP_BASE_URL 끝 슬래시를 제거해 task URL을 만든다", async () => {
     const service = new TasksService(
       createConfigService({ APP_BASE_URL: "https://api.team-mino.example/" }),
     );
@@ -95,28 +94,14 @@ describe("TasksService.enqueuePlaceExtraction", () => {
       return [{}];
     });
 
-    await service.enqueuePlaceExtraction("https://www.instagram.com/p/abc/");
+    await service.enqueuePinExtraction(payload);
 
     expect(captured?.task.httpRequest.url).toBe(
-      "https://api.team-mino.example/internal/tasks/pin-extraction",
-    );
-    expect(captured?.task.httpRequest.oidcToken.audience).toBe(
-      "https://api.team-mino.example",
+      "https://api.team-mino.example/api-internal/v1/tasks/pins",
     );
   });
 
-  it("createTask가 실패하면 그대로 전파한다", async () => {
-    const service = new TasksService(createConfigService());
-    stubClient(service, async () => {
-      throw new Error("UNAVAILABLE");
-    });
-
-    await expect(
-      service.enqueuePlaceExtraction("https://www.instagram.com/p/abc/"),
-    ).rejects.toThrow("UNAVAILABLE");
-  });
-
-  it("로컬 모드에서는 Cloud Tasks에 enqueue하지 않는다", async () => {
+  it("로컬 모드에서는 task를 큐에 등록하지 않는다", async () => {
     const service = new TasksService(
       createConfigService({ CLOUD_TASKS_MODE: "local" }),
     );
@@ -125,8 +110,19 @@ describe("TasksService.enqueuePlaceExtraction", () => {
     });
 
     await expect(
-      service.enqueuePlaceExtraction("https://www.instagram.com/p/abc/"),
+      service.enqueuePinExtraction(payload),
     ).resolves.toBeUndefined();
     expect(client.createTask).not.toHaveBeenCalled();
+  });
+
+  it("createTask 실패를 그대로 전파한다", async () => {
+    const service = new TasksService(createConfigService());
+    stubClient(service, async () => {
+      throw new Error("UNAVAILABLE");
+    });
+
+    await expect(service.enqueuePinExtraction(payload)).rejects.toThrow(
+      "UNAVAILABLE",
+    );
   });
 });
