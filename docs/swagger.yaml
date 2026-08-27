@@ -1103,11 +1103,12 @@ components:
 
     Avatar:
       type: object
-      description: 프로필 아바타. id 참조 방식으로 저장하며, 추후 url·color·sunglass 등 필드 확장 가능
-      required: [id]
+      description: 프로필 아바타. 색상 키 기반으로 저장하며(실제 색 매핑은 클라이언트), 추후 필드 확장 가능
+      required: [color]
       properties:
-        id:
-          type: integer
+        color:
+          type: string
+          example: red
 
     User:
       type: object
@@ -1158,6 +1159,12 @@ components:
               type: integer
             memberCount:
               type: integer
+            thumbnailList:
+              type: array
+              description: 최근 핀 최대 4개의 장소 대표 이미지 URL(최신순). 저장된 핀이 없으면 방장 아바타 색상 키 1개
+              items:
+                type: string
+              example: ["https://img.example.com/a.jpg", "https://img.example.com/b.jpg"]
             hasPlace:
               type: boolean
               nullable: true

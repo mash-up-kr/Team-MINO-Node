@@ -98,7 +98,7 @@ beforeAll(async () => {
       {
         authUid: ownerAuthUid,
         nickname: "지은",
-        avatar: { id: 1 },
+        avatar: { color: "red" },
       },
       { authUid: memberAuthUid, nickname: "민호" },
       { authUid: joinerAuthUid, nickname: "재성" },

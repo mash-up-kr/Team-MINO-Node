@@ -43,10 +43,10 @@ describe("registerUserRequestSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("avatar id는 음수를 거절한다", () => {
+  it("avatar color가 빈 문자열이면 거절한다", () => {
     const result = v.safeParse(registerUserRequestSchema, {
       nickname: "꾹이",
-      avatar: { id: -1 },
+      avatar: { color: "" },
     });
     expect(result.success).toBe(false);
   });
@@ -59,7 +59,8 @@ describe("updateProfileRequestSchema", () => {
 
   it("nickname 또는 avatar 한 필드만으로 수정할 수 있다", () => {
     expect(
-      v.safeParse(updateProfileRequestSchema, { avatar: { id: 3 } }).success,
+      v.safeParse(updateProfileRequestSchema, { avatar: { color: "blue" } })
+        .success,
     ).toBe(true);
     expect(
       v.safeParse(updateProfileRequestSchema, { nickname: "새이름" }).success,

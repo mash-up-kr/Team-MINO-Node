@@ -55,7 +55,7 @@ export const errorResponseApiSchema: SchemaObject = {
 const avatarApiSchema: SchemaObject = {
   type: "object",
   nullable: true,
-  properties: { id: { type: "integer", example: 3 } },
+  properties: { color: { type: "string", example: "red" } },
 };
 
 export const invitationPreviewResponseApiSchema: SchemaObject = {

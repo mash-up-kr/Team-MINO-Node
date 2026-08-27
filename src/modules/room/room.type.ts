@@ -32,6 +32,17 @@ export type RoomWithCountsRow = RoomRow & {
   memberCount: number;
 };
 
+/** 방 목록 조회 행 — 썸네일 폴백용 방장 아바타까지 함께 내려온다. */
+export type JoinedRoomRow = RoomWithCountsRow & {
+  ownerAvatar: UserAvatar | null;
+};
+
+/** 방별 최근 핀의 장소 대표 이미지 행 — 방 목록 썸네일용. */
+export type RoomPinImageRow = {
+  roomId: string;
+  imageUrl: string;
+};
+
 /** 요청 유저 관점의 방 조회 행 — 멤버십 검증까지 본 쿼리에서 함께 내려온다. */
 export type RoomForUserRow = RoomWithCountsRow & {
   isMember: boolean;
@@ -51,6 +62,8 @@ export type RoomMemberResponse = {
 export type RoomSummaryResponse = RoomResponse & {
   pinCount: number;
   memberCount: number;
+  /** 최근 핀 최대 4개의 장소 대표 이미지 URL. 저장된 핀이 없으면 방장 아바타 색상 키 1개. */
+  thumbnailList: string[];
   /** `?showHasPlaceId=` 지정 시에만 포함 */
   hasPlace?: boolean;
   /** `?showUsers=true` 지정 시에만 포함 */
