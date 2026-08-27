@@ -5,10 +5,7 @@ import { GoogleAuth } from "google-auth-library";
 import type { Env } from "../../config/env.schema";
 import type { PushPayload } from "./messaging.type";
 
-/**
- * FCM v1 발송. 실패는 여기서 삼키고 Sentry로만 보고한다 — 호출부(알림 생성)가
- * 발송 실패로 실패해서는 안 된다.
- */
+// 발송 실패는 여기서 삼키고 Sentry로만 보고한다 — 알림 생성 자체를 실패시키면 안 된다.
 @Injectable()
 export class MessagingService {
   private static readonly SCOPE =
