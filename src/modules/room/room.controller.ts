@@ -147,7 +147,11 @@ export class RoomController {
   }
 
   @Get(":roomId/members")
-  @ApiOperation({ summary: "방 멤버 목록 (방장 위임 대상 선택 모달용)" })
+  @ApiOperation({
+    summary: "방 멤버 목록 (방장 위임 대상 선택 모달용)",
+    description:
+      "정렬: 최근에 장소를 저장한 멤버가 먼저, 핀 없는 멤버는 가입순으로 뒤. 방 목록 ?showUsers=true의 users에도 동일 적용.",
+  })
   @ApiResponse({ status: 200, schema: roomMemberListResponseApiSchema })
   listMembers(
     @CurrentUser() user: RequestUser,
