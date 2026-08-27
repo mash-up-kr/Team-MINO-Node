@@ -115,6 +115,8 @@ Content-Type: application/json
 }
 ```
 
+현재 한 요청에서 선택할 수 있는 방은 최대 10개입니다. 이 값은 임시 정책이며, MVP 사용 데이터를 본 뒤 조정될 수 있습니다.
+
 응답은 `{ "data": { "ok": true } }`와 함께 `202 Accepted`입니다. `start:local`에서는 여기서 GCP Cloud Tasks enqueue가 발생하지 않습니다.
 
 3. 같은 서버의 Internal endpoint를 직접 실행합니다.
@@ -131,6 +133,8 @@ Content-Type: application/json
   "url": "https://www.instagram.com/p/{shortcode}/"
 }
 ```
+
+Internal endpoint에도 동일하게 최대 10개의 방만 전달할 수 있습니다.
 
 `start:local`의 local 모드에서만 OIDC guard가 우회됩니다. 운영에서는 기존 API Cloud Run 서비스에 Cloud Tasks OIDC 토큰이 필요합니다.
 
