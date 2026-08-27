@@ -7,7 +7,7 @@ export const PERSONAL_ROOM_NAME = "내 장소";
 export const ROOM_THUMBNAIL_COUNT = 4;
 
 /**
- * 개인방 기본 색상 — 팔레트 키 grey (디자인 확정).
+ * 개인방 기본 색상 — 팔레트 키 gray (디자인 확정).
  * 클라이언트는 개인방 기본 썸네일을 회색 이미지로 렌더링한다.
  */
-export const PERSONAL_ROOM_DEFAULT_COLOR: ColorKey = "grey";
+export const PERSONAL_ROOM_DEFAULT_COLOR: ColorKey = "gray";

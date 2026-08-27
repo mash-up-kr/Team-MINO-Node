@@ -61,7 +61,7 @@ beforeAll(async () => {
       ownerId,
       type: "personal",
       name: "내 방",
-      color: "grey",
+      color: "gray",
     })
     .returning({ id: rooms.id });
   personalRoomId = personalRoom?.id as string;

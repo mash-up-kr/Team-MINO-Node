@@ -101,7 +101,7 @@ const roomSchema: SchemaObject = {
       enum: [...COLOR_KEYS],
       example: "red",
       description:
-        "팔레트 색상 키(13색, kebab-case). 실제 색 매핑은 클라이언트 담당, 개인방 기본은 grey.",
+        "팔레트 색상 키(13색, snake_case). 실제 색 매핑은 클라이언트 담당, 개인방 기본은 gray.",
     },
     ownerId: { type: "string", format: "uuid" },
     createdAt: { type: "string", format: "date-time" },
