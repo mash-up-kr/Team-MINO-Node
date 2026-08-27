@@ -489,7 +489,7 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 
 | Method | Path | 설명 | 화면 |
 |---|---|---|---|
-| `POST` | `/api/v1/rooms/{roomId}/pins` | 링크 분석 요청 → 202 Accepted (즉시 접수, jobId 없음) | [000] |
+| `POST` | `/api/v1/rooms/pins` | 여러 방 대상 링크 분석 요청 → 202 Accepted (즉시 접수, jobId 없음) | [000] |
 | `GET` | `/api/v1/rooms/{roomId}/cards` | 홈 카드 피드 조회 (최대 10개). `sort`=`ggukPick`(기본)/`latest`/`nearby`, `nearby`는 좌표 필요 | [002] |
 | `GET` | `/api/v1/pins/{pinId}` | 장소(핀) 상세 — 장소 정보 + 출처 링크 + 코멘트 수 | [005] |
 | `POST` | `/api/v1/pins/{pinId}/duplicate` | 다른 방에 핀 복제 (body: `{ "roomIds": [...] }`) | [004] [005] |
@@ -499,12 +499,13 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 
 **세부 계약 메모**
 
-- `POST /rooms/{roomId}/pins`: body는 `{ url }`(`roomId`는 path로 온다). **enqueue 전에 `roomId`에 대한 요청 유저의 멤버십을 검증한다.** 서버는 `sources` 등록과 enqueue까지만 동기로 하고 즉시 `202`를 반환한다. 스크랩·LLM·지오코딩 지연 때문에 동기 응답이 불가하다는 것이 회의 결론이다.
+- `POST /rooms/pins`: body는 `{ url, roomIds }`이며 `roomIds`는 비어 있지 않은 중복 없는 배열이다. **enqueue 전에 모든 `roomIds`에 대한 요청 유저의 멤버십을 검증한다.** 하나라도 유효하지 않으면 source를 등록하거나 작업을 생성하지 않고 거절한다. 서버는 `sources` 등록과 enqueue까지만 동기로 하고 즉시 `202`를 반환한다. 스크랩·LLM·지오코딩 지연 때문에 동기 응답이 불가하다는 것이 회의 결론이다.
+  - Cloud Tasks 작업 하나가 URL을 한 번 스크랩·추출·지오코딩하고, 성공 장소를 모든 선택 방에 저장한다. 작업 대기 중 사용자가 특정 방을 나갔으면 그 방만 제외하며, 모든 대상이 무효면 작업을 acknowledge한다.
   - 기존 `POST /api/v1/place/places`(`src/modules/place/place.controller.ts`)가 동기 추출을 하고 있어, 이 경로로 정리하며 흡수한다.
   - MVP 지원 출처는 인스타그램 링크뿐이다. 그 외 URL은 명시적으로 거절한다.
   - 한 게시물에서 장소 N개가 추출되는 경우의 처리(핀 N개·부분 성공·푸시 횟수)는 미결 4 확정 후 계약에 반영한다.
 - 별도 상태 조회 API를 두지 않는다. 처리 결과는 푸시(중복·실패)와 알림함으로만 전달한다. 앱이 포그라운드일 때 성공 케이스의 안내 방식은 미결이다(7장 미결 참조).
-- `POST /rooms/{roomId}/pins`: **링크 분석 접수 전용**이다. "다른 방에 공유(복제)"는 `POST /pins/{pinId}/duplicate`를 사용한다.
+- `POST /rooms/pins`: **링크 분석 접수 전용**이다. "다른 방에 공유(복제)"는 `POST /pins/{pinId}/duplicate`를 사용한다.
   - `POST /pins/{pinId}/duplicate`: 원본 핀의 장소를 **여러 대상 방에 복제**한다(신규 저장 경로가 아니라 링크 분석 워커가 신규 저장을 처리). 원본 방·모든 대상 방 멤버십을 검증하고, **대상 방 중 하나라도 같은 장소가 이미 저장돼 있으면 409로 전체 거절**한다. (swagger 확정)
 - `GET /rooms/{roomId}/cards`: `sort`로 후보 10장을 뽑고 각 카드에 `labelGroup`을 붙인다. 라벨 판정은 서버가 한다. 자격 미달로 남은 자리는 `가볼 만한 곳`이 흡수하므로 후보가 10장이면 덱도 10장이다. **페이지네이션도 재생성 계약도 두지 않고**, 다시 부르는 시점은 클라이언트가 정한다.
 - `POST /pins/{pinId}/accesses`: 개인별 큐레이션이 확정됐으므로 요청 유저 기준으로 접근 행을 남긴다. `pins.last_accessed_at` 갱신만으로는 부족하다. "친구들이 많이 본 곳"(클릭수) 집계의 원천 데이터를 겸한다.
@@ -557,8 +558,8 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 
 - **INFRA > Tasks > Cloud Tasks 애플리케이션 연동**
   - 큐 enqueue 서비스 + 워커 엔드포인트 OIDC 인증 가드. 큐 리소스는 `infra/`에 이미 정의되어 있고, 앱 연동만 미머지 상태다.
-- **링크 유입 > API > 링크 분석 접수 (비동기)** — `POST /rooms/{roomId}/pins`
-  - `original_url` 정규화 → `sources` 조회·등록 → enqueue → **즉시 202**. 인스타그램 URL만 허용.
+- **링크 유입 > API > 링크 분석 접수 (비동기)** — `POST /rooms/pins`
+  - `original_url` 정규화 → 모든 선택 방 멤버십 검증 → `sources` 조회·등록 → task 하나 enqueue → **즉시 202**. 인스타그램 URL만 허용.
   - 기존 `POST /api/v1/place/places`를 이 경로로 정리·흡수.
 - **링크 유입 > Worker > 장소 추출 파이프라인 처리** — 내부 전용 워커 엔드포인트(공개 계약 제외)
   - 스크래핑 → AI 추출 → 지오코딩 → `places` dedup → `place_sources` 연결 → `pins` 생성.
@@ -615,7 +616,7 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
   - 이름·색상 수정. **방장 권한 검증**.
 - **방 > API > 방 나가기 · 방장 위임** — `DELETE /rooms/{roomId}/members/me`, `PUT /rooms/{roomId}/owner`, `GET /rooms/{roomId}/members`
   - 나가기는 파라미터 없이 요청, 방장+잔여 멤버 상태면 에러 분기(위임 선행 유도). 개인방 제외. **마지막 멤버면 나가기 + 방 soft delete.** (PR 리뷰 확정)
-- **핀 > API > 다른 방에 공유 (핀 복제)** — `POST /rooms/{roomId}/pins`
+- **핀 > API > 다른 방에 공유 (핀 복제)** — `POST /pins/{pinId}/duplicate`
   - 원본 방·대상 방 **양쪽 멤버십 검증**. 대상 방에 같은 장소가 있는 경우 응답 정책 포함.
 
 ### [005] 장소 상세
