@@ -82,7 +82,7 @@ it("코멘트 Swagger 응답은 nullable avatar를 명시한다", () => {
               avatar: {
                 type: "object",
                 nullable: true,
-                required: ["id"],
+                required: ["color"],
               },
             },
           },
