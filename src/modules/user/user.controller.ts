@@ -78,7 +78,7 @@ export class UserController {
   @Put("me/push-token")
   @RequireCurrentUser()
   @ApiOperation({
-    summary: "디바이스 푸시 토큰 등록·갱신",
+    summary: "디바이스 푸시 토큰 등록 및 갱신",
     description:
       "FCM 등록 토큰. 재설치로 새 유저가 생성되면 이전 유저 행의 토큰을 회수한다.",
   })

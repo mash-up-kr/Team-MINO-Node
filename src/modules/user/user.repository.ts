@@ -89,7 +89,6 @@ export class UserRepository extends BaseRepository {
     return row;
   }
 
-  /** 재설치로 같은 토큰을 들고 있던 이전 유저 행을 회수한 뒤 갱신한다. */
   async updatePushToken(userId: string, token: string): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx
