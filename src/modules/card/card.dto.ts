@@ -73,7 +73,7 @@ const cardSchema: SchemaObject = {
         avatar: {
           type: "object",
           nullable: true,
-          properties: { id: { type: "integer" } },
+          properties: { color: { type: "string" } },
         },
       },
     },
