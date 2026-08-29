@@ -134,7 +134,7 @@ describe("내 프로필", () => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        nickname: "새 꾹이",
+        nickname: "새꾹이",
         avatar: { color: "purple" },
       }),
     });
@@ -143,7 +143,7 @@ describe("내 프로필", () => {
     const { data } = (await response.json()) as {
       data: { nickname: string; avatar: { color: string } };
     };
-    expect(data.nickname).toBe("새 꾹이");
+    expect(data.nickname).toBe("새꾹이");
     expect(data.avatar).toEqual({ color: "purple" });
   });
 

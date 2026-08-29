@@ -10,7 +10,6 @@ describe("nicknameSchema", () => {
   it.each([
     "꾹이",
     "GgukLover",
-    "꾹 러버",
     "ab",
     "가".repeat(15),
   ])("유효한 닉네임을 통과시킨다: %s", (nickname) => {
@@ -21,6 +20,7 @@ describe("nicknameSchema", () => {
     "가",
     "가".repeat(16),
     "꾹이!",
+    "꾹 러버",
     "gguk_1",
     "꾹이2",
     "😀꾹",
@@ -32,6 +32,11 @@ describe("nicknameSchema", () => {
     const result = v.safeParse(nicknameSchema, "  꾹이  ");
     expect(result.success).toBe(true);
     if (result.success) expect(result.output).toBe("꾹이");
+  });
+
+  it("내부 공백·숫자를 거절한다", () => {
+    expect(v.safeParse(nicknameSchema, "꾹 이").success).toBe(false);
+    expect(v.safeParse(nicknameSchema, "꾹이2").success).toBe(false);
   });
 });
 

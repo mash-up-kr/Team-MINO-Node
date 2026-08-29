@@ -96,7 +96,7 @@ paths:
     patch:
       tags: [User]
       summary: 프로필 수정
-      description: 닉네임(공백 포함 한글/영문 2~15자, 특수문자 불가)·아바타 수정. 공통 프로필이라 모든 방에 즉시 반영된다.
+      description: 닉네임(한글/영문 2~15자, 공백·숫자·특수문자 불가)·아바타 수정. 공통 프로필이라 모든 방에 즉시 반영된다.
       requestBody:
         required: true
         content:
@@ -1111,7 +1111,7 @@ components:
       type: string
       minLength: 2
       maxLength: 15
-      description: 공백 포함 한글/영문 2~15자, 특수문자 불가 (PR 리뷰 확정)
+      description: 한글/영문 2~15자 — 공백·숫자·특수문자 불가(안드 스펙 정합). 상한 15자는 서버(DB) 계약
 
     ColorKey:
       type: string
