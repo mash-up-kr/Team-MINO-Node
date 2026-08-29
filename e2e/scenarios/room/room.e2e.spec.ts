@@ -192,6 +192,46 @@ describe("공동방 생성·조회", () => {
     expect(data.find((m) => m.userId === memberId)?.isOwner).toBe(false);
   });
 
+  it("멤버 목록은 최근에 장소를 저장한 멤버가 먼저 온다", async () => {
+    const [sortRoom] = await db
+      .insert(rooms)
+      .values({ ownerId, type: "shared", name: "정렬 검증 방", color: "blue" })
+      .returning({ id: rooms.id });
+    const sortRoomId = sortRoom?.id as string;
+    await db.insert(roomMembers).values([
+      { roomId: sortRoomId, userId: ownerId },
+      { roomId: sortRoomId, userId: memberId },
+    ]);
+
+    const [place] = await db
+      .insert(places)
+      .values({
+        provider: "kakao" as const,
+        providerPlaceId: `e2e-sort-${randomUUID()}`,
+        name: "정렬용 장소",
+        address: "서울 성동구 상원4길 10",
+        lat: 37.52,
+        lng: 127.0559,
+      })
+      .returning({ id: places.id });
+    // 나중에 가입한 memberId가 핀을 저장 → 목록 맨 앞에 와야 한다
+    await db.insert(pins).values({
+      roomId: sortRoomId,
+      placeId: place?.id as string,
+      createdBy: memberId,
+    });
+
+    const response = await api(
+      `/api/v1/rooms/${sortRoomId}/members`,
+      ownerAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const { data } = (await response.json()) as {
+      data: Array<{ userId: string }>;
+    };
+    expect(data.map((m) => m.userId)).toEqual([memberId, ownerId]);
+  });
+
   it("다른 멤버가 있는 방의 방장 나가기는 409", async () => {
     const response = await api(
       `/api/v1/rooms/${sharedRoomId}/members/me`,

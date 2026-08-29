@@ -1,5 +1,15 @@
 import { Injectable } from "@nestjs/common";
-import { and, desc, eq, exists, inArray, isNull, lte, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  lte,
+  max,
+  sql,
+} from "drizzle-orm";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
 import { pins } from "../pin/pin.schema";
 import { places } from "../place/place.schema";
@@ -198,8 +208,25 @@ export class RoomRepository extends BaseRepository {
     return rows.map((row) => row.roomId);
   }
 
-  /** 방 멤버 목록 — 방장 여부(isOwner)까지 SQL에서 판별해 응답 형태로 내린다. */
+  /**
+   * 방 멤버 목록 — 방장 여부(isOwner)까지 SQL에서 판별해 응답 형태로 내린다.
+   * 정렬: 최근에 장소를 저장한 멤버 우선(기획 — 아바타 배치 기준), 핀 없는
+   * 멤버는 가입순으로 뒤에 온다.
+   */
   async listMembersWithRole(roomIds: string[]): Promise<MemberWithRoomRow[]> {
+    // 멤버별 마지막 핀 저장 시점 — 상관 스칼라 서브쿼리(쿼리 빌더로 만들어야
+    // 상관 참조가 정규화 렌더링된다).
+    const lastPinnedAt = this.db
+      .select({ value: max(pins.createdAt) })
+      .from(pins)
+      .where(
+        and(
+          eq(pins.roomId, roomMembers.roomId),
+          eq(pins.createdBy, roomMembers.userId),
+          isNull(pins.deletedAt),
+        ),
+      );
+
     return await this.db
       .select({
         roomId: roomMembers.roomId,
@@ -218,7 +245,7 @@ export class RoomRepository extends BaseRepository {
           isNull(roomMembers.deletedAt),
         ),
       )
-      .orderBy(roomMembers.joinedAt);
+      .orderBy(sql`${lastPinnedAt} desc nulls last`, roomMembers.joinedAt);
   }
 
   async updateActiveById(
