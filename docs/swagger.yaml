@@ -1390,10 +1390,10 @@ components:
             avatar:
               type: object
               nullable: true
-              required: [id]
+              required: [color]
               properties:
-                id:
-                  type: integer
+                color:
+                  type: string
         content:
           type: string
           minLength: 1
