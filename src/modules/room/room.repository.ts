@@ -7,11 +7,11 @@ import { users } from "../user/user.schema";
 import { rooms } from "./room.schema";
 import type {
   CreateSharedRoomInput,
-  JoinedRoomRow,
   MemberWithRoomRow,
   RoomForUserRow,
   RoomPinImageRow,
   RoomRow,
+  RoomWithCountsRow,
   UpdateRoomInput,
 } from "./room.type";
 import { roomMembers } from "./room-member.schema";
@@ -126,20 +126,20 @@ export class RoomRepository extends BaseRepository {
    * 유저가 속한 활성 방 목록 — 핀 수·멤버 수를 서브쿼리로 함께 조회한다.
    * 정렬은 기획 미확정이라 생성 역순 잠정.
    */
-  async listJoinedRoomsWithCounts(userId: string): Promise<JoinedRoomRow[]> {
+  async listJoinedRoomsWithCounts(
+    userId: string,
+  ): Promise<RoomWithCountsRow[]> {
     return await this.db
       .select({
         ...ROOM_COLUMNS,
         pinCount: this.pinCount,
         memberCount: this.memberCount,
-        ownerAvatar: users.avatar,
       })
       .from(roomMembers)
       .innerJoin(
         rooms,
         and(eq(roomMembers.roomId, rooms.id), isNull(rooms.deletedAt)),
       )
-      .innerJoin(users, eq(rooms.ownerId, users.id))
       .where(and(eq(roomMembers.userId, userId), isNull(roomMembers.deletedAt)))
       .orderBy(desc(rooms.createdAt));
   }
