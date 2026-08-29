@@ -97,6 +97,20 @@ describe("공동방 생성·조회", () => {
     sharedRoomId = data.id as string;
   });
 
+  it("개인방은 편집할 수 없다 (403)", async () => {
+    const response = await api(
+      `/api/v1/rooms/${personalRoomId}`,
+      ownerAuthUid,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ name: "이름 변경 시도" }),
+      },
+    );
+    expect(response.status).toBe(403);
+    const body = (await response.json()) as { errorCode: string };
+    expect(body.errorCode).toBe("PERSONAL_ROOM_NOT_ALLOWED");
+  });
+
   it("팔레트 외 색상은 400", async () => {
     const response = await api("/api/v1/rooms", ownerAuthUid, {
       method: "POST",
