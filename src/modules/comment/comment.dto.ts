@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import { COLOR_KEYS } from "../../common/colors/color.constant";
 import type { SchemaObject } from "../../common/swagger/schema";
+import { maxGraphemes } from "../../common/text/grapheme";
 
 export const COMMENT_CONTENT_MAX_LENGTH = 200;
 export const COMMENT_PAGE_DEFAULT = 0;
@@ -15,7 +16,10 @@ export const createCommentRequestSchema = v.object({
     v.string(),
     v.trim(),
     v.minLength(1),
-    v.maxLength(COMMENT_CONTENT_MAX_LENGTH),
+    maxGraphemes(
+      COMMENT_CONTENT_MAX_LENGTH,
+      `코멘트는 ${COMMENT_CONTENT_MAX_LENGTH}자 이하여야 합니다.`,
+    ),
   ),
 });
 

@@ -22,6 +22,18 @@ describe("createCommentRequestSchema", () => {
     });
   });
 
+  it("길이는 grapheme 단위로 센다 — 결합 이모지 200개는 허용, 201자는 거절", () => {
+    const family = "👨‍👩‍👧‍👦";
+    expect(
+      v.safeParse(createCommentRequestSchema, { content: family.repeat(200) })
+        .success,
+    ).toBe(true);
+    expect(
+      v.safeParse(createCommentRequestSchema, { content: "가".repeat(201) })
+        .success,
+    ).toBe(false);
+  });
+
   it("공백만 있는 코멘트를 거절한다", () => {
     const result = v.safeParse(createCommentRequestSchema, { content: " \n " });
 

@@ -165,7 +165,7 @@ paths:
                   description: 최소 제한 없음·최대 15자·중복 허용·앞뒤 공백 제거 (PR 리뷰 확정)
                 description:
                   type: string
-                  maxLength: 20
+                  maxLength: 30 # grapheme 단위(클라이언트 카운터와 동일)
                   nullable: true
                 color:
                   $ref: "#/components/schemas/ColorKey"
@@ -253,7 +253,7 @@ paths:
                   maxLength: 15
                 description:
                   type: string
-                  maxLength: 20
+                  maxLength: 30 # grapheme 단위(클라이언트 카운터와 동일)
                   nullable: true
                 color:
                   $ref: "#/components/schemas/ColorKey"
@@ -1170,7 +1170,7 @@ components:
           maxLength: 15
         description:
           type: string
-          maxLength: 20
+          maxLength: 30 # grapheme 단위(클라이언트 카운터와 동일)
           nullable: true
         color:
           $ref: "#/components/schemas/ColorKey"

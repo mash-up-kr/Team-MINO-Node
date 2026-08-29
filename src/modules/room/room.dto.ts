@@ -2,23 +2,32 @@ import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { COLOR_KEYS } from "../../common/colors/color.constant";
 import type { SchemaObject } from "../../common/swagger/schema";
+import { maxGraphemes } from "../../common/text/grapheme";
 
 export const uuidParamSchema = v.pipe(v.string(), v.uuid());
 
-/** 방 이름 정책: 최소 제한 없음·최대 15자·중복 허용·앞뒤 공백 제거 (PR 리뷰 확정) */
+/**
+ * 방 이름 정책(기획 확정): 한글(완성형·자모 단독)·영문·숫자·공백만,
+ * 최대 15자(grapheme)·중복 허용·앞뒤 공백 제거.
+ * 문자 제한 덕에 15자는 rooms.name varchar(20) 한도 안에 항상 든다.
+ */
 const roomNameSchema = v.pipe(
   v.string(),
   v.trim(),
   v.minLength(1, "방 이름을 입력해 주세요."),
-  v.maxLength(15, "방 이름은 15자 이하여야 합니다."),
+  v.regex(
+    /^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9 ]+$/,
+    "방 이름은 한글/영문/숫자/공백만 사용할 수 있습니다.",
+  ),
+  maxGraphemes(15, "방 이름은 15자 이하여야 합니다."),
 );
 
-/** 방 설명: 20자 이내 (PR 리뷰 확정) */
+/** 방 설명: 30자(grapheme) 이내 (기획 확정 — 클라이언트 카운터와 동일 단위) */
 const roomDescriptionSchema = v.nullable(
   v.pipe(
     v.string(),
     v.trim(),
-    v.maxLength(20, "방 설명은 20자 이하여야 합니다."),
+    maxGraphemes(30, "방 설명은 30자 이하여야 합니다."),
   ),
 );
 
