@@ -11,6 +11,7 @@ import { sources } from "../source/source.schema";
 import { users } from "../user/user.schema";
 import { places } from "./place.schema";
 import type { DuplicatedPlace, PlaceMatch } from "./place.type";
+import { classifyPlaceCategory } from "./place.util";
 
 type TransactionClient = Parameters<
   Parameters<DatabaseService["db"]["transaction"]>[0]
@@ -124,6 +125,7 @@ export class PlaceResultRepository {
             lng: candidate.coordinate.lng,
             phone: candidate.phone,
             category: candidate.category,
+            categoryGroup: classifyPlaceCategory(candidate.category),
             externalUrl: candidate.mapUrl,
           })),
         )
@@ -137,6 +139,7 @@ export class PlaceResultRepository {
             lng: sql`excluded.lng`,
             phone: sql`excluded.phone`,
             category: sql`excluded.category`,
+            categoryGroup: sql`excluded.category_group`,
             externalUrl: sql`excluded.external_url`,
             updatedAt: sql`now()`,
           },
