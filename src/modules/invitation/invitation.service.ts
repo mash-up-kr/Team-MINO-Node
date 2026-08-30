@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { AppException } from "../../common/exceptions/app.exception";
+import { NotificationService } from "../notification/notification.service";
 import type { RoomType } from "../room/room.schema";
 import { PREVIEW_MEMBER_LIMIT } from "./invitation.constant";
 import { InvitationRepository } from "./invitation.repository";
@@ -10,7 +11,10 @@ import type {
 
 @Injectable()
 export class InvitationService {
-  constructor(private readonly invitationRepository: InvitationRepository) {}
+  constructor(
+    private readonly invitationRepository: InvitationRepository,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async create(
     userId: string,
@@ -64,6 +68,7 @@ export class InvitationService {
 
   async join(
     userId: string,
+    nickname: string,
     roomId: string,
     inviteCode: string,
   ): Promise<void> {
@@ -87,6 +92,46 @@ export class InvitationService {
     if (membership) return;
 
     await this.invitationRepository.addMember(roomId, userId);
+    await this.notifyJoined(roomId, invitation.name, userId, nickname);
+  }
+
+  /** 기존 멤버에게는 참가자 이름을, 합류한 본인에게는 참가 확인을 알린다. */
+  private async notifyJoined(
+    roomId: string,
+    roomName: string,
+    joinerId: string,
+    joinerNickname: string,
+  ): Promise<void> {
+    const url = `https://gguk.org/rooms/${roomId}`;
+    const members =
+      await this.invitationRepository.findActiveMemberTokens(roomId);
+    const joiner = members.find((member) => member.id === joinerId);
+    const others = members.filter((member) => member.id !== joinerId);
+
+    await Promise.all([
+      ...others.map((member) =>
+        this.notificationService.recordAndNotify(
+          {
+            recipientId: member.id,
+            type: "ROOM_MEMBER_JOINED",
+            typeLabel: `${joinerNickname}님이 들어왔어요`,
+            targetName: roomName,
+            url,
+          },
+          member.fcmToken,
+        ),
+      ),
+      this.notificationService.recordAndNotify(
+        {
+          recipientId: joinerId,
+          type: "ROOM_JOINED_SELF",
+          typeLabel: "방에 참가했어요",
+          targetName: roomName,
+          url,
+        },
+        joiner?.fcmToken,
+      ),
+    ]);
   }
 
   private async requireInvitation(code: string) {
