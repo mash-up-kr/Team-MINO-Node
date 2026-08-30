@@ -40,4 +40,26 @@ describe("NotificationService.recordAndNotify", () => {
 
     expect(sendToTokens).not.toHaveBeenCalled();
   });
+
+  it("이미 같은 키로 남아 있으면 발송도 건너뛴다", async () => {
+    const sendToTokens = mock(() => Promise.resolve());
+    // 키 충돌 시 repository.record()는 null을 돌려준다.
+    const service = new NotificationService(
+      { record: mock(() => Promise.resolve(null)) } as never,
+      { sendToTokens } as never,
+    );
+
+    await service.recordAndNotify({ ...input, key: "dup" }, "token-1");
+
+    expect(sendToTokens).not.toHaveBeenCalled();
+  });
+
+  it("inbox: false면 기록하지 않고 발송만 한다 (FR-019 대표 알림)", async () => {
+    const { service, record, sendToTokens } = makeService();
+
+    await service.recordAndNotify(input, "token-1", { inbox: false });
+
+    expect(record).not.toHaveBeenCalled();
+    expect(sendToTokens).toHaveBeenCalledTimes(1);
+  });
 });

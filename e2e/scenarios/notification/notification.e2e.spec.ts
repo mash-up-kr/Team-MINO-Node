@@ -57,9 +57,42 @@ describe("NotificationRepository.record", () => {
     const first = await repository.record(input);
     const second = await repository.record(input);
 
-    expect(first.id).toBeDefined();
-    expect(second.id).toBeDefined();
-    expect(first.id).not.toBe(second.id);
+    expect(first?.id).toBeDefined();
+    expect(second?.id).toBeDefined();
+    expect(first?.id).not.toBe(second?.id);
+  });
+
+  it("key가 같으면 두 번째부터 기록하지 않는다", async () => {
+    const input = {
+      recipientId,
+      type: "NEARBY_PLACE" as const,
+      typeLabel: "근처에 저장한 장소가 있어요",
+      targetName: "패스트리 순간",
+      url: "https://gguk.org/places/p1",
+      key: `NEARBY_PLACE:${randomUUID()}`,
+    };
+
+    const first = await repository.record(input);
+    const second = await repository.record(input);
+
+    expect(first?.id).toBeDefined();
+    expect(second).toBeNull();
+  });
+
+  it("key가 달라지면 같은 수신자여도 다시 기록한다", async () => {
+    const base = {
+      recipientId,
+      type: "TOP_COMMENTED_PLACE" as const,
+      typeLabel: "코멘트가 제일 많이 달린 장소에요",
+      targetName: "어니언 성수",
+      url: "https://gguk.org/places/p2",
+    };
+
+    const first = await repository.record({ ...base, key: randomUUID() });
+    const second = await repository.record({ ...base, key: randomUUID() });
+
+    expect(first?.id).toBeDefined();
+    expect(second?.id).toBeDefined();
   });
 });
 
