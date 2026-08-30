@@ -42,6 +42,7 @@ export class NotificationRepository extends BaseRepository {
     return this.db
       .select({
         id: notifications.id,
+        type: notifications.type,
         typeLabel: notifications.typeLabel,
         targetName: notifications.targetName,
         thumbnailUrl: notifications.thumbnailUrl,

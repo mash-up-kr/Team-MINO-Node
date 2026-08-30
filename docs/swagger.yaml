@@ -1428,11 +1428,26 @@ components:
     Notification:
       type: object
       description: 알림함 스펙 3.0.0 기준. 읽음 상태 필드는 두지 않는다.
-      required: [id, typeLabel, targetName, createdAt, url]
+      required: [id, type, typeLabel, targetName, createdAt, url]
       properties:
         id:
           type: string
           format: uuid
+        type:
+          type: string
+          enum:
+            - PIN_DUPLICATED
+            - SAVE_FAILED
+            - NEARBY_PLACE
+            - TOP_COMMENTED_PLACE
+            - ROOM_MEMBER_JOINED
+            - ROOM_JOINED_SELF
+          description: |
+            탭 도착지 판별용. 클라이언트는 이 값으로 이동 화면을 가른다.
+            `PIN_DUPLICATED`·`NEARBY_PLACE`·`TOP_COMMENTED_PLACE` → 장소 상세,
+            `ROOM_MEMBER_JOINED`·`ROOM_JOINED_SELF` → 방 상세,
+            `SAVE_FAILED` → 앱 내 저장 오류 안내 화면(이동 대상이 없어 `url`로 표현되지 않는다).
+          example: PIN_DUPLICATED
         typeLabel:
           type: string
           description: 6종 유형별 고정 문구. 서버가 완성해 내려준다

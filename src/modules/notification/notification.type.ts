@@ -1,5 +1,9 @@
+import type { NotificationType } from "./notification.schema";
+
 export type NotificationItemResponse = {
   id: string;
+  /** 클라이언트가 탭 도착지를 가르는 기준 — 장소 상세 / 방 상세 / 저장 오류 안내. */
+  type: NotificationType;
   typeLabel: string;
   targetName: string;
   thumbnailUrl: string | null;

@@ -126,6 +126,8 @@ describe("GET /api/v1/notifications", () => {
     const { data, pagination } = await response.json();
     expect(data).toHaveLength(1);
     expect(data[0]).toMatchObject({
+      // 클라이언트가 탭 도착지를 가르는 기준이라 응답에 반드시 실려야 한다.
+      type: "PIN_DUPLICATED",
       typeLabel: "이미 저장해둔 곳이에요",
       targetName: "패스트리 순간",
       thumbnailUrl: "https://example.com/0.jpg",

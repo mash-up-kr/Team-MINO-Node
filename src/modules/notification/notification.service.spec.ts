@@ -9,14 +9,19 @@ const input = {
   url: "https://gguk.org/rooms/r1",
 };
 
-function makeService() {
-  const record = mock(() => Promise.resolve({ id: "n1" }));
+function makeService(
+  record: () => Promise<{ id: string } | null> = () =>
+    Promise.resolve({ id: "n1" }),
+) {
+  const recordMock = mock(record);
   const sendToTokens = mock(() => Promise.resolve());
+  const report = mock(() => undefined);
   const service = new NotificationService(
-    { record } as never,
+    { record: recordMock } as never,
     { sendToTokens } as never,
+    { report } as never,
   );
-  return { service, record, sendToTokens };
+  return { service, record: recordMock, sendToTokens, report };
 }
 
 describe("NotificationService.recordAndNotify", () => {
@@ -42,15 +47,23 @@ describe("NotificationService.recordAndNotify", () => {
   });
 
   it("이미 같은 키로 남아 있으면 발송도 건너뛴다", async () => {
-    const sendToTokens = mock(() => Promise.resolve());
     // 키 충돌 시 repository.record()는 null을 돌려준다.
-    const service = new NotificationService(
-      { record: mock(() => Promise.resolve(null)) } as never,
-      { sendToTokens } as never,
-    );
+    const { service, sendToTokens } = makeService(() => Promise.resolve(null));
 
     await service.recordAndNotify({ ...input, key: "dup" }, "token-1");
 
+    expect(sendToTokens).not.toHaveBeenCalled();
+  });
+
+  it("기록이 실패해도 던지지 않고 Sentry로만 보고한다", async () => {
+    const { service, sendToTokens, report } = makeService(() =>
+      Promise.reject(new Error("db down")),
+    );
+
+    // 호출부(방 합류·worker)가 알림 때문에 실패하면 안 된다.
+    await service.recordAndNotify(input, "token-1");
+
+    expect(report).toHaveBeenCalledTimes(1);
     expect(sendToTokens).not.toHaveBeenCalled();
   });
 
