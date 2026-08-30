@@ -35,6 +35,16 @@ describe("Sentry configuration", () => {
     );
   });
 
+  it("cause 체인을 따라가도록 LinkedErrors 통합을 켠다", () => {
+    const options = createSentryOptions({
+      SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
+    });
+
+    expect(options?.integrations).toEqual([
+      expect.objectContaining({ name: "LinkedErrors" }),
+    ]);
+  });
+
   it("빈 release로 초기화하지 않는다", () => {
     expect(() =>
       createSentryOptions({
