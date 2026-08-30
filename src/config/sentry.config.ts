@@ -12,9 +12,6 @@ export type SentryEnvironment = {
 
 export const SENTRY_FLUSH_TIMEOUT_MS = 2_000 as const;
 
-/** cause 체인을 몇 단계까지 따라갈지. 워커 래핑은 1단계라 여유 있게 잡는다. */
-const LINKED_ERRORS_LIMIT = 5;
-
 export function createSentryOptions(
   environment: SentryEnvironment,
 ): BunOptions | undefined {
@@ -33,13 +30,10 @@ export function createSentryOptions(
   }
 
   return {
-    /*
-     * 기본 통합은 전부 끄고(수동 수집 전용) cause 체인 추적만 되살린다.
-     * place worker는 원본 오류를 ServiceUnavailableException으로 감싸 던지므로,
-     * 이 통합이 없으면 래퍼만 올라오고 진짜 원인(DB 연결 끊김 등)은 유실된다.
-     */
     defaultIntegrations: false,
-    integrations: [linkedErrorsIntegration({ limit: LINKED_ERRORS_LIMIT })],
+    // 워커가 원본 오류를 ServiceUnavailableException으로 감싸 던진다. cause 체인을
+    // 따라가지 않으면 래퍼만 올라오고 진짜 원인(DB 연결 끊김 등)이 유실된다.
+    integrations: [linkedErrorsIntegration()],
     dsn,
     environment: environment.NODE_ENV ?? "development",
     release,
