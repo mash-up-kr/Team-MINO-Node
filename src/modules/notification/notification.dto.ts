@@ -24,18 +24,23 @@ const notificationSchema: SchemaObject = {
       type: "string",
       enum: [...NOTIFICATION_TYPES],
       description:
-        "탭 도착지 판별용. PIN_DUPLICATED·NEARBY_PLACE·TOP_COMMENTED_PLACE는 장소 상세, ROOM_*는 방 상세, SAVE_FAILED는 앱 내 저장 오류 안내 화면(이동 대상이 없어 url로 표현되지 않는다)",
+        "탭 도착지 판별용. 장소 대상 3종은 장소 상세, ROOM_*는 방 상세, SAVE_FAILED는 앱 내 저장 오류 안내 화면으로 이동한다.",
       example: "PIN_DUPLICATED",
     },
     typeLabel: { type: "string", example: "이미 저장해둔 곳이에요" },
     targetName: { type: "string", example: "패스트리 순간" },
     thumbnailUrl: { type: "string", nullable: true },
-    createdAt: { type: "string", format: "date-time" },
-    url: {
-      type: "string",
+    payload: {
+      type: "object",
+      nullable: true,
       description:
-        "서버가 완성한 유니버설 링크(잠정 — 스킴은 모바일과 협의 확정 전)",
+        "이동 대상 식별자. 장소 대상은 placeId, 방 대상은 roomId이며 저장 오류는 null이다.",
+      properties: {
+        placeId: { type: "string", format: "uuid" },
+        roomId: { type: "string", format: "uuid" },
+      },
     },
+    createdAt: { type: "string", format: "date-time" },
   },
 };
 

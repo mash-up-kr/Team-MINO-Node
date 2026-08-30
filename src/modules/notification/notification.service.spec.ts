@@ -6,22 +6,24 @@ const input = {
   type: "ROOM_JOINED_SELF" as const,
   typeLabel: "방에 참가했어요",
   targetName: "우리끼리",
-  url: "https://gguk.org/rooms/r1",
+  payload: { roomId: "r1" },
 };
 
-function makeService(
-  record: () => Promise<{ id: string } | null> = () =>
-    Promise.resolve({ id: "n1" }),
-) {
-  const recordMock = mock(record);
+function makeService(repository: Record<string, unknown> = {}) {
+  const repo = {
+    record: mock(
+      (): Promise<{ id: string } | null> => Promise.resolve({ id: "n1" }),
+    ),
+    ...repository,
+  };
   const sendToTokens = mock(() => Promise.resolve());
   const report = mock(() => undefined);
   const service = new NotificationService(
-    { record: recordMock } as never,
+    repo as never,
     { sendToTokens } as never,
     { report } as never,
   );
-  return { service, record: recordMock, sendToTokens, report };
+  return { service, record: repo.record, sendToTokens, report };
 }
 
 describe("NotificationService.recordAndNotify", () => {
@@ -34,7 +36,7 @@ describe("NotificationService.recordAndNotify", () => {
     expect(sendToTokens).toHaveBeenCalledWith(["token-1"], {
       title: input.targetName,
       body: input.typeLabel,
-      data: { type: input.type, url: input.url },
+      data: { type: input.type, roomId: "r1" },
     });
   });
 
@@ -47,8 +49,9 @@ describe("NotificationService.recordAndNotify", () => {
   });
 
   it("이미 같은 키로 남아 있으면 발송도 건너뛴다", async () => {
-    // 키 충돌 시 repository.record()는 null을 돌려준다.
-    const { service, sendToTokens } = makeService(() => Promise.resolve(null));
+    const { service, sendToTokens } = makeService({
+      record: mock(() => Promise.resolve(null)),
+    });
 
     await service.recordAndNotify({ ...input, key: "dup" }, "token-1");
 
@@ -56,11 +59,10 @@ describe("NotificationService.recordAndNotify", () => {
   });
 
   it("기록이 실패해도 던지지 않고 Sentry로만 보고한다", async () => {
-    const { service, sendToTokens, report } = makeService(() =>
-      Promise.reject(new Error("db down")),
-    );
+    const { service, sendToTokens, report } = makeService({
+      record: mock(() => Promise.reject(new Error("db down"))),
+    });
 
-    // 호출부(방 합류·worker)가 알림 때문에 실패하면 안 된다.
     await service.recordAndNotify(input, "token-1");
 
     expect(report).toHaveBeenCalledTimes(1);

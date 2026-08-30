@@ -51,7 +51,7 @@ describe("NotificationRepository.record", () => {
       type: "ROOM_JOINED_SELF" as const,
       typeLabel: "방에 참가했어요",
       targetName: "우리끼리",
-      url: "https://gguk.org/rooms/r1",
+      payload: { roomId: "r1" },
     };
 
     const first = await repository.record(input);
@@ -68,7 +68,7 @@ describe("NotificationRepository.record", () => {
       type: "NEARBY_PLACE" as const,
       typeLabel: "근처에 저장한 장소가 있어요",
       targetName: "패스트리 순간",
-      url: "https://gguk.org/places/p1",
+      payload: { placeId: "p1" },
       key: `NEARBY_PLACE:${randomUUID()}`,
     };
 
@@ -85,7 +85,7 @@ describe("NotificationRepository.record", () => {
       type: "TOP_COMMENTED_PLACE" as const,
       typeLabel: "코멘트가 제일 많이 달린 장소에요",
       targetName: "어니언 성수",
-      url: "https://gguk.org/places/p2",
+      payload: { placeId: "p2" },
     };
 
     const first = await repository.record({ ...base, key: randomUUID() });
@@ -104,7 +104,6 @@ describe("GET /api/v1/notifications", () => {
       type: "SAVE_FAILED",
       typeLabel: "장소를 저장하지 못했어요.",
       targetName: "잠시 후 다시 시도해주세요",
-      url: "https://gguk.org/notifications/save-error",
     });
     await repository.record({
       recipientId,
@@ -112,7 +111,7 @@ describe("GET /api/v1/notifications", () => {
       typeLabel: "이미 저장해둔 곳이에요",
       targetName: "패스트리 순간",
       thumbnailUrl: "https://example.com/0.jpg",
-      url: "https://gguk.org/places/p1",
+      payload: { placeId: "p1" },
     });
 
     // when
@@ -126,12 +125,11 @@ describe("GET /api/v1/notifications", () => {
     const { data, pagination } = await response.json();
     expect(data).toHaveLength(1);
     expect(data[0]).toMatchObject({
-      // 클라이언트가 탭 도착지를 가르는 기준이라 응답에 반드시 실려야 한다.
       type: "PIN_DUPLICATED",
       typeLabel: "이미 저장해둔 곳이에요",
       targetName: "패스트리 순간",
       thumbnailUrl: "https://example.com/0.jpg",
-      url: "https://gguk.org/places/p1",
+      payload: { placeId: "p1" },
     });
     expect(pagination).toEqual({ page: 0, pageSize: 1, hasNext: true });
   });

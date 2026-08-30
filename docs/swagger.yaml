@@ -1428,7 +1428,7 @@ components:
     Notification:
       type: object
       description: 알림함 스펙 3.0.0 기준. 읽음 상태 필드는 두지 않는다.
-      required: [id, type, typeLabel, targetName, createdAt, url]
+      required: [id, type, typeLabel, targetName, createdAt]
       properties:
         id:
           type: string
@@ -1443,10 +1443,8 @@ components:
             - ROOM_MEMBER_JOINED
             - ROOM_JOINED_SELF
           description: |
-            탭 도착지 판별용. 클라이언트는 이 값으로 이동 화면을 가른다.
-            `PIN_DUPLICATED`·`NEARBY_PLACE`·`TOP_COMMENTED_PLACE` → 장소 상세,
-            `ROOM_MEMBER_JOINED`·`ROOM_JOINED_SELF` → 방 상세,
-            `SAVE_FAILED` → 앱 내 저장 오류 안내 화면(이동 대상이 없어 `url`로 표현되지 않는다).
+            탭 도착지 판별용. 장소 대상 3종은 장소 상세, ROOM_ 2종은 방 상세,
+            SAVE_FAILED는 앱 내 저장 오류 안내 화면으로 이동한다.
           example: PIN_DUPLICATED
         typeLabel:
           type: string
@@ -1465,9 +1463,18 @@ components:
           type: string
           format: date-time
           description: 경과 시간 표기(방금/N시간 전/N월 N일)는 클라이언트가 기기 로컬 시간대 기준으로 계산한다
-        url:
-          type: string
-          format: uri
+        payload:
+          type: object
+          nullable: true
           description: |
-            서버가 완성한 이동 링크(딥링크/유니버설 링크). 필요하면 일반 http(s) URL도 실을 수 있게 필드명을 범용으로 뒀다.
-            장소 대상 유형은 placeId까지만 담고 방 식별자는 없다. 스킴·경로는 모바일과 협의 예정
+            이동 대상 식별자. 장소 대상 3종은 placeId, 방 대상 2종은 roomId이며
+            저장 오류는 null이다. 클라이언트가 type과 함께 보고 라우팅한다.
+            장소 대상은 placeId까지만 담는다. 도착지 방은 그 장소의 현재 표시 기준 방이
+            정한다(알림함 스펙 3.0.0 FR-022).
+          properties:
+            placeId:
+              type: string
+              format: uuid
+            roomId:
+              type: string
+              format: uuid
