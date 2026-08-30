@@ -7,12 +7,7 @@ import { roomMembers } from "../room/room-member.schema";
 import { sources } from "../source/source.schema";
 import { users } from "../user/user.schema";
 import { pins } from "./pin.schema";
-import type {
-  PinForUserRow,
-  PinJoinRow,
-  PinRow,
-  TargetRoomRow,
-} from "./pin.type";
+import type { PinForUserRow, PinJoinRow, TargetRoomRow } from "./pin.type";
 import { pinAccesses } from "./pin-access.schema";
 
 /**
@@ -49,7 +44,10 @@ export class PinRepository extends BaseRepository {
         author: PIN_AUTHOR_COLUMNS,
       })
       .from(pins)
-      .innerJoin(places, eq(pins.placeId, places.id))
+      .innerJoin(
+        places,
+        and(eq(pins.placeId, places.id), isNull(places.deletedAt)),
+      )
       .leftJoin(users, eq(pins.createdBy, users.id))
       .where(and(eq(pins.roomId, roomId), isNull(pins.deletedAt)))
       .orderBy(desc(pins.createdAt), desc(pins.id));
@@ -76,7 +74,10 @@ export class PinRepository extends BaseRepository {
         isMember: sql<boolean>`${exists(this.memberOfPinRoomSubquery(userId))}`,
       })
       .from(pins)
-      .innerJoin(places, eq(pins.placeId, places.id))
+      .innerJoin(
+        places,
+        and(eq(pins.placeId, places.id), isNull(places.deletedAt)),
+      )
       .leftJoin(users, eq(pins.createdBy, users.id))
       .leftJoin(
         sources,
@@ -125,26 +126,6 @@ export class PinRepository extends BaseRepository {
       .where(and(eq(pins.id, pinId), isNull(pins.deletedAt)))
       .limit(1);
     return pin;
-  }
-
-  /** 목록 조회 전 방 멤버십 검증용 — roomId 기준 단건 판정. */
-  async isActiveMemberOfRoom(roomId: string, userId: string): Promise<boolean> {
-    const [membership] = await this.db
-      .select({ one: sql`1` })
-      .from(roomMembers)
-      .innerJoin(
-        rooms,
-        and(eq(roomMembers.roomId, rooms.id), isNull(rooms.deletedAt)),
-      )
-      .where(
-        and(
-          eq(roomMembers.roomId, roomId),
-          eq(roomMembers.userId, userId),
-          isNull(roomMembers.deletedAt),
-        ),
-      )
-      .limit(1);
-    return membership !== undefined;
   }
 
   /** 복제 대상 방들의 활성 여부 + 요청 유저 멤버십을 한 쿼리로 판정한다. */

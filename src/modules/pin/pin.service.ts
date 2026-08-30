@@ -7,6 +7,7 @@ import {
 import type { PinExtractionTask } from "../../common/tasks/pin-extraction-task.dto";
 import { isUniqueViolation } from "../../infrastructures/db/db.error";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
+import { RoomRepository } from "../room/room.repository";
 import { SourceRepository } from "../source/source.repository";
 import type {
   CreateRoomPinsRequest,
@@ -24,6 +25,7 @@ import {
 export class PinService {
   constructor(
     private readonly pinRepository: PinRepository,
+    private readonly roomRepository: RoomRepository,
     private readonly sourceRepository: SourceRepository,
     private readonly tasksService: TasksService,
   ) {}
@@ -71,9 +73,7 @@ export class PinService {
     userId: string,
     query: ListPinsQuery,
   ): Promise<PinListResponse> {
-    if (
-      !(await this.pinRepository.isActiveMemberOfRoom(query.roomId, userId))
-    ) {
+    if (!(await this.roomRepository.isActiveMember(query.roomId, userId))) {
       throw this.notRoomMember();
     }
 

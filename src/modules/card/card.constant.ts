@@ -10,9 +10,6 @@ export const NEARBY_RADIUS_METERS = 3_000;
 /** 위도 1도당 거리(m). 바운딩 박스 계산용 근사값. */
 export const METERS_PER_LAT_DEGREE = 111_320;
 
-/** 지구 반지름(m). 하버사인 계산용. */
-export const EARTH_RADIUS_METERS = 6_371_000;
-
 /**
  * 가볼 만한 곳 기본 정원. 자격 조건이 없는 유일한 라벨이라, 아래 지표 라벨들이
  * 자격 미달로 남긴 자리까지 흡수해 덱이 항상 DECK_SIZE를 채우게 한다.
