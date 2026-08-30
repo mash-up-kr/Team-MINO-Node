@@ -91,7 +91,6 @@ beforeAll(async () => {
       Test.createTestingModule({ imports: [AppModule] })
         .overrideProvider(SentryErrorReporter)
         .useValue({ report: () => undefined })
-        // 실제 ADC 발급을 시도하지 않도록 발송만 스텁으로 대체한다.
         .overrideProvider(MessagingService)
         .useValue({
           sendToTokens: (tokens: string[]) => {
@@ -366,7 +365,6 @@ describe("방 합류 알림", () => {
     if (!newcomer) throw new Error("유저 픽스처 생성 실패");
     const code = await createdCode(sharedRoomId, ownerAuthUid);
     const sentBefore = sentTokens.length;
-    const roomUrl = `https://gguk.org/rooms/${sharedRoomId}`;
 
     // when
     const response = await joinRoom(sharedRoomId, newcomerAuthUid, code);
@@ -378,7 +376,7 @@ describe("방 합류 알림", () => {
         recipientId: notifications.recipientId,
         type: notifications.type,
         targetName: notifications.targetName,
-        url: notifications.url,
+        payload: notifications.payload,
       })
       .from(notifications)
       .where(
@@ -393,14 +391,14 @@ describe("방 합류 알림", () => {
         recipientId: ownerId,
         type: "ROOM_MEMBER_JOINED",
         targetName: "5월의 약속 : 우리끼리",
-        url: roomUrl,
+        payload: { roomId: sharedRoomId },
       },
     ]);
     const selfRow = await db
       .select({
         type: notifications.type,
         targetName: notifications.targetName,
-        url: notifications.url,
+        payload: notifications.payload,
       })
       .from(notifications)
       .where(
@@ -413,10 +411,9 @@ describe("방 합류 알림", () => {
       {
         type: "ROOM_JOINED_SELF",
         targetName: "5월의 약속 : 우리끼리",
-        url: roomUrl,
+        payload: { roomId: sharedRoomId },
       },
     ]);
-    // owner만 fcmToken을 가지고 있어 발송은 owner 몫 1건만 나간다.
     expect(sentTokens.slice(sentBefore)).toEqual([["owner-fcm-token"]]);
   });
 

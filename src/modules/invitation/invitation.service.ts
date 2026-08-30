@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { AppException } from "../../common/exceptions/app.exception";
+import { SentryErrorReporter } from "../../infrastructures/sentry/sentry-reporter";
 import { NotificationService } from "../notification/notification.service";
 import type { RoomType } from "../room/room.schema";
 import { PREVIEW_MEMBER_LIMIT } from "./invitation.constant";
@@ -14,6 +15,7 @@ export class InvitationService {
   constructor(
     private readonly invitationRepository: InvitationRepository,
     private readonly notificationService: NotificationService,
+    private readonly reporter: SentryErrorReporter,
   ) {}
 
   async create(
@@ -92,17 +94,22 @@ export class InvitationService {
     if (membership) return;
 
     await this.invitationRepository.addMember(roomId, userId);
-    await this.notifyJoined(roomId, invitation.name, userId, nickname);
+    try {
+      await this.notifyJoined(roomId, invitation.name, userId, nickname);
+    } catch (error) {
+      this.reporter.report(error as Error, {
+        errorCode: "ROOM_JOIN_NOTIFY_FAILED",
+        extra: { roomId, userId },
+      });
+    }
   }
 
-  /** 기존 멤버에게는 참가자 이름을, 합류한 본인에게는 참가 확인을 알린다. */
   private async notifyJoined(
     roomId: string,
     roomName: string,
     joinerId: string,
     joinerNickname: string,
   ): Promise<void> {
-    const url = `https://gguk.org/rooms/${roomId}`;
     const members =
       await this.invitationRepository.findActiveMemberTokens(roomId);
     const joiner = members.find((member) => member.id === joinerId);
@@ -116,7 +123,7 @@ export class InvitationService {
             type: "ROOM_MEMBER_JOINED",
             typeLabel: `${joinerNickname}님이 들어왔어요`,
             targetName: roomName,
-            url,
+            payload: { roomId },
           },
           member.fcmToken,
         ),
@@ -127,7 +134,7 @@ export class InvitationService {
           type: "ROOM_JOINED_SELF",
           typeLabel: "방에 참가했어요",
           targetName: roomName,
-          url,
+          payload: { roomId },
         },
         joiner?.fcmToken,
       ),

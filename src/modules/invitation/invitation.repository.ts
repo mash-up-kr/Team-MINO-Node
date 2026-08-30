@@ -162,7 +162,6 @@ export class InvitationRepository {
       .limit(limit);
   }
 
-  /** 방의 활성 멤버 전원(방금 합류한 본인 포함)의 푸시 토큰. */
   async findActiveMemberTokens(
     roomId: string,
   ): Promise<Array<{ id: string; fcmToken: string | null }>> {
