@@ -162,6 +162,19 @@ export class InvitationRepository {
       .limit(limit);
   }
 
+  /** 방의 활성 멤버 전원(방금 합류한 본인 포함)의 푸시 토큰. */
+  async findActiveMemberTokens(
+    roomId: string,
+  ): Promise<Array<{ id: string; fcmToken: string | null }>> {
+    return this.db
+      .select({ id: users.id, fcmToken: users.fcmToken })
+      .from(roomMembers)
+      .innerJoin(users, eq(roomMembers.userId, users.id))
+      .where(
+        and(eq(roomMembers.roomId, roomId), isNull(roomMembers.deletedAt)),
+      );
+  }
+
   // 동시 요청으로 활성 유니크에 걸리면 이미 멤버이므로 그대로 둡니다.
   async addMember(roomId: string, userId: string): Promise<void> {
     try {

@@ -5,9 +5,11 @@ import { Test } from "@nestjs/testing";
 import { and, eq, isNull } from "drizzle-orm";
 import { AppModule } from "../../../src/app.module";
 import { DatabaseService } from "../../../src/infrastructures/db/database.service";
+import { MessagingService } from "../../../src/infrastructures/messaging/messaging.service";
 import { SentryErrorReporter } from "../../../src/infrastructures/sentry/sentry-reporter";
 import { InvitationRepository } from "../../../src/modules/invitation/invitation.repository";
 import { invitations } from "../../../src/modules/invitation/invitation.schema";
+import { notifications } from "../../../src/modules/notification/notification.schema";
 import { pins } from "../../../src/modules/pin/pin.schema";
 import { places } from "../../../src/modules/place/place.schema";
 import { rooms } from "../../../src/modules/room/room.schema";
@@ -30,9 +32,11 @@ const personalInviteCode = randomUUID()
   .slice(0, 6)
   .toUpperCase();
 
+let ownerId: string;
 let joinerId: string;
 let sharedRoomId: string;
 let personalRoomId: string;
+const sentTokens: string[][] = [];
 
 function api(
   path: string,
@@ -86,7 +90,15 @@ beforeAll(async () => {
     withFakeTokenVerifier(
       Test.createTestingModule({ imports: [AppModule] })
         .overrideProvider(SentryErrorReporter)
-        .useValue({ report: () => undefined }),
+        .useValue({ report: () => undefined })
+        // 실제 ADC 발급을 시도하지 않도록 발송만 스텁으로 대체한다.
+        .overrideProvider(MessagingService)
+        .useValue({
+          sendToTokens: (tokens: string[]) => {
+            sentTokens.push(tokens);
+            return Promise.resolve();
+          },
+        }),
     ),
   ));
   db = app.get(DatabaseService).db;
@@ -99,6 +111,7 @@ beforeAll(async () => {
         authUid: ownerAuthUid,
         nickname: "지은",
         avatar: { color: "red" },
+        fcmToken: "owner-fcm-token",
       },
       { authUid: memberAuthUid, nickname: "민호" },
       { authUid: joinerAuthUid, nickname: "재성" },
@@ -110,7 +123,7 @@ beforeAll(async () => {
     if (!id) throw new Error(`유저 픽스처 없음: ${authUid}`);
     return id;
   };
-  const ownerId = userIdOf(ownerAuthUid);
+  ownerId = userIdOf(ownerAuthUid);
   joinerId = userIdOf(joinerAuthUid);
 
   const insertedRooms = await db
@@ -339,6 +352,101 @@ describe("POST /api/v1/rooms/:roomId/members", () => {
     // then
     expect(response.status).toBe(403);
     expect((await response.json()).errorCode).toBe("PERSONAL_ROOM_NOT_ALLOWED");
+  });
+});
+
+describe("방 합류 알림", () => {
+  it("기존 멤버에게는 참가 알림을, 본인에게는 참가 확인을 남기고 토큰이 있으면 발송한다", async () => {
+    // given
+    const newcomerAuthUid = `e2e-invite-newcomer-${randomUUID()}`;
+    const [newcomer] = await db
+      .insert(users)
+      .values({ authUid: newcomerAuthUid, nickname: "새멤버" })
+      .returning({ id: users.id });
+    if (!newcomer) throw new Error("유저 픽스처 생성 실패");
+    const code = await createdCode(sharedRoomId, ownerAuthUid);
+    const sentBefore = sentTokens.length;
+    const roomUrl = `https://gguk.org/rooms/${sharedRoomId}`;
+
+    // when
+    const response = await joinRoom(sharedRoomId, newcomerAuthUid, code);
+
+    // then
+    expect(response.status).toBe(200);
+    const memberRow = await db
+      .select({
+        recipientId: notifications.recipientId,
+        type: notifications.type,
+        targetName: notifications.targetName,
+        url: notifications.url,
+      })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.recipientId, ownerId),
+          eq(notifications.type, "ROOM_MEMBER_JOINED"),
+          eq(notifications.typeLabel, "새멤버님이 들어왔어요"),
+        ),
+      );
+    expect(memberRow).toEqual([
+      {
+        recipientId: ownerId,
+        type: "ROOM_MEMBER_JOINED",
+        targetName: "5월의 약속 : 우리끼리",
+        url: roomUrl,
+      },
+    ]);
+    const selfRow = await db
+      .select({
+        type: notifications.type,
+        targetName: notifications.targetName,
+        url: notifications.url,
+      })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.recipientId, newcomer.id),
+          eq(notifications.type, "ROOM_JOINED_SELF"),
+        ),
+      );
+    expect(selfRow).toEqual([
+      {
+        type: "ROOM_JOINED_SELF",
+        targetName: "5월의 약속 : 우리끼리",
+        url: roomUrl,
+      },
+    ]);
+    // owner만 fcmToken을 가지고 있어 발송은 owner 몫 1건만 나간다.
+    expect(sentTokens.slice(sentBefore)).toEqual([["owner-fcm-token"]]);
+  });
+
+  it("이미 멤버면 알림을 다시 남기지 않는다", async () => {
+    // given
+    const code = await createdCode(sharedRoomId, ownerAuthUid);
+    const before = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.recipientId, joinerId),
+          eq(notifications.type, "ROOM_JOINED_SELF"),
+        ),
+      );
+
+    // when
+    await joinRoom(sharedRoomId, joinerAuthUid, code);
+
+    // then
+    const after = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.recipientId, joinerId),
+          eq(notifications.type, "ROOM_JOINED_SELF"),
+        ),
+      );
+    expect(after).toHaveLength(before.length);
   });
 });
 
