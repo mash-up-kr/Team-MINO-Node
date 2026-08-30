@@ -406,3 +406,52 @@ export function registerDuplicateNotificationScenarios(
     }
   });
 }
+
+export function registerSaveFailedScenarios(harness: PlaceE2eHarness): void {
+  const failedNotifications = () =>
+    harness.db
+      .select({ key: notifications.key, payload: notifications.payload })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.recipientId, harness.member),
+          eq(notifications.type, "SAVE_FAILED"),
+          isNull(notifications.deletedAt),
+        ),
+      );
+
+  it("인식된 장소가 없으면 저장 실패를 알린다", async () => {
+    harness.ai.extract.mockResolvedValue({ places: [] });
+    await harness.postPin();
+
+    expect((await harness.runTask()).status).toBe(204);
+
+    const rows = await failedNotifications();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.payload).toBeNull();
+  });
+
+  it("영구 실패는 재시도 없이 한 번만 알린다", async () => {
+    harness.instagram.fetchPost.mockRejectedValue(
+      new AppException(
+        "INVALID_INSTAGRAM_URL",
+        "Instagram URL이 올바르지 않습니다.",
+        HttpStatus.BAD_REQUEST,
+      ),
+    );
+    await harness.postPin();
+
+    expect((await harness.runTask()).status).toBe(204);
+    expect((await harness.runTask()).status).toBe(204);
+
+    expect(await failedNotifications()).toHaveLength(1);
+  });
+
+  it("저장에 성공하면 실패를 알리지 않는다", async () => {
+    await harness.postPin();
+
+    expect((await harness.runTask()).status).toBe(204);
+
+    expect(await failedNotifications()).toHaveLength(0);
+  });
+}

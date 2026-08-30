@@ -8,6 +8,7 @@ import type { PlaceResultRepository } from "./place-result.repository";
 import { PlaceWorkerController } from "./place-worker.controller";
 
 const URL = "https://instagram.com/p/abc123/";
+const MAX_ATTEMPTS = 10;
 const ENQUEUED_AT = "2026-08-30T00:00:00.000Z";
 const TASK = {
   roomIds: ["11111111-1111-4111-8111-111111111111"],
@@ -48,9 +49,12 @@ function createController() {
   };
 
   return {
-    controller: new PlaceWorkerController(placeService, placeResultRepository, {
-      recordAndNotifyUser,
-    } as never),
+    controller: new PlaceWorkerController(
+      placeService,
+      placeResultRepository,
+      { recordAndNotifyUser } as never,
+      { getOrThrow: () => MAX_ATTEMPTS } as never,
+    ),
     extractFromUrl,
     activeRoomIdsForTask,
     save,
@@ -264,9 +268,10 @@ describe("PlaceWorkerController 중복 저장 알림", () => {
   });
 
   it("중복이 없으면 알리지 않는다", async () => {
-    const { controller, extractFromUrl, recordAndNotifyUser } =
+    const { controller, extractFromUrl, save, recordAndNotifyUser } =
       createController();
     extractFromUrl.mockResolvedValue([SUCCESSFUL_MATCH]);
+    save.mockResolvedValue(saveResult({ persistedPlaces: 1 }));
 
     await controller.process(TASK);
 
@@ -289,5 +294,68 @@ describe("PlaceWorkerController 중복 저장 알림", () => {
       ServiceUnavailableException,
     );
     expect(recordAndNotifyUser).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PlaceWorkerController 저장 실패 알림", () => {
+  const SAVE_FAILED = {
+    recipientId: TASK.createdBy,
+    type: "SAVE_FAILED",
+    typeLabel: "장소를 저장하지 못했어요.",
+    targetName: "잠시 후 다시 시도해주세요",
+    key: `SAVE_FAILED:${TASK.sourceId}:${ENQUEUED_AT}`,
+  };
+
+  it("영구 실패는 첫 시도에서 바로 알린다", async () => {
+    const { controller, extractFromUrl, recordAndNotifyUser } =
+      createController();
+    extractFromUrl.mockRejectedValue(
+      new AppException(
+        "INVALID_INSTAGRAM_URL",
+        "Instagram URL이 올바르지 않습니다.",
+        HttpStatus.BAD_REQUEST,
+      ),
+    );
+
+    await expect(controller.process(TASK)).resolves.toBeUndefined();
+    expect(recordAndNotifyUser).toHaveBeenCalledWith(SAVE_FAILED);
+  });
+
+  it("인식된 장소가 없으면 알린다", async () => {
+    const { controller, extractFromUrl, recordAndNotifyUser } =
+      createController();
+    extractFromUrl.mockResolvedValue([{ ...SUCCESSFUL_MATCH, matches: [] }]);
+
+    await controller.process(TASK);
+
+    expect(recordAndNotifyUser).toHaveBeenCalledWith(SAVE_FAILED);
+  });
+
+  const retryable = new AppException(
+    "AI_EXTRACTION_FAILED",
+    "AI 추출에 실패했습니다.",
+    HttpStatus.BAD_GATEWAY,
+  );
+
+  it("재시도가 남아 있으면 알리지 않는다", async () => {
+    const { controller, extractFromUrl, recordAndNotifyUser } =
+      createController();
+    extractFromUrl.mockRejectedValue(retryable);
+
+    await expect(controller.process(TASK, "0")).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    expect(recordAndNotifyUser).not.toHaveBeenCalled();
+  });
+
+  it("마지막 배달이면 알린다", async () => {
+    const { controller, extractFromUrl, recordAndNotifyUser } =
+      createController();
+    extractFromUrl.mockRejectedValue(retryable);
+
+    await expect(
+      controller.process(TASK, String(MAX_ATTEMPTS - 1)),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(recordAndNotifyUser).toHaveBeenCalledWith(SAVE_FAILED);
   });
 });

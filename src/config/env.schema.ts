@@ -68,6 +68,11 @@ const envSchema = v.pipe(
     // infra/src/resources/tasks.ts의 placeExtractionQueue와 값을 맞춰야 한다.
     CLOUD_TASKS_LOCATION: v.pipe(v.string(), v.minLength(1)),
     CLOUD_TASKS_QUEUE: v.pipe(v.string(), v.minLength(1)),
+    // 큐의 maxAttempts와 같아야 한다(infra/Pulumi.prod.yaml).
+    CLOUD_TASKS_MAX_ATTEMPTS: v.optional(
+      v.pipe(v.unknown(), v.transform(Number), v.number(), v.minValue(1)),
+      10,
+    ),
     /*
      * cloud: 실제 Cloud Tasks enqueue + OIDC guard.
      * local: `bun run start:local` 전용. enqueue는 no-op이고 워커 guard는 non-production에서만 우회한다.

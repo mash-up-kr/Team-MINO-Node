@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Headers,
   HttpCode,
   HttpException,
   HttpStatus,
@@ -10,6 +11,7 @@ import {
   ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import * as v from "valibot";
 import { AppException } from "../../common/exceptions/app.exception";
@@ -18,6 +20,7 @@ import {
   type PinExtractionTask,
   pinExtractionTaskSchema,
 } from "../../common/tasks/pin-extraction-task.dto";
+import type { Env } from "../../config/env.schema";
 import { NotificationService } from "../notification/notification.service";
 import type { DuplicatedPlace, PlaceMatch } from "./place.type";
 
@@ -46,6 +49,7 @@ export const PLACE_RESULT_STORE = Symbol("PLACE_RESULT_STORE");
 @UseGuards(CloudTasksGuard)
 export class PlaceWorkerController {
   private readonly logger = new Logger(PlaceWorkerController.name);
+  private readonly maxAttempts: number;
 
   constructor(
     @Inject(PLACE_EXTRACTOR)
@@ -53,7 +57,12 @@ export class PlaceWorkerController {
     @Inject(PLACE_RESULT_STORE)
     private readonly placeResultRepository: PlaceResultStore,
     private readonly notificationService: NotificationService,
-  ) {}
+    configService: ConfigService<Env>,
+  ) {
+    this.maxAttempts = configService.getOrThrow("CLOUD_TASKS_MAX_ATTEMPTS", {
+      infer: true,
+    });
+  }
 
   @Post("pins")
   @ApiOperation({
@@ -61,7 +70,10 @@ export class PlaceWorkerController {
     description: "클라이언트에서 직접 호출하지 않음",
   })
   @HttpCode(HttpStatus.NO_CONTENT)
-  async process(@Body() rawBody: unknown): Promise<void> {
+  async process(
+    @Body() rawBody: unknown,
+    @Headers("x-cloudtasks-taskretrycount") retryCountHeader?: string,
+  ): Promise<void> {
     const parsed = v.safeParse(pinExtractionTaskSchema, rawBody);
     if (!parsed.success) {
       this.logger.warn("Malformed pin extraction task acknowledged");
@@ -93,13 +105,21 @@ export class PlaceWorkerController {
           "일부 장소 검색이 일시적으로 실패했습니다.",
         );
       }
+      if (result.persistedPlaces === 0) {
+        await this.notifyFailed(activeTask);
+      }
     } catch (error) {
       if (this.shouldAcknowledge(error)) {
         this.logger.warn(
           { err: error },
           "Non-retryable place extraction failure acknowledged",
         );
+        await this.notifyFailed(activeTask);
         return;
+      }
+      // 재시도 소진은 Cloud Tasks가 조용히 버려 여기가 마지막 기회다. retryCount는 0부터다.
+      if (Number(retryCountHeader ?? 0) >= this.maxAttempts - 1) {
+        await this.notifyFailed(activeTask);
       }
       const response = this.toRetryableResponse(error);
       this.logger.warn(
@@ -138,6 +158,16 @@ export class PlaceWorkerController {
         }),
       ),
     );
+  }
+
+  private async notifyFailed(task: PinExtractionTask): Promise<void> {
+    await this.notificationService.recordAndNotifyUser({
+      recipientId: task.createdBy,
+      type: "SAVE_FAILED",
+      typeLabel: "장소를 저장하지 못했어요.",
+      targetName: "잠시 후 다시 시도해주세요",
+      key: `SAVE_FAILED:${task.sourceId}:${task.enqueuedAt}`,
+    });
   }
 
   private shouldAcknowledge(error: unknown): boolean {
