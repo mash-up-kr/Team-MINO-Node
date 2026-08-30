@@ -38,6 +38,12 @@ export type RoomPinImageRow = {
   imageUrl: string;
 };
 
+/** 지정 장소와 일치하는 방의 활성 핀 행. */
+export type RoomPlacePinRow = {
+  roomId: string;
+  pinId: string;
+};
+
 /** 요청 유저 관점의 방 조회 행 — 멤버십 검증까지 본 쿼리에서 함께 내려온다. */
 export type RoomForUserRow = RoomWithCountsRow & {
   isMember: boolean;
@@ -61,6 +67,8 @@ export type RoomSummaryResponse = RoomResponse & {
   thumbnailList: string[];
   /** `?showHasPlaceId=` 지정 시에만 포함 */
   hasPlace?: boolean;
+  /** `?showHasPlaceId=` 지정 시 활성 매칭 핀 UUID, 없으면 null */
+  matchedPinId?: string | null;
   /** `?showUsers=true` 지정 시에만 포함 */
   users?: RoomMemberResponse[];
 };

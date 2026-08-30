@@ -149,6 +149,12 @@ const roomSummarySchema: SchemaObject = {
       nullable: true,
       description: "?showHasPlaceId= 지정 시에만 포함",
     },
+    matchedPinId: {
+      type: "string",
+      format: "uuid",
+      nullable: true,
+      description: "?showHasPlaceId= 지정 시 활성 매칭 핀 UUID, 없으면 null",
+    },
     users: {
       type: "array",
       nullable: true,

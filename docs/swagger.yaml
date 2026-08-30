@@ -192,7 +192,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: 지정 시 각 방에 해당 장소(placeId)가 이미 저장되어 있는지(`hasPlace`)를 함께 반환 — "다른 방에 공유" 화면용
+          description: 지정 시 각 방에 해당 장소(placeId)가 이미 저장되어 있는지(`hasPlace`) 및 매칭 핀 ID(`matchedPinId`)를 함께 반환 — "다른 방에 공유" 화면용
         - name: showUsers
           in: query
           required: false
@@ -1200,6 +1200,11 @@ components:
               type: boolean
               nullable: true
               description: '`?showHasPlaceId=` 지정 시에만 포함 — 해당 장소가 이 방에 이미 저장돼 있는지'
+            matchedPinId:
+              type: string
+              format: uuid
+              nullable: true
+              description: '`?showHasPlaceId=` 지정 시 활성 매칭 핀 UUID, 없으면 null'
             users:
               type: array
               nullable: true

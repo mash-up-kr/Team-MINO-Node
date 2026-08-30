@@ -68,7 +68,7 @@ export class RoomController {
   @ApiOperation({
     summary: "내가 속한 방 목록",
     description:
-      "나간 방은 제외. ?showHasPlaceId=로 장소 저장 여부, ?showUsers=true로 멤버 목록 포함.",
+      "나간 방은 제외. ?showHasPlaceId=로 장소 저장 여부 및 매칭 핀 ID, ?showUsers=true로 멤버 목록 포함.",
   })
   @ApiResponse({ status: 200, schema: roomListResponseApiSchema })
   listRooms(

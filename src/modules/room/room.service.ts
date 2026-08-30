@@ -46,12 +46,14 @@ export class RoomService {
     }
     const roomIds = joinedRooms.map((room) => room.id);
 
-    const roomIdsWithPlace = query.showHasPlaceId
-      ? new Set(
-          await this.roomRepository.findRoomIdsHavingPlace(
-            roomIds,
-            query.showHasPlaceId,
-          ),
+    const matchedPinsByRoom = query.showHasPlaceId
+      ? new Map(
+          (
+            await this.roomRepository.findRoomPinsHavingPlace(
+              roomIds,
+              query.showHasPlaceId,
+            )
+          ).map((row) => [row.roomId, row.pinId]),
         )
       : undefined;
 
@@ -81,7 +83,10 @@ export class RoomService {
           : room.pinCount === 0
             ? [room.color]
             : [],
-        ...(roomIdsWithPlace && { hasPlace: roomIdsWithPlace.has(room.id) }),
+        ...(matchedPinsByRoom && {
+          hasPlace: matchedPinsByRoom.has(room.id),
+          matchedPinId: matchedPinsByRoom.get(room.id) ?? null,
+        }),
         ...(membersByRoom && {
           users: (membersByRoom.get(room.id) ?? []).map(toMemberResponse),
         }),

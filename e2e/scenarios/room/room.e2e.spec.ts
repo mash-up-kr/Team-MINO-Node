@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
+import { eq } from "drizzle-orm";
 import { AppModule } from "../../../src/app.module";
 import { DatabaseService } from "../../../src/infrastructures/db/database.service";
 import { pins } from "../../../src/modules/pin/pin.schema";
@@ -427,5 +428,192 @@ describe("방 목록 썸네일", () => {
     const room = data.find((entry) => entry.id === imagelessRoomId);
     expect(room?.pinCount).toBe(1);
     expect(room?.thumbnailList).toEqual([]);
+  });
+});
+
+describe("방 목록의 저장된 장소 매칭 핀", () => {
+  let activeMatchRoomId: string;
+  let noMatchRoomId: string;
+  let softDeletedOnlyRoomId: string;
+  let replacementRoomId: string;
+  let requestedPlaceId: string;
+  let activeMatchPinId: string;
+  let replacementPinId: string;
+
+  beforeAll(async () => {
+    const seededPlaces = await db
+      .insert(places)
+      .values([
+        {
+          provider: "kakao" as const,
+          providerPlaceId: `e2e-matched-place-${randomUUID()}`,
+          name: "매칭 장소",
+          address: "서울 성동구 상원4길 10",
+          lat: 37.5445,
+          lng: 127.0559,
+        },
+        {
+          provider: "kakao" as const,
+          providerPlaceId: `e2e-other-place-${randomUUID()}`,
+          name: "다른 장소",
+          address: "서울 성동구 상원4길 11",
+          lat: 37.5446,
+          lng: 127.056,
+        },
+      ])
+      .returning({ id: places.id });
+    requestedPlaceId = seededPlaces[0]?.id ?? "";
+    const otherPlaceId = seededPlaces[1]?.id ?? "";
+
+    const seededRooms = await db
+      .insert(rooms)
+      .values(
+        ["활성 매칭", "미매칭", "삭제 핀만", "교체 핀"].map((name) => ({
+          ownerId,
+          type: "shared" as const,
+          name,
+          color: "blue",
+        })),
+      )
+      .returning({ id: rooms.id });
+    activeMatchRoomId = seededRooms[0]?.id ?? "";
+    noMatchRoomId = seededRooms[1]?.id ?? "";
+    softDeletedOnlyRoomId = seededRooms[2]?.id ?? "";
+    replacementRoomId = seededRooms[3]?.id ?? "";
+    await db.insert(roomMembers).values([
+      { roomId: activeMatchRoomId, userId: ownerId },
+      { roomId: noMatchRoomId, userId: ownerId },
+      { roomId: softDeletedOnlyRoomId, userId: ownerId },
+      { roomId: replacementRoomId, userId: ownerId },
+    ]);
+
+    const seededPins = await db
+      .insert(pins)
+      .values([
+        {
+          roomId: activeMatchRoomId,
+          placeId: requestedPlaceId,
+          createdBy: ownerId,
+        },
+        {
+          roomId: noMatchRoomId,
+          placeId: otherPlaceId,
+          createdBy: ownerId,
+        },
+        {
+          roomId: softDeletedOnlyRoomId,
+          placeId: requestedPlaceId,
+          createdBy: ownerId,
+        },
+        {
+          roomId: replacementRoomId,
+          placeId: requestedPlaceId,
+          createdBy: ownerId,
+        },
+      ])
+      .returning({ id: pins.id });
+    activeMatchPinId = seededPins[0]?.id ?? "";
+    const softDeletedOnlyPinId = seededPins[2]?.id ?? "";
+    const historicalReplacementPinId = seededPins[3]?.id ?? "";
+    const deletedAt = new Date();
+    await db
+      .update(pins)
+      .set({ deletedAt })
+      .where(eq(pins.id, softDeletedOnlyPinId));
+    await db
+      .update(pins)
+      .set({ deletedAt })
+      .where(eq(pins.id, historicalReplacementPinId));
+
+    const [replacementPin] = await db
+      .insert(pins)
+      .values({
+        roomId: replacementRoomId,
+        placeId: requestedPlaceId,
+        createdBy: ownerId,
+      })
+      .returning({ id: pins.id });
+    replacementPinId = replacementPin?.id ?? "";
+  });
+
+  it("showHasPlaceId를 생략하면 hasPlace와 matchedPinId를 포함하지 않는다", async () => {
+    const response = await api("/api/v1/rooms", ownerAuthUid);
+
+    expect(response.status).toBe(200);
+    const { data } = (await response.json()) as {
+      data: Array<Record<string, unknown>>;
+    };
+    const room = data.find((entry) => entry.id === activeMatchRoomId);
+    expect(Object.hasOwn(room ?? {}, "hasPlace")).toBe(false);
+    expect(Object.hasOwn(room ?? {}, "matchedPinId")).toBe(false);
+  });
+
+  it("활성 매칭 핀 UUID를 내리고 그 UUID로 핀 상세를 조회할 수 있다", async () => {
+    const response = await api(
+      `/api/v1/rooms?showHasPlaceId=${requestedPlaceId}`,
+      ownerAuthUid,
+    );
+
+    expect(response.status).toBe(200);
+    const { data } = (await response.json()) as {
+      data: Array<{
+        id: string;
+        hasPlace?: boolean;
+        matchedPinId?: string | null;
+      }>;
+    };
+    const room = data.find((entry) => entry.id === activeMatchRoomId);
+    expect(room?.hasPlace).toBe(true);
+    expect(room?.matchedPinId).toBe(activeMatchPinId);
+
+    const pinResponse = await api(
+      `/api/v1/pins/${room?.matchedPinId}`,
+      ownerAuthUid,
+    );
+    expect(pinResponse.status).toBe(200);
+    const { data: pin } = (await pinResponse.json()) as {
+      data: { place: { id: string } };
+    };
+    expect(pin.place.id).toBe(requestedPlaceId);
+  });
+
+  it("활성 매칭이 없거나 삭제된 핀만 있으면 false와 null을 내린다", async () => {
+    const response = await api(
+      `/api/v1/rooms?showHasPlaceId=${requestedPlaceId}`,
+      ownerAuthUid,
+    );
+
+    expect(response.status).toBe(200);
+    const { data } = (await response.json()) as {
+      data: Array<{
+        id: string;
+        hasPlace?: boolean;
+        matchedPinId?: string | null;
+      }>;
+    };
+    for (const roomId of [noMatchRoomId, softDeletedOnlyRoomId]) {
+      const room = data.find((entry) => entry.id === roomId);
+      expect(room?.hasPlace).toBe(false);
+      expect(room?.matchedPinId).toBeNull();
+    }
+  });
+
+  it("삭제된 과거 핀 대신 활성 교체 핀 UUID를 내린다", async () => {
+    const response = await api(
+      `/api/v1/rooms?showHasPlaceId=${requestedPlaceId}`,
+      ownerAuthUid,
+    );
+
+    expect(response.status).toBe(200);
+    const { data } = (await response.json()) as {
+      data: Array<{
+        id: string;
+        hasPlace?: boolean;
+        matchedPinId?: string | null;
+      }>;
+    };
+    const room = data.find((entry) => entry.id === replacementRoomId);
+    expect(room?.hasPlace).toBe(true);
+    expect(room?.matchedPinId).toBe(replacementPinId);
   });
 });

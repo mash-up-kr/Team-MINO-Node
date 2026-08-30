@@ -20,6 +20,7 @@ import type {
   MemberWithRoomRow,
   RoomForUserRow,
   RoomPinImageRow,
+  RoomPlacePinRow,
   RoomRow,
   RoomWithCountsRow,
   UpdateRoomInput,
@@ -190,13 +191,13 @@ export class RoomRepository extends BaseRepository {
       .orderBy(ranked.roomId, ranked.rank);
   }
 
-  /** 지정 장소가 이미 저장된 방 id 목록 — "다른 방에 공유" 화면용. */
-  async findRoomIdsHavingPlace(
+  /** 지정 장소와 일치하는 방의 활성 핀 행 — "다른 방에 공유" 화면용. */
+  async findRoomPinsHavingPlace(
     roomIds: string[],
     placeId: string,
-  ): Promise<string[]> {
-    const rows = await this.db
-      .select({ roomId: pins.roomId })
+  ): Promise<RoomPlacePinRow[]> {
+    return await this.db
+      .select({ roomId: pins.roomId, pinId: pins.id })
       .from(pins)
       .where(
         and(
@@ -205,7 +206,6 @@ export class RoomRepository extends BaseRepository {
           isNull(pins.deletedAt),
         ),
       );
-    return rows.map((row) => row.roomId);
   }
 
   /**
