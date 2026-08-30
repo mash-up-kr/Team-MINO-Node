@@ -462,7 +462,13 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 
 **세부 계약 메모**
 
-- `GET /rooms`: `?savedPlaceId={placeId}`를 주면 각 방에 해당 장소가 이미 저장되어 있는지를 함께 반환한다. "다른 방에 공유" 화면에서 이미 저장된 방을 선택됨/비활성으로 그리는 데 쓴다.
+- `GET /rooms`: `?showHasPlaceId={placeId}`를 주면 각 방에 해당 장소가 이미 저장되어 있는지(`hasPlace`)와 매칭되는 활성 핀 ID(`matchedPinId`)를 함께 반환한다. "다른 방에 공유" 화면에서 이미 저장된 방을 선택됨/비활성으로 그리는 데 쓴다.
+  - `matchedPinId` 진리표(truth table):
+    - `showHasPlaceId` 쿼리 생략: `hasPlace`, `matchedPinId` 속성 자체를 미포함 (omitted)
+    - 쿼리 제공 + 활성 매칭 핀 존재: `hasPlace: true`, `matchedPinId: string` (해당 활성 핀 UUID)
+    - 쿼리 제공 + 매칭 핀 없음: `hasPlace: false`, `matchedPinId: null`
+    - 쿼리 제공 + soft delete된 핀만 존재: `hasPlace: false`, `matchedPinId: null`
+    - 쿼리 제공 + 삭제된 과거 핀과 활성 교체 핀 공존: `hasPlace: true`, `matchedPinId: string` (활성 교체 핀 UUID만 반환)
 - `DELETE /rooms/{roomId}/members/me`: 파라미터 없이 요청하고 **서버가 요청 유저 상태를 검증해 분기한다.** 일반 멤버는 나가기 처리, **방장 + 다른 멤버 존재면 에러로 거절**(먼저 `PUT /rooms/{roomId}/owner`로 위임, errorCode 예: `OWNER_TRANSFER_REQUIRED`), **방장 + 마지막 멤버면 나가기 허용 + 방 soft delete.** (PR 리뷰 확정) 개인방은 나가기 대상이 아니다.
 - **명시적 방 삭제 엔드포인트는 두지 않는다.** 방 삭제는 마지막 멤버 나가기 시 서버가 처리하는 결과다.
 
@@ -606,7 +612,7 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 
 - **방 > API > 방 리스트 조회** — `GET /rooms`
   - 유저가 속한 방 목록(개인방/공동방 구분, 핀 수 등 메타 포함, 나간 방 제외). 공동방 생성 유도 바텀시트용 보유 이력 판별 지원.
-  - `?savedPlaceId=`로 "다른 방에 공유" 화면의 이미 저장된 방 판별 지원.
+  - `?showHasPlaceId=`로 "다른 방에 공유" 화면의 이미 저장된 방 판별 및 매칭 핀 ID 조회 지원.
 
 ### [004] 방 상세 · 권한
 
