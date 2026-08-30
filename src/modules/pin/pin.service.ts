@@ -9,17 +9,55 @@ import { isUniqueViolation } from "../../infrastructures/db/db.error";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
 import { RoomRepository } from "../room/room.repository";
 import { SourceRepository } from "../source/source.repository";
-import type {
-  CreateRoomPinsRequest,
-  DuplicatePinRequest,
-  ListPinsQuery,
+import {
+  type CreateRoomPinsRequest,
+  type DuplicatePinRequest,
+  type ListPinsQuery,
+  PIN_CATEGORY_ALL,
 } from "./pin.dto";
 import { PinRepository } from "./pin.repository";
 import {
   type PinDetailResponse,
+  type PinListCriteria,
   type PinListResponse,
+  type PinListSort,
   toPinResponse,
 } from "./pin.type";
+
+/**
+ * HTTP 쿼리를 repository가 쓸 조회 조건으로 옮긴다. 좌표는 sort=distance일 때만
+ * 의미가 있고 그 검증은 listPinsQuerySchema가 이미 마쳤으므로, 여기서 좌표를
+ * 정렬 쪽으로 접어 넣어 repository가 좌표 유무를 다시 따지지 않게 한다.
+ */
+export function toPinListCriteria(query: ListPinsQuery): PinListCriteria {
+  return {
+    scope: query.roomId
+      ? { type: "room", roomId: query.roomId }
+      : { type: "allRooms" },
+    // all은 필터 없음이라 컬럼 값이 아니다.
+    categoryGroup: query.category === PIN_CATEGORY_ALL ? null : query.category,
+    sort: toPinListSort(query),
+  };
+}
+
+function toPinListSort(query: ListPinsQuery): PinListSort {
+  switch (query.sort) {
+    case "ggukPick":
+      return { type: "ggukPick" };
+    case "commented":
+      return { type: "commented" };
+    case "distance":
+      // sort=distance면 좌표가 있음을 스키마가 보장한다(listPinsQuerySchema).
+      return {
+        type: "distance",
+        lat: query.lat as number,
+        lng: query.lng as number,
+      };
+    // all은 최신순의 별칭이다.
+    default:
+      return { type: "latest" };
+  }
+}
 
 @Injectable()
 export class PinService {
@@ -73,20 +111,25 @@ export class PinService {
     userId: string,
     query: ListPinsQuery,
   ): Promise<PinListResponse> {
-    if (!(await this.roomRepository.isActiveMember(query.roomId, userId))) {
+    // roomId 미지정이면 조회 범위가 내가 속한 방으로 한정되므로 별도 검증이 없다.
+    if (
+      query.roomId &&
+      !(await this.roomRepository.isActiveMember(query.roomId, userId))
+    ) {
       throw this.notRoomMember();
     }
 
+    const criteria = toPinListCriteria(query);
     const paged = query.page !== undefined || query.pageSize !== undefined;
     if (!paged) {
-      const rows = await this.pinRepository.listByRoom(query.roomId);
+      const rows = await this.pinRepository.listForUser(userId, criteria);
       return { data: rows.map(toPinResponse) };
     }
 
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     // pageSize+1개를 조회해 다음 페이지 존재 여부를 판별한다
-    const rows = await this.pinRepository.listByRoom(query.roomId, {
+    const rows = await this.pinRepository.listForUser(userId, criteria, {
       limit: pageSize + 1,
       offset: page * pageSize,
     });

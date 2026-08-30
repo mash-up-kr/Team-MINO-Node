@@ -1,10 +1,23 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
-import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from "@nestjs/common";
+import {
+  ApiBody,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
 import type { RequestUser } from "../../common/guards/current-user.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
-import { QuerySchema } from "../../common/swagger/query-schema.decorator";
 import {
   type DuplicatePinRequest,
   duplicatePinRequestApiSchema,
@@ -13,6 +26,8 @@ import {
   type ListPinsQuery,
   listPinsQuerySchema,
   okResponseApiSchema,
+  PIN_CATEGORY_OPTIONS,
+  PIN_SORT_OPTIONS,
   pinDetailResponseApiSchema,
   pinListResponseApiSchema,
   uuidParamSchema,
@@ -32,13 +47,36 @@ export class PinController {
   @ApiOperation({
     summary: "핀 목록 조회",
     description:
-      "roomId의 핀 목록(좌표 포함). page/pageSize 미지정 시 전체 반환(지도 전체 보기), 지정 시 offset 페이지네이션.",
+      "roomId 지정 시 해당 방, 미지정 시 요청 유저의 모든 활성 방 핀 목록(좌표 포함). 5종 정렬(all, ggukPick, latest, distance, commented) 및 3종 카테고리 필터(all, cafe, restaurant) 지원. page/pageSize 미지정 시 전체 반환(지도 전체 보기), 지정 시 offset 페이지네이션.",
   })
+  @ApiQuery({
+    name: "roomId",
+    required: false,
+    type: String,
+    description: "방 UUID. 생략하면 내가 속한 모든 활성 방을 조회.",
+  })
+  @ApiQuery({
+    name: "sort",
+    required: false,
+    enum: [...PIN_SORT_OPTIONS],
+    description: "기본값은 all. distance는 lat·lng가 필요.",
+  })
+  @ApiQuery({
+    name: "category",
+    required: false,
+    enum: [...PIN_CATEGORY_OPTIONS],
+    description: "기본값은 all (전체).",
+  })
+  @ApiQuery({ name: "lat", required: false, type: Number })
+  @ApiQuery({ name: "lng", required: false, type: Number })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "pageSize", required: false, type: Number })
   @ApiResponse({ status: 200, schema: pinListResponseApiSchema })
+  @ApiResponse({ status: 400, schema: errorResponseApiSchema })
   @ApiResponse({ status: 403, schema: errorResponseApiSchema })
   listPins(
     @CurrentUser() user: RequestUser,
-    @QuerySchema(listPinsQuerySchema) query: ListPinsQuery,
+    @Query(new ValibotPipe(listPinsQuerySchema)) query: ListPinsQuery,
   ): Promise<PinListResponse> {
     return this.pinService.listPins(user.id, query);
   }

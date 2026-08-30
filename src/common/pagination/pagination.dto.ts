@@ -8,6 +8,7 @@ export const pageQuerySchema = v.pipe(
   v.regex(/^\d+$/, "page는 0 이상의 정수여야 합니다."),
   v.transform(Number),
   v.minValue(0),
+  v.maxValue(Number.MAX_SAFE_INTEGER, "page가 너무 큽니다."),
   v.description("페이지 번호 (0부터 시작)"),
 );
 

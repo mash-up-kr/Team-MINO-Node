@@ -1,3 +1,4 @@
+import { isNull } from "drizzle-orm";
 import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "../user/user.schema";
 import { pins } from "./pin.schema";
@@ -23,5 +24,9 @@ export const pinComments = pgTable(
     // soft delete 시각. NULL이면 활성 레코드입니다.
     deletedAt: timestamp({ withTimezone: true }),
   },
-  (t) => [index().on(t.pinId), index().on(t.createdBy)],
+  (t) => [
+    // 활성 코멘트 조회 및 개수 집계용 부분 인덱스
+    index().on(t.pinId).where(isNull(t.deletedAt)),
+    index().on(t.createdBy),
+  ],
 );

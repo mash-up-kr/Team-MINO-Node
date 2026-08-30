@@ -26,15 +26,62 @@ export type CreateRoomPinsRequest = v.InferOutput<
   typeof createRoomPinsRequestSchema
 >;
 
+export const PIN_SORT_OPTIONS = [
+  "all",
+  "ggukPick",
+  "latest",
+  "distance",
+  "commented",
+] as const;
+
+export type PinSortOption = (typeof PIN_SORT_OPTIONS)[number];
+
+/**
+ * 카테고리 필터를 걸지 않음(전체)을 뜻하는 값. places.category_group의 값이 아니라
+ * 조회 조건에서만 의미를 갖는 센티널이라 이름을 붙여 둔다.
+ */
+export const PIN_CATEGORY_ALL = "all";
+
+export const PIN_CATEGORY_OPTIONS = [
+  PIN_CATEGORY_ALL,
+  "cafe",
+  "restaurant",
+] as const;
+
+export type PinCategoryOption = (typeof PIN_CATEGORY_OPTIONS)[number];
+
+/** 쿼리 파라미터는 문자열로 들어오므로 숫자 변환을 포함한다. */
+const coordinateSchema = (min: number, max: number, label: string) =>
+  v.pipe(
+    v.string(),
+    v.regex(/^-?\d+(\.\d+)?$/, `${label}는 숫자여야 합니다.`),
+    v.transform(Number),
+    v.minValue(min),
+    v.maxValue(max),
+  );
+
 /**
  * page/pageSize 둘 다 미지정이면 전체를 반환한다(지도 전체 보기 보장 — PR 리뷰 확정).
  * 하나라도 지정되면 offset 기반 페이지네이션한다.
+ * sort 기본값은 all, category 기본값은 all. distance는 lat·lng 좌표가 필수다.
  */
-export const listPinsQuerySchema = v.object({
-  roomId: v.pipe(uuidParamSchema, v.description("조회할 방 UUID")),
-  page: v.optional(pageQuerySchema),
-  pageSize: v.optional(pageSizeQuerySchema),
-});
+export const listPinsQuerySchema = v.pipe(
+  v.object({
+    roomId: v.optional(uuidParamSchema),
+    sort: v.optional(v.picklist(PIN_SORT_OPTIONS), "all"),
+    category: v.optional(v.picklist(PIN_CATEGORY_OPTIONS), PIN_CATEGORY_ALL),
+    lat: v.optional(coordinateSchema(-90, 90, "lat")),
+    lng: v.optional(coordinateSchema(-180, 180, "lng")),
+    page: v.optional(pageQuerySchema),
+    pageSize: v.optional(pageSizeQuerySchema),
+  }),
+  v.check(
+    (query) =>
+      query.sort !== "distance" ||
+      (query.lat !== undefined && query.lng !== undefined),
+    "sort=distance는 lat·lng가 필요합니다.",
+  ),
+);
 
 export type ListPinsQuery = v.InferOutput<typeof listPinsQuerySchema>;
 
@@ -115,7 +162,6 @@ export const pinListResponseApiSchema: SchemaObject = {
     data: { type: "array", items: pinSchema },
     pagination: {
       ...paginationApiSchema,
-      nullable: true,
       description: "전체 조회(page/pageSize 미지정) 시 생략",
     },
   },
