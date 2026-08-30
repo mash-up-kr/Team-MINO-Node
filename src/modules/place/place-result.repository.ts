@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import { AppException } from "../../common/exceptions/app.exception";
 import type { PinExtractionTask } from "../../common/tasks/pin-extraction-task.dto";
 import { DatabaseService } from "../../infrastructures/db/database.service";
@@ -10,11 +10,16 @@ import { placeSources } from "../source/place-source.schema";
 import { sources } from "../source/source.schema";
 import { users } from "../user/user.schema";
 import { places } from "./place.schema";
-import type { PlaceMatch } from "./place.type";
+import type { DuplicatedPlace, PlaceMatch } from "./place.type";
+
+type TransactionClient = Parameters<
+  Parameters<DatabaseService["db"]["transaction"]>[0]
+>[0];
 
 export type PlaceSaveResult = {
   readonly retryableFailures: number;
   readonly persistedPlaces: number;
+  readonly duplicatedPlaces: DuplicatedPlace[];
 };
 
 /** 추출 성공분만 한 트랜잭션으로 반영하고, 실패 장소는 워커 재시도 판단에 전달한다. */
@@ -101,9 +106,10 @@ export class PlaceResultRepository {
     );
 
     if (uniquePlaces.length === 0) {
-      return { retryableFailures, persistedPlaces: 0 };
+      return { retryableFailures, persistedPlaces: 0, duplicatedPlaces: [] };
     }
 
+    let duplicatedPlaces: DuplicatedPlace[] = [];
     await this.databaseService.db.transaction(async (tx) => {
       // Batch insert places (N+1 방지)
       const insertedPlaces = await tx
@@ -159,6 +165,9 @@ export class PlaceResultRepository {
           where: isNull(placeSources.deletedAt),
         });
 
+      // 핀을 넣기 전에 읽어야 한다. insert 후엔 재배달분과 구분되지 않는다.
+      duplicatedPlaces = await this.findDuplicated(tx, task, insertedPlaces);
+
       // Batch insert pins
       await tx
         .insert(pins)
@@ -181,6 +190,39 @@ export class PlaceResultRepository {
     return {
       retryableFailures,
       persistedPlaces: uniquePlaces.length,
+      duplicatedPlaces,
     };
+  }
+
+  private async findDuplicated(
+    tx: TransactionClient,
+    task: PinExtractionTask,
+    insertedPlaces: { id: string }[],
+  ): Promise<DuplicatedPlace[]> {
+    if (!task.enqueuedAt) return [];
+
+    // 방 여러 곳이 한꺼번에 중복이어도 장소당 한 건이다(FR-021). 같은 저장은
+    // created_at이 같아 id까지 봐야 매번 같은 핀이 뽑힌다.
+    return tx
+      .selectDistinctOn([pins.placeId], {
+        pinId: pins.id,
+        placeId: pins.placeId,
+        placeName: places.name,
+        thumbnailUrl: sql<string | null>`${places.images} ->> 0`,
+      })
+      .from(pins)
+      .innerJoin(places, eq(pins.placeId, places.id))
+      .where(
+        and(
+          inArray(pins.roomId, task.roomIds),
+          inArray(
+            pins.placeId,
+            insertedPlaces.map((place) => place.id),
+          ),
+          isNull(pins.deletedAt),
+          lt(pins.createdAt, new Date(task.enqueuedAt)),
+        ),
+      )
+      .orderBy(pins.placeId, desc(pins.createdAt), desc(pins.id));
   }
 }

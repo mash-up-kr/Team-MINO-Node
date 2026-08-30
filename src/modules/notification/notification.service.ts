@@ -40,6 +40,16 @@ export class NotificationService {
     }
   }
 
+  async recordAndNotifyUser(
+    input: RecordNotificationInput,
+    options?: { inbox?: boolean },
+  ): Promise<void> {
+    const fcmToken = await this.notificationRepository.findPushToken(
+      input.recipientId,
+    );
+    await this.recordAndNotify(input, fcmToken, options);
+  }
+
   async listPage(
     recipientId: string,
     page: number,

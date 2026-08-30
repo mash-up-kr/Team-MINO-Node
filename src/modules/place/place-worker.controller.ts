@@ -18,7 +18,8 @@ import {
   type PinExtractionTask,
   pinExtractionTaskSchema,
 } from "../../common/tasks/pin-extraction-task.dto";
-import type { PlaceMatch } from "./place.type";
+import { NotificationService } from "../notification/notification.service";
+import type { DuplicatedPlace, PlaceMatch } from "./place.type";
 
 interface PlaceExtractor {
   extractFromUrl(url: string): Promise<PlaceMatch[]>;
@@ -32,6 +33,7 @@ interface PlaceResultStore {
   ): Promise<{
     readonly retryableFailures: number;
     readonly persistedPlaces: number;
+    readonly duplicatedPlaces: readonly DuplicatedPlace[];
   }>;
 }
 
@@ -50,6 +52,7 @@ export class PlaceWorkerController {
     private readonly placeService: PlaceExtractor,
     @Inject(PLACE_RESULT_STORE)
     private readonly placeResultRepository: PlaceResultStore,
+    private readonly notificationService: NotificationService,
   ) {}
 
   @Post("pins")
@@ -84,6 +87,7 @@ export class PlaceWorkerController {
     try {
       const matches = await this.placeService.extractFromUrl(activeTask.url);
       const result = await this.placeResultRepository.save(activeTask, matches);
+      await this.notifyDuplicated(activeTask, result.duplicatedPlaces);
       if (result.retryableFailures > 0) {
         throw new ServiceUnavailableException(
           "일부 장소 검색이 일시적으로 실패했습니다.",
@@ -114,6 +118,26 @@ export class PlaceWorkerController {
       );
       throw response;
     }
+  }
+
+  private async notifyDuplicated(
+    task: PinExtractionTask,
+    duplicatedPlaces: readonly DuplicatedPlace[],
+  ): Promise<void> {
+    await Promise.all(
+      duplicatedPlaces.map((place) =>
+        this.notificationService.recordAndNotifyUser({
+          recipientId: task.createdBy,
+          type: "PIN_DUPLICATED",
+          typeLabel: "이미 저장해둔 곳이에요",
+          targetName: place.placeName,
+          thumbnailUrl: place.thumbnailUrl ?? undefined,
+          payload: { placeId: place.placeId, pinId: place.pinId },
+          // enqueuedAt이 있어야 같은 글을 다시 저장했을 때 별개 행으로 남는다(TS-052).
+          key: `PIN_DUPLICATED:${task.sourceId}:${task.enqueuedAt}:${place.placeId}`,
+        }),
+      ),
+    );
   }
 
   private shouldAcknowledge(error: unknown): boolean {

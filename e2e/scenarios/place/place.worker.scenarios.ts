@@ -1,7 +1,8 @@
 import { expect, it } from "bun:test";
 import { HttpStatus } from "@nestjs/common";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { AppException } from "../../../src/common/exceptions/app.exception";
+import { notifications } from "../../../src/modules/notification/notification.schema";
 import { pins } from "../../../src/modules/pin/pin.schema";
 import { places } from "../../../src/modules/place/place.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
@@ -305,5 +306,101 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
         .from(pins)
         .where(and(eq(pins.roomId, harness.room), isNull(pins.deletedAt))),
     ).toHaveLength(2);
+  });
+}
+
+export function registerDuplicateNotificationScenarios(
+  harness: PlaceE2eHarness,
+): void {
+  const EXTRACTED_PLACES = 2;
+
+  const duplicateNotifications = () =>
+    harness.db
+      .select({
+        targetName: notifications.targetName,
+        key: notifications.key,
+        payload: notifications.payload,
+      })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.recipientId, harness.member),
+          eq(notifications.type, "PIN_DUPLICATED"),
+          isNull(notifications.deletedAt),
+        ),
+      );
+
+  it("이미 저장돼 있던 장소만 중복으로 알린다", async () => {
+    // given
+    await harness.postPin();
+    expect((await harness.runTask()).status).toBe(204);
+    expect(await duplicateNotifications()).toHaveLength(0);
+
+    // when
+    await harness.postPin();
+    const response = await harness.runTask();
+
+    // then
+    expect(response.status).toBe(204);
+    expect(await duplicateNotifications()).toHaveLength(EXTRACTED_PLACES);
+  });
+
+  it("재배달로 같은 task를 다시 처리해도 중복 알림이 생기지 않는다", async () => {
+    // given
+    await harness.postPin();
+    const task = harness.task;
+    expect((await harness.runTask(task)).status).toBe(204);
+
+    // when
+    expect((await harness.runTask(task)).status).toBe(204);
+    expect((await harness.runTask(task)).status).toBe(204);
+
+    // then
+    expect(await duplicateNotifications()).toHaveLength(0);
+  });
+
+  it("저장 시도가 다르면 같은 장소라도 별개 행으로 남는다", async () => {
+    // given
+    await harness.postPin();
+    expect((await harness.runTask()).status).toBe(204);
+
+    // when
+    await harness.postPin();
+    expect((await harness.runTask()).status).toBe(204);
+    await harness.postPin();
+    expect((await harness.runTask()).status).toBe(204);
+
+    // then
+    expect(await duplicateNotifications()).toHaveLength(EXTRACTED_PLACES * 2);
+  });
+
+  it("중복 알림은 방 수와 무관하게 장소당 한 건이다", async () => {
+    // given
+    const bothRooms = {
+      url: "https://instagram.com/p/e2e-pin/",
+      roomIds: [harness.room, harness.secondRoom],
+    };
+    await harness.postPin(harness.memberAuthUid, bothRooms);
+    expect((await harness.runTask()).status).toBe(204);
+
+    // when
+    await harness.postPin(harness.memberAuthUid, bothRooms);
+    expect((await harness.runTask()).status).toBe(204);
+
+    // then
+    const rows = await duplicateNotifications();
+    expect(rows).toHaveLength(EXTRACTED_PLACES);
+    expect(new Set(rows.map((row) => row.key)).size).toBe(EXTRACTED_PLACES);
+    for (const row of rows) {
+      expect(CANDIDATES.map((c) => c.placeName)).toContain(row.targetName);
+      const payload = row.payload as { placeId: string; pinId: string };
+      const [newest] = await harness.db
+        .select({ id: pins.id })
+        .from(pins)
+        .where(and(eq(pins.placeId, payload.placeId), isNull(pins.deletedAt)))
+        .orderBy(desc(pins.createdAt), desc(pins.id))
+        .limit(1);
+      expect(payload.pinId).toBe(newest?.id);
+    }
   });
 }

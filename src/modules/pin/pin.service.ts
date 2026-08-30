@@ -58,6 +58,7 @@ export class PinService {
       sourceId,
       createdBy: userId,
       url: input.url,
+      enqueuedAt: new Date().toISOString(),
     };
     await this.tasksService.enqueuePinExtraction(task);
   }

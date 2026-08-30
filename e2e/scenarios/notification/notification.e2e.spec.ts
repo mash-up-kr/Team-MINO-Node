@@ -68,7 +68,7 @@ describe("NotificationRepository.record", () => {
       type: "NEARBY_PLACE" as const,
       typeLabel: "근처에 저장한 장소가 있어요",
       targetName: "패스트리 순간",
-      payload: { placeId: "p1" },
+      payload: { placeId: "p1", pinId: "p1-pin" },
       key: `NEARBY_PLACE:${randomUUID()}`,
     };
 
@@ -85,7 +85,7 @@ describe("NotificationRepository.record", () => {
       type: "TOP_COMMENTED_PLACE" as const,
       typeLabel: "코멘트가 제일 많이 달린 장소에요",
       targetName: "어니언 성수",
-      payload: { placeId: "p2" },
+      payload: { placeId: "p2", pinId: "p2-pin" },
     };
 
     const first = await repository.record({ ...base, key: randomUUID() });
@@ -111,7 +111,7 @@ describe("GET /api/v1/notifications", () => {
       typeLabel: "이미 저장해둔 곳이에요",
       targetName: "패스트리 순간",
       thumbnailUrl: "https://example.com/0.jpg",
-      payload: { placeId: "p1" },
+      payload: { placeId: "p1", pinId: "p1-pin" },
     });
 
     // when
@@ -129,7 +129,7 @@ describe("GET /api/v1/notifications", () => {
       typeLabel: "이미 저장해둔 곳이에요",
       targetName: "패스트리 순간",
       thumbnailUrl: "https://example.com/0.jpg",
-      payload: { placeId: "p1" },
+      payload: { placeId: "p1", pinId: "p1-pin" },
     });
     expect(pagination).toEqual({ page: 0, pageSize: 1, hasNext: true });
   });

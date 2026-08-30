@@ -21,8 +21,13 @@ export const NOTIFICATION_TYPES = [
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
-// 클라이언트가 라우팅에 쓰는 대상 식별자. 저장 오류는 이동 대상이 없어 NULL이다.
-export type NotificationPayload = { placeId: string } | { roomId: string };
+/*
+ * 클라이언트가 라우팅에 쓰는 대상 식별자. 저장 오류는 이동 대상이 없어 NULL이다.
+ * 장소 상세는 pinId로 열고(핀은 장소×방 쌍), placeId는 저장된 방 조회와 폴백에 쓴다.
+ */
+export type NotificationPayload =
+  | { placeId: string; pinId: string }
+  | { roomId: string };
 
 export const notifications = pgTable(
   "notifications",

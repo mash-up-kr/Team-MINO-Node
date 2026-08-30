@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
+import { users } from "../user/user.schema";
 import {
   type NotificationPayload,
   type NotificationType,
@@ -34,6 +35,15 @@ export class NotificationRepository extends BaseRepository {
       .returning({ id: notifications.id });
 
     return row ?? null;
+  }
+
+  async findPushToken(userId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ fcmToken: users.fcmToken })
+      .from(users)
+      .where(and(eq(users.id, userId), isNull(users.deletedAt)));
+
+    return row?.fcmToken ?? null;
   }
 
   async findPage(
