@@ -1,5 +1,5 @@
 {
-  "id": "81907477-4053-4799-97ce-68e39f1d3626",
+  "id": "39744c38-756a-4837-b410-809a305d0610",
   "prevId": "ecdc420c-4f3c-45ba-bcf5-1dc24bc4cc63",
   "version": "7",
   "dialect": "postgresql",
@@ -152,11 +152,17 @@
           "primaryKey": false,
           "notNull": false
         },
-        "url": {
-          "name": "url",
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "key": {
+          "name": "key",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -190,6 +196,28 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notifications_recipient_key_unique": {
+          "name": "notifications_recipient_key_unique",
+          "columns": [
+            {
+              "expression": "recipient_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"notifications\".\"key\" is not null and \"notifications\".\"deleted_at\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}

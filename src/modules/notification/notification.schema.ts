@@ -1,8 +1,11 @@
+import { sql } from "drizzle-orm";
 import {
   index,
+  jsonb,
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -18,7 +21,9 @@ export const NOTIFICATION_TYPES = [
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
-// 발송 시점에 완성한 문구를 그대로 저장한다 — 대상 타입이 늘어도 컬럼을 추가할 필요가 없다.
+// 클라이언트가 라우팅에 쓰는 대상 식별자. 저장 오류는 이동 대상이 없어 NULL이다.
+export type NotificationPayload = { placeId: string } | { roomId: string };
+
 export const notifications = pgTable(
   "notifications",
   {
@@ -30,9 +35,15 @@ export const notifications = pgTable(
     typeLabel: text().notNull(),
     targetName: text().notNull(),
     thumbnailUrl: text(),
-    url: text().notNull(),
+    payload: jsonb().$type<NotificationPayload>(),
+    key: text(),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
     deletedAt: timestamp({ withTimezone: true }),
   },
-  (t) => [index().on(t.recipientId, t.createdAt)],
+  (t) => [
+    index().on(t.recipientId, t.createdAt),
+    uniqueIndex("notifications_recipient_key_unique")
+      .on(t.recipientId, t.key)
+      .where(sql`${t.key} is not null and ${t.deletedAt} is null`),
+  ],
 );
