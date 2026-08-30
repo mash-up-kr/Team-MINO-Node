@@ -2,7 +2,7 @@ import { authConfig } from "@/resources/auth";
 import { service } from "@/resources/cloud-run";
 import { customDomain } from "@/resources/hosting";
 import { developer, serverServiceAccount } from "@/resources/identity";
-import { dbKeepAliveJob } from "@/resources/scheduler";
+import { dbKeepAliveJob, topCommentedReminderJob } from "@/resources/scheduler";
 import { localEnvSecret, prodEnvSecret } from "@/resources/secrets";
 import {
   placeImagesLocalBucket,
@@ -25,6 +25,7 @@ export const serverServiceAccountEmail = serverServiceAccount.email;
 export const prodEnvSecretId = prodEnvSecret.secretId;
 export const localEnvSecretId = localEnvSecret.secretId;
 export const dbKeepAliveJobName = dbKeepAliveJob.name;
+export const topCommentedReminderJobName = topCommentedReminderJob.name;
 export const placeExtractionQueueId = placeExtractionQueue.id;
 export const taskInvokerServiceAccountEmail = taskInvokerServiceAccount.email;
 export const placeImagesLocalBucketName = placeImagesLocalBucket.name;
