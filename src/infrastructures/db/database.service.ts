@@ -16,12 +16,6 @@ import { resolveDbSchema } from "./db.env";
  */
 const IDLE_TIMEOUT_SECONDS = 30;
 
-/*
- * 커넥션 최대 수명(초). 기본값은 30~60분 랜덤이라 위 유휴 정리를 빠져나간
- * 커넥션이 오래 남는다. 짧게 잡아 주기적으로 새 커넥션으로 갈아탄다.
- */
-const MAX_LIFETIME_SECONDS = 60 * 10;
-
 @Injectable()
 export class DatabaseService implements OnModuleDestroy {
   private readonly client: ReturnType<typeof postgres>;
@@ -39,7 +33,10 @@ export class DatabaseService implements OnModuleDestroy {
     this.client = postgres(databaseUrl, {
       max,
       idle_timeout: IDLE_TIMEOUT_SECONDS,
-      max_lifetime: MAX_LIFETIME_SECONDS,
+      // max_lifetime은 기본값(커넥션마다 30~60분 랜덤)을 그대로 둔다. 끊기는 쪽은
+      // 유휴 커넥션이라 위 정리만으로 충분하고, 고정값을 주면 커넥션들이 같은 시각에
+      // 만료돼 재연결이 몰린다.
+
       // 이 환경의 스키마만 바라보게 고정. 실수로 다른 환경 테이블을 건드리지 않도록.
       connection: { search_path: schema },
       // TLS는 연결 문자열로 제어합니다(로컬은 미지정, Supabase는 ?sslmode=require).
