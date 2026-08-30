@@ -17,6 +17,7 @@ import { SentryModule } from "./infrastructures/sentry/sentry.module";
 import { CardModule } from "./modules/card/card.module";
 import { CommentModule } from "./modules/comment/comment.module";
 import { InvitationModule } from "./modules/invitation/invitation.module";
+import { NotificationModule } from "./modules/notification/notification.module";
 import { PinModule } from "./modules/pin/pin.module";
 import { PlaceModule } from "./modules/place/place.module";
 import { RoomModule } from "./modules/room/room.module";
@@ -51,6 +52,7 @@ import { UserModule } from "./modules/user/user.module";
     RoomModule,
     UserModule,
     CardModule,
+    NotificationModule,
   ],
   controllers: [HealthController],
   providers: [DrizzleHealthIndicator, DbKeepAliveService],
