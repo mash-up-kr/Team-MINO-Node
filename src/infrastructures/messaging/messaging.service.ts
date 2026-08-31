@@ -1,8 +1,8 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import * as Sentry from "@sentry/bun";
-import { GoogleAuth } from "google-auth-library";
-import type { Env } from "../../config/env.schema";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import type { App } from "firebase-admin/app";
+import { getMessaging, type Messaging } from "firebase-admin/messaging";
+import { FIREBASE_APP } from "../firebase/firebase.constant";
+import { SentryErrorReporter } from "../sentry/sentry-reporter";
 
 type PushPayload = {
   title: string;
@@ -12,58 +12,41 @@ type PushPayload = {
 
 @Injectable()
 export class MessagingService {
-  private static readonly SCOPE =
-    "https://www.googleapis.com/auth/firebase.messaging";
-  private static readonly SEND_TIMEOUT_MS = 5_000;
-
   private readonly logger = new Logger(MessagingService.name);
-  private readonly auth = new GoogleAuth({ scopes: [MessagingService.SCOPE] });
-  private readonly projectId: string;
+  private readonly messaging: Messaging;
 
-  constructor(configService: ConfigService<Env>) {
-    this.projectId = configService.getOrThrow("GOOGLE_CLOUD_PROJECT", {
-      infer: true,
-    });
+  constructor(
+    @Inject(FIREBASE_APP) app: App,
+    private readonly reporter: SentryErrorReporter,
+  ) {
+    this.messaging = getMessaging(app);
   }
 
   async sendToTokens(tokens: string[], payload: PushPayload): Promise<void> {
-    await Promise.allSettled(
-      tokens.map((token) => this.sendOne(token, payload)),
-    );
-  }
+    if (tokens.length === 0) return;
 
-  private async sendOne(token: string, payload: PushPayload): Promise<void> {
     try {
-      const client = await this.auth.getClient();
-      const { token: accessToken } = await client.getAccessToken();
-      const res = await fetch(
-        `https://fcm.googleapis.com/v1/projects/${this.projectId}/messages:send`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message: {
-              token,
-              notification: { title: payload.title, body: payload.body },
-              data: payload.data,
-              apns: {
-                headers: { "apns-priority": "10" },
-                payload: { aps: { sound: "default" } },
-              },
-            },
-          }),
-          signal: AbortSignal.timeout(MessagingService.SEND_TIMEOUT_MS),
+      const result = await this.messaging.sendEachForMulticast({
+        tokens,
+        notification: { title: payload.title, body: payload.body },
+        data: payload.data,
+        android: { priority: "high" },
+        apns: {
+          headers: { "apns-priority": "10" },
+          payload: { aps: { sound: "default" } },
         },
-      );
-      if (!res.ok) {
-        this.logger.warn({ status: res.status }, "FCM send failed");
+      });
+
+      for (const response of result.responses) {
+        if (response.success) continue;
+        this.logger.warn({ code: response.error?.code }, "FCM send failed");
       }
     } catch (error) {
       this.logger.warn({ err: error }, "FCM send threw");
-      Sentry.captureException(error);
+      this.reporter.report(new Error("FCM 발송 실패"), {
+        errorCode: "FCM_SEND_FAILED",
+        extra: { cause: String(error) },
+      });
     }
   }
 }
