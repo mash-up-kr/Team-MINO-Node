@@ -53,7 +53,9 @@ export class CommentController {
   @ApiOperation({
     summary: "핀 코멘트 목록 조회",
     description:
-      "최신 페이지부터 가져오며, 각 페이지 안에서는 오래된 코멘트가 먼저 온다.",
+      "최신 코멘트가 첫 페이지(page=0)이고, page가 커질수록 더 예전 코멘트다. " +
+      "한 페이지 안에서는 오래된 코멘트가 위, 최신이 아래로 온다(대화창 순서). " +
+      "hasNext=true면 더 예전 코멘트가 남아있다는 뜻이다.",
   })
   @ApiQuery({ name: "page", required: false, example: 0 })
   @ApiQuery({
