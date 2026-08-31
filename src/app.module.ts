@@ -7,6 +7,7 @@ import {
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TerminusModule } from "@nestjs/terminus";
 import { LoggerModule } from "nestjs-pino";
+import { RequestContext } from "./common/context/request-context";
 import { LoggingMiddleware } from "./common/middlewares/logging.middleware";
 import { validateEnv } from "./config/env.schema";
 import { DbKeepAliveService } from "./health/db-keep-alive.service";
@@ -37,6 +38,15 @@ import { UserModule } from "./modules/user/user.module";
               ? { target: "pino-pretty", options: { singleLine: true } }
               : undefined,
           redact: ["req.headers.authorization"],
+          mixin: () => {
+            const ctx = RequestContext.get();
+            if (!ctx) return {};
+            return {
+              requestId: ctx.requestId,
+              ...(ctx.traceId ? { traceId: ctx.traceId } : {}),
+              ...(ctx.userId ? { userId: ctx.userId } : {}),
+            };
+          },
         },
         exclude: [{ method: RequestMethod.ALL, path: "*" }],
       }),

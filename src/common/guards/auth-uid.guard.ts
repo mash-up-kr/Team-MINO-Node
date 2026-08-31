@@ -5,6 +5,7 @@ import {
   Injectable,
 } from "@nestjs/common";
 import { TokenVerifier } from "../../infrastructures/auth/token-verifier";
+import { RequestContext } from "../context/request-context";
 import { AppException } from "../exceptions/app.exception";
 import { readRequestHeader } from "./request-header";
 
@@ -55,6 +56,7 @@ export class AuthUidGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<RequestWithAuthUid>();
 
     request.authUid = await resolveAuthUid(request, this.tokenVerifier);
+    RequestContext.setAuthUid(request.authUid);
     return true;
   }
 }
