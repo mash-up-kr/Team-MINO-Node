@@ -9,7 +9,13 @@ import {
   Put,
   Query,
 } from "@nestjs/common";
-import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBody,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
 import type { RequestUser } from "../../common/guards/current-user.guard";
@@ -69,6 +75,19 @@ export class RoomController {
     summary: "내가 속한 방 목록",
     description:
       "나간 방은 제외. ?showHasPlaceId=로 장소 저장 여부 및 매칭 핀 ID, ?showUsers=true로 멤버 목록 포함.",
+  })
+  @ApiQuery({
+    name: "showHasPlaceId",
+    required: false,
+    schema: { type: "string", format: "uuid" },
+    description:
+      "장소 UUID. 지정하면 각 방에 hasPlace와 matchedPinId를 함께 반환한다.",
+  })
+  @ApiQuery({
+    name: "showUsers",
+    required: false,
+    schema: { type: "boolean" },
+    description: "true면 각 방의 멤버 목록(users)을 함께 반환한다.",
   })
   @ApiResponse({ status: 200, schema: roomListResponseApiSchema })
   listRooms(
