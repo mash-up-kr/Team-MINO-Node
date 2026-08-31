@@ -79,4 +79,8 @@ export class UserService {
     }
     return row;
   }
+
+  updatePushToken(userId: string, token: string): Promise<void> {
+    return this.userRepository.updatePushToken(userId, token);
+  }
 }

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
 import { rooms } from "../room/room.schema";
 import { roomMembers } from "../room/room-member.schema";
@@ -87,5 +87,18 @@ export class UserRepository extends BaseRepository {
       .where(and(eq(users.id, userId), isNull(users.deletedAt)))
       .returning(USER_PROFILE_COLUMNS);
     return row;
+  }
+
+  async updatePushToken(userId: string, token: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({ fcmToken: null })
+        .where(and(eq(users.fcmToken, token), ne(users.id, userId)));
+      await tx
+        .update(users)
+        .set({ fcmToken: token })
+        .where(eq(users.id, userId));
+    });
   }
 }
