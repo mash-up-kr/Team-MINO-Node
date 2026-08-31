@@ -130,7 +130,12 @@ export class InvitationController {
     @Param("roomId", new ValibotPipe(roomIdParamSchema)) roomId: string,
     @Body(new ValibotPipe(joinRoomRequestSchema)) body: JoinRoomRequest,
   ): Promise<{ ok: true }> {
-    await this.invitationService.join(user.id, roomId, body.inviteCode);
+    await this.invitationService.join(
+      user.id,
+      user.nickname,
+      roomId,
+      body.inviteCode,
+    );
     return { ok: true };
   }
 }

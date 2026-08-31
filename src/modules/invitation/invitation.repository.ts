@@ -162,6 +162,18 @@ export class InvitationRepository {
       .limit(limit);
   }
 
+  async findActiveMemberTokens(
+    roomId: string,
+  ): Promise<Array<{ id: string; fcmToken: string | null }>> {
+    return this.db
+      .select({ id: users.id, fcmToken: users.fcmToken })
+      .from(roomMembers)
+      .innerJoin(users, eq(roomMembers.userId, users.id))
+      .where(
+        and(eq(roomMembers.roomId, roomId), isNull(roomMembers.deletedAt)),
+      );
+  }
+
   // 동시 요청으로 활성 유니크에 걸리면 이미 멤버이므로 그대로 둡니다.
   async addMember(roomId: string, userId: string): Promise<void> {
     try {
