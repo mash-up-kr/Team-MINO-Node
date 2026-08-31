@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gte, isNull, sql } from "drizzle-orm";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
 import { pins } from "../pin/pin.schema";
 import { pinAccesses } from "../pin/pin-access.schema";
@@ -16,7 +16,7 @@ import {
   NEARBY_RADIUS_METERS,
 } from "./card.constant";
 import type { ListCardsQuery } from "./card.dto";
-import type { CandidateRow } from "./card.type";
+import type { CandidateRow, CardRoomRow } from "./card.type";
 
 const CARD_PLACE_COLUMNS = {
   id: places.id,
@@ -42,23 +42,38 @@ const CARD_AUTHOR_COLUMNS = {
 
 @Injectable()
 export class CardRepository extends BaseRepository {
-  async isActiveMemberOfRoom(roomId: string, userId: string): Promise<boolean> {
-    const [membership] = await this.db
+  /**
+   * 방 메타 + 요청 유저 멤버십을 한 쿼리로 조회한다 — 홈 헤더(캐릭터·뱃지)
+   * 렌더링과 접근 검증을 겸한다. 서브쿼리는 raw sql 비정규화 함정을 피해
+   * 쿼리 빌더로 만든다.
+   */
+  async findActiveRoomForUser(
+    roomId: string,
+    userId: string,
+  ): Promise<CardRoomRow | undefined> {
+    const membership = this.db
       .select({ one: sql`1` })
       .from(roomMembers)
-      .innerJoin(
-        rooms,
-        and(eq(roomMembers.roomId, rooms.id), isNull(rooms.deletedAt)),
-      )
       .where(
         and(
-          eq(roomMembers.roomId, roomId),
+          eq(roomMembers.roomId, rooms.id),
           eq(roomMembers.userId, userId),
           isNull(roomMembers.deletedAt),
         ),
-      )
+      );
+
+    const [room] = await this.db
+      .select({
+        id: rooms.id,
+        type: rooms.type,
+        name: rooms.name,
+        color: rooms.color,
+        isMember: sql<boolean>`${exists(membership)}`,
+      })
+      .from(rooms)
+      .where(and(eq(rooms.id, roomId), isNull(rooms.deletedAt)))
       .limit(1);
-    return membership !== undefined;
+    return room;
   }
 
   /**

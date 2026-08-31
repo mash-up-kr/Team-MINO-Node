@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { COLOR_KEYS } from "../../common/colors/color.constant";
 import type { SchemaObject } from "../../common/swagger/schema";
 import { LABEL_GROUPS, SORT_OPTIONS } from "./card.type";
 
@@ -84,10 +85,28 @@ const cardSchema: SchemaObject = {
   },
 };
 
+const cardRoomApiSchema: SchemaObject = {
+  type: "object",
+  description:
+    "홈 헤더(방 캐릭터·뱃지)용 방 메타. 캐릭터 이미지는 color에서 파생되는 클라이언트 번들 에셋이다.",
+  properties: {
+    id: { type: "string", format: "uuid" },
+    type: { type: "string", enum: ["personal", "shared"] },
+    name: { type: "string", example: "맛집 탐방" },
+    color: { type: "string", enum: [...COLOR_KEYS], example: "red" },
+  },
+};
+
 export const cardListResponseApiSchema: SchemaObject = {
   type: "object",
   properties: {
-    data: { type: "array", maxItems: 10, items: cardSchema },
+    data: {
+      type: "object",
+      properties: {
+        room: cardRoomApiSchema,
+        cards: { type: "array", maxItems: 10, items: cardSchema },
+      },
+    },
   },
 };
 

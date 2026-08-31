@@ -5,6 +5,7 @@ import type { ListCardsQuery } from "./card.dto";
 import { CardRepository } from "./card.repository";
 import {
   type CandidateRow,
+  type CardListResponse,
   type CardResponse,
   type LabelGroup,
   toCardResponse,
@@ -75,8 +76,12 @@ export class CardService {
     userId: string,
     roomId: string,
     query: ListCardsQuery,
-  ): Promise<CardResponse[]> {
-    if (!(await this.cardRepository.isActiveMemberOfRoom(roomId, userId))) {
+  ): Promise<CardListResponse> {
+    const room = await this.cardRepository.findActiveRoomForUser(
+      roomId,
+      userId,
+    );
+    if (!room?.isMember) {
       throw new AppException(
         "NOT_ROOM_MEMBER",
         "방의 멤버가 아닙니다.",
@@ -89,6 +94,7 @@ export class CardService {
       userId,
       query,
     );
-    return assignLabels(candidates);
+    const { isMember: _isMember, ...roomMeta } = room;
+    return { room: roomMeta, cards: assignLabels(candidates) };
   }
 }
