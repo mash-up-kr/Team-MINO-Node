@@ -90,6 +90,12 @@ export class RoomController {
     description: "true면 각 방의 멤버 목록(users)을 함께 반환한다.",
   })
   @ApiResponse({ status: 200, schema: roomListResponseApiSchema })
+  @ApiResponse({
+    status: 400,
+    description:
+      "showHasPlaceId가 UUID가 아니거나 showUsers가 true/false가 아님 (VALIDATION_ERROR)",
+    schema: errorResponseApiSchema,
+  })
   listRooms(
     @CurrentUser() user: RequestUser,
     @Query(new ValibotPipe(listRoomsQuerySchema)) query: ListRoomsQuery,
