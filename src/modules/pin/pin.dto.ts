@@ -31,7 +31,7 @@ export type CreateRoomPinsRequest = v.InferOutput<
  * 하나라도 지정되면 offset 기반 페이지네이션한다.
  */
 export const listPinsQuerySchema = v.object({
-  roomId: uuidParamSchema,
+  roomId: v.pipe(uuidParamSchema, v.description("조회할 방 UUID")),
   page: v.optional(pageQuerySchema),
   pageSize: v.optional(pageSizeQuerySchema),
 });

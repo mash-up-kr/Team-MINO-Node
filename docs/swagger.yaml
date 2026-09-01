@@ -105,6 +105,7 @@ paths:
           application/json:
             schema:
               type: object
+              minProperties: 1
               properties:
                 nickname:
                   $ref: "#/components/schemas/Nickname"
@@ -256,6 +257,7 @@ paths:
           application/json:
             schema:
               type: object
+              minProperties: 1
               properties:
                 name:
                   $ref: "#/components/schemas/RoomName"
