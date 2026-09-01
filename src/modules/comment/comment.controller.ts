@@ -7,22 +7,14 @@ import {
   HttpStatus,
   Param,
   Post,
-  Query,
 } from "@nestjs/common";
-import {
-  ApiBody,
-  ApiOperation,
-  ApiQuery,
-  ApiResponse,
-  ApiTags,
-} from "@nestjs/swagger";
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
 import type { RequestUser } from "../../common/guards/current-user.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
+import { QuerySchema } from "../../common/swagger/query-schema.decorator";
 import {
-  COMMENT_PAGE_SIZE_DEFAULT,
-  COMMENT_PAGE_SIZE_MAX,
   type CommentListQuery,
   type CreateCommentRequest,
   commentDeleteForbiddenResponseApiSchema,
@@ -57,13 +49,6 @@ export class CommentController {
       "한 페이지 안에서는 오래된 코멘트가 위, 최신이 아래로 온다(대화창 순서). " +
       "hasNext=true면 더 예전 코멘트가 남아있다는 뜻이다.",
   })
-  @ApiQuery({ name: "page", required: false, example: 0 })
-  @ApiQuery({
-    name: "pageSize",
-    required: false,
-    example: COMMENT_PAGE_SIZE_DEFAULT,
-    schema: { maximum: COMMENT_PAGE_SIZE_MAX },
-  })
   @ApiResponse({ status: 200, schema: commentListResponseApiSchema })
   @ApiResponse({ status: 400, schema: validationErrorResponseApiSchema })
   @ApiResponse({ status: 401, schema: unidentifiedUserResponseApiSchema })
@@ -72,7 +57,7 @@ export class CommentController {
   list(
     @CurrentUser() user: RequestUser,
     @Param("pinId", new ValibotPipe(pinIdParamSchema)) pinId: string,
-    @Query(new ValibotPipe(commentListQuerySchema)) query: CommentListQuery,
+    @QuerySchema(commentListQuerySchema) query: CommentListQuery,
   ): Promise<CommentListResponse> {
     return this.commentService.list(user, pinId, query);
   }
