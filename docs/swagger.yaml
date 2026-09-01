@@ -555,17 +555,34 @@ paths:
             format: double
       responses:
         "200":
-          description: 최대 10장. 방의 후보가 적으면 그만큼 짧다
+          description: room(홈 헤더 메타) + cards 최대 10장. 방의 후보가 적으면 그만큼 짧다
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   data:
-                    type: array
-                    maxItems: 10
-                    items:
-                      $ref: "#/components/schemas/Card"
+                    type: object
+                    properties:
+                      room:
+                        type: object
+                        description: 홈 헤더(방 캐릭터·뱃지)용 메타. 캐릭터 이미지는 color에서 파생되는 클라이언트 번들 에셋
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          type:
+                            type: string
+                            enum: [personal, shared]
+                          name:
+                            type: string
+                          color:
+                            $ref: "#/components/schemas/ColorKey"
+                      cards:
+                        type: array
+                        maxItems: 10
+                        items:
+                          $ref: "#/components/schemas/Card"
         "400":
           $ref: "#/components/responses/BadRequest"
         "403":
