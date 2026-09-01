@@ -2,6 +2,7 @@ import * as gcp from "@pulumi/gcp";
 import * as pulumi from "@pulumi/pulumi";
 import { project } from "@/config";
 import { enabledServices } from "@/resources/apis";
+import { infraServiceAccount } from "@/resources/ci";
 import { developer, serverServiceAccount } from "@/resources/identity";
 
 /**
@@ -36,6 +37,16 @@ new gcp.secretmanager.SecretIamMember("team-mino-env-prod-runtime", {
   project,
   role: "roles/secretmanager.secretAccessor",
   member: pulumi.interpolate`serviceAccount:${serverServiceAccount.email}`,
+});
+
+// CI가 배포 전 Drizzle 마이그레이션에 필요한 prod env를 읽을 수 있도록.
+const ciMember = `serviceAccount:${infraServiceAccount}`;
+
+new gcp.secretmanager.SecretIamMember("team-mino-env-prod-ci-read", {
+  secretId: prodEnvSecret.secretId,
+  project,
+  role: "roles/secretmanager.secretAccessor",
+  member: ciMember,
 });
 
 // 개발자 SA가 로컬 실행 시 두 env를 읽고(secretAccessor)·갱신(secretVersionManager)할 수 있도록.

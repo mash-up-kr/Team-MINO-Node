@@ -150,14 +150,49 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  server-deploy:
+  db-migrate:
     needs: [changes, infra-deploy, server-build]
+    if: >-
+      github.event_name == 'push'
+      && needs.changes.outputs.server == 'true'
+      && needs.infra-deploy.result != 'failure'
+      && needs.server-build.result == 'success'
+    runs-on: ubuntu-latest
+    environment: team-mino-prod
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CI_SERVICE_ACCOUNT }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
+
+      - run: bun install --frozen-lockfile
+
+      - name: Apply pending production database migrations
+        env:
+          APP_ENV: prod
+          GCP_PROJECT: team-mino-prod
+        run: bun run db:migrate
+
+  server-deploy:
+    needs: [changes, infra-deploy, server-build, db-migrate]
     if: >-
       github.event_name == 'push'
       && needs.changes.outputs.server == 'true'
       && !cancelled()
       && needs.infra-deploy.result != 'failure'
       && needs.server-build.result == 'success'
+      && needs.db-migrate.result == 'success'
     runs-on: ubuntu-latest
     environment: team-mino-prod
 
