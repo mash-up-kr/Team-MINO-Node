@@ -7,6 +7,7 @@ import { SentryErrorReporter } from "../sentry/sentry-reporter";
 type PushPayload = {
   title: string;
   body: string;
+  imageUrl?: string;
   data?: Record<string, string>;
 };
 
@@ -26,14 +27,32 @@ export class MessagingService {
     if (tokens.length === 0) return;
 
     try {
+      const { title, body, imageUrl } = payload;
+
+      /*
+       * top-level notification을 두면 Android가 백그라운드에서 시스템 트레이로
+       * 처리해 onMessageReceived가 불리지 않는다. data-only로 보내고 iOS 표시는
+       * Android가 무시하는 apns.payload.aps.alert가 맡는다.
+       */
       const result = await this.messaging.sendEachForMulticast({
         tokens,
-        notification: { title: payload.title, body: payload.body },
-        data: payload.data,
+        data: {
+          ...payload.data,
+          title,
+          body,
+          ...(imageUrl ? { imageUrl } : {}),
+        },
         android: { priority: "high" },
         apns: {
           headers: { "apns-priority": "10" },
-          payload: { aps: { sound: "default" } },
+          payload: {
+            aps: {
+              alert: { title, body },
+              sound: "default",
+              ...(imageUrl ? { mutableContent: true } : {}),
+            },
+          },
+          ...(imageUrl ? { fcmOptions: { imageUrl } } : {}),
         },
       });
 

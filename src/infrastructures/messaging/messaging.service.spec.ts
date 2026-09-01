@@ -28,7 +28,12 @@ describe("MessagingService.sendToTokens", () => {
     sendEachForMulticast.mockClear();
   });
 
-  it("토큰과 페이로드를 한 번의 멀티캐스트로 보낸다", async () => {
+  const sentMessage = () =>
+    (
+      sendEachForMulticast.mock.calls[0] as unknown as [Record<string, unknown>]
+    )[0];
+
+  it("Android가 백그라운드에서도 받도록 data-only로 보내고 iOS 표시는 aps.alert가 맡는다", async () => {
     const { service } = makeService();
 
     await service.sendToTokens(["t1", "t2"], {
@@ -38,18 +43,49 @@ describe("MessagingService.sendToTokens", () => {
     });
 
     expect(sendEachForMulticast).toHaveBeenCalledTimes(1);
-    const [message] = sendEachForMulticast.mock.calls[0] as unknown as [
-      Record<string, unknown>,
-    ];
+    const message = sentMessage();
     expect(message.tokens).toEqual(["t1", "t2"]);
-    expect(message.notification).toEqual({ title: "제목", body: "본문" });
-    expect(message.data).toEqual({ type: "TEST" });
+    expect(message.notification).toBeUndefined();
+    expect(message.data).toEqual({ type: "TEST", title: "제목", body: "본문" });
     expect(message.android).toEqual({ priority: "high" });
+    expect(message.apns).toMatchObject({
+      headers: { "apns-priority": "10" },
+      payload: { aps: { alert: { title: "제목", body: "본문" } } },
+    });
+  });
+
+  it("이미지가 있으면 Android는 data로, iOS는 fcmOptions와 mutableContent로 싣는다", async () => {
+    const { service } = makeService();
+
+    await service.sendToTokens(["t1"], {
+      title: "제목",
+      body: "본문",
+      imageUrl: "https://cdn.example/a.jpg",
+      data: { type: "TEST" },
+    });
+
+    const message = sentMessage();
+    expect(message.data).toMatchObject({
+      imageUrl: "https://cdn.example/a.jpg",
+    });
+    expect(message.apns).toMatchObject({
+      payload: { aps: { mutableContent: true } },
+      fcmOptions: { imageUrl: "https://cdn.example/a.jpg" },
+    });
+  });
+
+  it("이미지가 없으면 관련 필드를 넣지 않는다", async () => {
+    const { service } = makeService();
+
+    await service.sendToTokens(["t1"], { title: "제목", body: "본문" });
+
+    const message = sentMessage();
+    expect(message.data).not.toHaveProperty("imageUrl");
+    expect(message.apns).not.toHaveProperty("fcmOptions");
     expect(
-      (message.apns as { headers: Record<string, string> }).headers[
-        "apns-priority"
-      ],
-    ).toBe("10");
+      (message.apns as { payload: { aps: Record<string, unknown> } }).payload
+        .aps,
+    ).not.toHaveProperty("mutableContent");
   });
 
   it("토큰이 없으면 발송하지 않는다", async () => {
