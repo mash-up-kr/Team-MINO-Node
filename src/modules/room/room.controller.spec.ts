@@ -15,7 +15,7 @@ describe("RoomController Swagger metadata", () => {
       schema?: { format?: string; type?: string; enum?: string[] };
     }>;
 
-    // 스키마에서 파생되므로 문자열 쿼리의 실제 허용값이 그대로 드러난다.
+    // 스키마 파생이라 문자열 쿼리의 실제 허용값이 그대로 드러난다.
     expect(parameters).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
