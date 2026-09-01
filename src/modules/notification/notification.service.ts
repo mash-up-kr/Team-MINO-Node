@@ -34,6 +34,7 @@ export class NotificationService {
       await this.messagingService.sendToTokens([fcmToken], {
         title: input.targetName,
         body: input.typeLabel,
+        imageUrl: input.thumbnailUrl,
         data: { type: input.type, ...input.payload },
       });
     }
