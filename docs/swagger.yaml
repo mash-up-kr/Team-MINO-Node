@@ -58,7 +58,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [nickname]
+              required: [nickname, avatar]
               properties:
                 nickname:
                   $ref: "#/components/schemas/Nickname"
@@ -96,7 +96,9 @@ paths:
     patch:
       tags: [User]
       summary: 프로필 수정
-      description: 닉네임(한글/영문 2~15자, 공백·숫자·특수문자 불가)·아바타 수정. 공통 프로필이라 모든 방에 즉시 반영된다.
+      description: |
+        닉네임(한글/영문 2~15자, 공백·숫자·특수문자 불가)·아바타 수정. 공통 프로필이라 모든 방에 즉시 반영된다.
+        두 필드 모두 선택이지만 **최소 하나는 있어야 한다** — 빈 본문은 400 `VALIDATION_ERROR`.
       requestBody:
         required: true
         content:
@@ -160,9 +162,7 @@ paths:
               required: [name, color]
               properties:
                 name:
-                  type: string
-                  maxLength: 15
-                  description: 최소 제한 없음·최대 15자·중복 허용·앞뒤 공백 제거 (PR 리뷰 확정)
+                  $ref: "#/components/schemas/RoomName"
                 description:
                   type: string
                   maxLength: 30 # grapheme 단위(클라이언트 카운터와 동일)
@@ -197,8 +197,9 @@ paths:
           in: query
           required: false
           schema:
-            type: boolean
-          description: true면 각 방의 멤버 목록(`users`)을 함께 반환
+            type: string
+            enum: ["true", "false"]
+          description: '`true`면 각 방의 멤버 목록(`users`)을 함께 반환. 정확히 `true`/`false`만 허용한다'
       responses:
         "200":
           description: OK
@@ -211,6 +212,12 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/RoomSummary"
+        "400":
+          description: showHasPlaceId가 UUID가 아니거나 showUsers가 `true`/`false`가 아님 (`VALIDATION_ERROR`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -240,7 +247,9 @@ paths:
     patch:
       tags: [Room]
       summary: 방 편집
-      description: 이름·설명·색상 수정. **방장만** 가능.
+      description: |
+        이름·설명·색상 수정. **방장만** 가능.
+        세 필드 모두 선택이지만 **최소 하나는 있어야 한다** — 빈 본문은 400 `VALIDATION_ERROR`.
       requestBody:
         required: true
         content:
@@ -249,8 +258,7 @@ paths:
               type: object
               properties:
                 name:
-                  type: string
-                  maxLength: 15
+                  $ref: "#/components/schemas/RoomName"
                 description:
                   type: string
                   maxLength: 30 # grapheme 단위(클라이언트 카운터와 동일)
@@ -351,12 +359,7 @@ paths:
                     type: object
                     properties:
                       code:
-                        type: string
-                        minLength: 6
-                        maxLength: 6
-                        pattern: "^[A-Z0-9]{6}$"
-                        example: "K7Q2MZ"
-                        description: 초대 링크 gguk.org/r/{code}의 code (대문자 영문 + 숫자 6자 고정)
+                        $ref: "#/components/schemas/InvitationCode"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -378,11 +381,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 6
-            maxLength: 6
-            pattern: "^[A-Z0-9]{6}$"
-            example: "K7Q2MZ"
+            $ref: "#/components/schemas/InvitationCode"
       responses:
         "200":
           description: 방 미리보기 (노출 정보 최소화)
@@ -410,8 +409,8 @@ paths:
         **개인방의 코드는 거절한다.** 이미 멤버면 오류 대신 멱등 응답을 준다.
         나갔던 방에는 같은 코드로 다시 합류할 수 있다(이전 멤버십 행은 `deleted_at`을 유지).
 
-        합류 완료 시 방 멤버 전원에게 푸시 알림을 발송한다. (PR 리뷰 확정)
-        **푸시 발송은 미구현이다.** FCM/APNs 인프라가 도입되면 연결한다.
+        합류 완료 시 기존 멤버에게 `ROOM_MEMBER_JOINED`, 합류한 본인에게 `ROOM_JOINED_SELF`
+        알림을 기록하고 푸시를 발송한다. 알림 발송이 실패해도 합류 자체는 성공으로 응답한다.
       requestBody:
         required: true
         content:
@@ -421,8 +420,7 @@ paths:
               required: [inviteCode]
               properties:
                 inviteCode:
-                  type: string
-                  maxLength: 16
+                  $ref: "#/components/schemas/InvitationCode"
       responses:
         "200":
           description: 합류 완료(또는 이미 멤버 — 멱등)
@@ -1111,7 +1109,24 @@ components:
       type: string
       minLength: 2
       maxLength: 15
+      pattern: "^[가-힣A-Za-z]+$"
       description: 한글/영문 2~15자 — 공백·숫자·특수문자 불가(안드 스펙 정합). 상한 15자는 서버(DB) 계약
+
+    InvitationCode:
+      type: string
+      minLength: 6
+      maxLength: 6
+      pattern: "^[A-Z0-9]{6}$"
+      example: "K7Q2MZ"
+      description: 초대 링크 gguk.org/r/{code}의 code (대문자 영문 + 숫자 6자 고정)
+
+    RoomName:
+      type: string
+      minLength: 1
+      maxLength: 15
+      pattern: "^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9 ]+$"
+      description: |
+        한글·영문·숫자·공백만 허용. 앞뒤 공백을 제거한 뒤 1~15자(grapheme)이며 중복은 허용한다 (PR 리뷰 확정)
 
     ColorKey:
       type: string
@@ -1166,8 +1181,7 @@ components:
           type: string
           enum: [personal, shared]
         name:
-          type: string
-          maxLength: 15
+          $ref: "#/components/schemas/RoomName"
         description:
           type: string
           maxLength: 30 # grapheme 단위(클라이언트 카운터와 동일)
@@ -1286,9 +1300,9 @@ components:
               $ref: "#/components/schemas/Nickname"
             avatar:
               $ref: "#/components/schemas/Avatar"
-    Place:
+    PlaceBase:
       type: object
-      description: places 테이블 컬럼을 전부 내려준다. 단 images는 제외 — pins로 이동 예정(DB 변경)
+      description: 핀·카드 응답이 공유하는 장소 필드. images는 제외 — pins로 이동 예정(DB 변경)
       properties:
         id:
           type: string
@@ -1325,12 +1339,19 @@ components:
           type: string
           nullable: true
           description: 외부 지도 상세 URL (스키마 컬럼 `external_url` → `map_url` 변경 예정)
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
+
+    Place:
+      description: 핀 응답의 장소. 카드 응답과 달리 타임스탬프를 포함한다
+      allOf:
+        - $ref: "#/components/schemas/PlaceBase"
+        - type: object
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
 
     Pin:
       type: object
@@ -1350,20 +1371,23 @@ components:
             type: string
             format: uri
         createdBy:
-          type: object
-          nullable: true
-          description: 핀을 저장한 멤버의 프로필 ("누가 추가한 곳" 표시용)
-          properties:
-            userId:
-              type: string
-              format: uuid
-            nickname:
-              $ref: "#/components/schemas/Nickname"
-            avatar:
-              $ref: "#/components/schemas/Avatar"
+          $ref: "#/components/schemas/PinAuthor"
         createdAt:
           type: string
           format: date-time
+
+    PinAuthor:
+      type: object
+      nullable: true
+      description: 핀을 저장한 멤버의 프로필 ("누가 추가한 곳" 표시용). 탈퇴 등으로 없으면 null
+      properties:
+        userId:
+          type: string
+          format: uuid
+        nickname:
+          $ref: "#/components/schemas/Nickname"
+        avatar:
+          $ref: "#/components/schemas/Avatar"
 
     PinDetail:
       allOf:
@@ -1412,10 +1436,30 @@ components:
 
     Card:
       type: object
-      description: 홈 카드. 장소분류 라벨은 서버가 판정해 내려준다
+      description: |
+        홈 카드. 핀을 중첩하지 않고 핀 필드를 그대로 펼친 뒤 장소분류 라벨을 더한다.
+        `place`에는 핀 응답과 달리 `createdAt`/`updatedAt`이 없다
+      required: [id, roomId, place, images, createdBy, createdAt, labelGroup]
       properties:
-        pin:
-          $ref: "#/components/schemas/Pin"
+        id:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        place:
+          $ref: "#/components/schemas/PlaceBase"
+        images:
+          type: array
+          description: 게시물 이미지 — places.images가 pins로 이동 예정(DB 변경)
+          items:
+            type: string
+            format: uri
+        createdBy:
+          $ref: "#/components/schemas/PinAuthor"
+        createdAt:
+          type: string
+          format: date-time
         labelGroup:
           type: string
           description: |
@@ -1423,7 +1467,6 @@ components:
             `manySaves` 여럿이 저장한 곳 / `manyViews` 친구들이 많이 본 곳.
             `worthVisiting`이 자격 미달분을 흡수하므로 라벨이 비는 카드는 없다
           enum: [worthVisiting, manyComments, manySaves, manyViews]
-      required: [pin, labelGroup]
 
     Notification:
       type: object

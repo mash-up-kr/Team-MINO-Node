@@ -63,7 +63,7 @@ export type RoomMemberResponse = {
 export type RoomSummaryResponse = RoomResponse & {
   pinCount: number;
   memberCount: number;
-  /** 최근 핀 최대 4개의 장소 대표 이미지 URL. 저장된 핀이 없으면 방장 아바타 색상 키 1개. */
+  /** 최근 핀 최대 4개의 장소 대표 이미지 URL. 저장된 핀이 없으면 방 대표 색상 키 1개. */
   thumbnailList: string[];
   /** `?showHasPlaceId=` 지정 시에만 포함 */
   hasPlace?: boolean;
