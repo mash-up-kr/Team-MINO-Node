@@ -72,11 +72,19 @@ export type TransferOwnerRequest = v.InferOutput<
 
 /** 쿼리 파라미터는 문자열로 들어오므로 boolean은 "true"/"false"를 변환한다. */
 export const listRoomsQuerySchema = v.object({
-  showHasPlaceId: v.optional(uuidParamSchema),
+  showHasPlaceId: v.optional(
+    v.pipe(
+      uuidParamSchema,
+      v.description(
+        "장소 UUID. 지정하면 각 방에 hasPlace와 matchedPinId를 함께 반환한다.",
+      ),
+    ),
+  ),
   showUsers: v.optional(
     v.pipe(
       v.picklist(["true", "false"]),
       v.transform((value) => value === "true"),
+      v.description("true면 각 방의 멤버 목록(users)을 함께 반환한다."),
     ),
   ),
 });

@@ -1,17 +1,10 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  Query,
-} from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
 import type { RequestUser } from "../../common/guards/current-user.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
+import { QuerySchema } from "../../common/swagger/query-schema.decorator";
 import {
   type DuplicatePinRequest,
   duplicatePinRequestApiSchema,
@@ -45,7 +38,7 @@ export class PinController {
   @ApiResponse({ status: 403, schema: errorResponseApiSchema })
   listPins(
     @CurrentUser() user: RequestUser,
-    @Query(new ValibotPipe(listPinsQuerySchema)) query: ListPinsQuery,
+    @QuerySchema(listPinsQuerySchema) query: ListPinsQuery,
   ): Promise<PinListResponse> {
     return this.pinService.listPins(user.id, query);
   }

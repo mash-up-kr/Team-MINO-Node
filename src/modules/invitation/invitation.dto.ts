@@ -71,7 +71,7 @@ export const invitationPreviewResponseApiSchema: SchemaObject = {
             type: { type: "string", enum: ["personal", "shared"] },
             name: { type: "string" },
             description: { type: "string", nullable: true },
-            color: { type: "string", example: "#FF6B6B" },
+            color: { type: "string", example: "red" },
             pinCount: { type: "integer", example: 999 },
             memberCount: { type: "integer", example: 7 },
             members: {

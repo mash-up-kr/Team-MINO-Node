@@ -1,4 +1,3 @@
-import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import type { SchemaObject } from "../../common/swagger/schema";
 import { LABEL_GROUPS, SORT_OPTIONS } from "./card.type";
@@ -13,6 +12,7 @@ const coordinateSchema = (min: number, max: number, label: string) =>
     v.transform(Number),
     v.minValue(min),
     v.maxValue(max),
+    v.description("sort=nearby일 때 필수"),
   );
 
 /**
@@ -21,7 +21,13 @@ const coordinateSchema = (min: number, max: number, label: string) =>
  */
 export const listCardsQuerySchema = v.pipe(
   v.object({
-    sort: v.optional(v.picklist(SORT_OPTIONS), "ggukPick"),
+    sort: v.optional(
+      v.pipe(
+        v.picklist(SORT_OPTIONS),
+        v.description("기본값은 ggukPick. nearby는 lat·lng가 필요."),
+      ),
+      "ggukPick",
+    ),
     lat: v.optional(coordinateSchema(-90, 90, "lat")),
     lng: v.optional(coordinateSchema(-180, 180, "lng")),
   }),
@@ -34,10 +40,6 @@ export const listCardsQuerySchema = v.pipe(
 );
 
 export type ListCardsQuery = v.InferOutput<typeof listCardsQuerySchema>;
-
-export const listCardsQueryApiSchema = toJsonSchema(listCardsQuerySchema, {
-  errorMode: "ignore",
-}) as SchemaObject;
 
 const placeSchema: SchemaObject = {
   type: "object",

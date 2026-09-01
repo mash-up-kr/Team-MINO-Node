@@ -1,12 +1,18 @@
 import * as v from "valibot";
 import { COLOR_KEYS } from "../../common/colors/color.constant";
+import {
+  DEFAULT_PAGE,
+  DEFAULT_PAGE_SIZE,
+} from "../../common/pagination/pagination.constant";
+import {
+  pageQuerySchema,
+  pageSizeQuerySchema,
+  paginationApiSchema,
+} from "../../common/pagination/pagination.dto";
 import type { SchemaObject } from "../../common/swagger/schema";
 import { maxGraphemes } from "../../common/text/grapheme";
 
 export const COMMENT_CONTENT_MAX_LENGTH = 200;
-export const COMMENT_PAGE_DEFAULT = 0;
-export const COMMENT_PAGE_SIZE_DEFAULT = 20;
-export const COMMENT_PAGE_SIZE_MAX = 100;
 
 export const pinIdParamSchema = v.pipe(v.string(), v.uuid());
 export const commentIdParamSchema = v.pipe(v.string(), v.uuid());
@@ -23,23 +29,9 @@ export const createCommentRequestSchema = v.object({
   ),
 });
 
-const pageSchema = v.pipe(
-  v.string(),
-  v.regex(/^\d+$/),
-  v.transform(Number),
-  v.integer(),
-  v.minValue(0),
-);
-
-const pageSizeSchema = v.pipe(
-  pageSchema,
-  v.minValue(1),
-  v.maxValue(COMMENT_PAGE_SIZE_MAX),
-);
-
 export const commentListQuerySchema = v.object({
-  page: v.optional(pageSchema, String(COMMENT_PAGE_DEFAULT)),
-  pageSize: v.optional(pageSizeSchema, String(COMMENT_PAGE_SIZE_DEFAULT)),
+  page: v.optional(pageQuerySchema, String(DEFAULT_PAGE)),
+  pageSize: v.optional(pageSizeQuerySchema, String(DEFAULT_PAGE_SIZE)),
 });
 
 export type CreateCommentRequest = v.InferOutput<
@@ -103,13 +95,8 @@ export const commentListResponseApiSchema: SchemaObject = {
   properties: {
     data: { type: "array", items: commentApiSchema },
     pagination: {
-      type: "object",
+      ...paginationApiSchema,
       required: ["page", "pageSize", "hasNext"],
-      properties: {
-        page: { type: "integer", example: COMMENT_PAGE_DEFAULT },
-        pageSize: { type: "integer", example: COMMENT_PAGE_SIZE_DEFAULT },
-        hasNext: { type: "boolean" },
-      },
     },
   },
 };

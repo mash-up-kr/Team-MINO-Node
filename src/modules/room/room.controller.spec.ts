@@ -12,9 +12,10 @@ describe("RoomController Swagger metadata", () => {
     ) as Array<{
       name: string;
       required: boolean;
-      schema?: { format?: string; type?: string };
+      schema?: { format?: string; type?: string; enum?: string[] };
     }>;
 
+    // 스키마 파생이라 문자열 쿼리의 실제 허용값이 그대로 드러난다.
     expect(parameters).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -25,7 +26,7 @@ describe("RoomController Swagger metadata", () => {
         expect.objectContaining({
           name: "showUsers",
           required: false,
-          schema: { type: "boolean" },
+          schema: { type: "string", enum: ["true", "false"] },
         }),
       ]),
     );

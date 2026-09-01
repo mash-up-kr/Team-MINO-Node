@@ -7,19 +7,13 @@ import {
   Patch,
   Post,
   Put,
-  Query,
 } from "@nestjs/common";
-import {
-  ApiBody,
-  ApiOperation,
-  ApiQuery,
-  ApiResponse,
-  ApiTags,
-} from "@nestjs/swagger";
+import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
 import type { RequestUser } from "../../common/guards/current-user.guard";
 import { ValibotPipe } from "../../common/pipes/valibot.pipe";
+import { QuerySchema } from "../../common/swagger/query-schema.decorator";
 import {
   type CreateRoomRequest,
   createRoomRequestApiSchema,
@@ -76,19 +70,6 @@ export class RoomController {
     description:
       "나간 방은 제외. ?showHasPlaceId=로 장소 저장 여부 및 매칭 핀 ID, ?showUsers=true로 멤버 목록 포함.",
   })
-  @ApiQuery({
-    name: "showHasPlaceId",
-    required: false,
-    schema: { type: "string", format: "uuid" },
-    description:
-      "장소 UUID. 지정하면 각 방에 hasPlace와 matchedPinId를 함께 반환한다.",
-  })
-  @ApiQuery({
-    name: "showUsers",
-    required: false,
-    schema: { type: "boolean" },
-    description: "true면 각 방의 멤버 목록(users)을 함께 반환한다.",
-  })
   @ApiResponse({ status: 200, schema: roomListResponseApiSchema })
   @ApiResponse({
     status: 400,
@@ -98,7 +79,7 @@ export class RoomController {
   })
   listRooms(
     @CurrentUser() user: RequestUser,
-    @Query(new ValibotPipe(listRoomsQuerySchema)) query: ListRoomsQuery,
+    @QuerySchema(listRoomsQuerySchema) query: ListRoomsQuery,
   ): Promise<RoomSummaryResponse[]> {
     return this.roomService.listRooms(user.id, query);
   }

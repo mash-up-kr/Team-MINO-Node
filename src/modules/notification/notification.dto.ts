@@ -1,5 +1,9 @@
 import * as v from "valibot";
 import {
+  DEFAULT_PAGE,
+  DEFAULT_PAGE_SIZE,
+} from "../../common/pagination/pagination.constant";
+import {
   pageQuerySchema,
   pageSizeQuerySchema,
   paginationApiSchema,
@@ -8,8 +12,8 @@ import type { SchemaObject } from "../../common/swagger/schema";
 import { NOTIFICATION_TYPES } from "./notification.schema";
 
 export const listNotificationsQuerySchema = v.object({
-  page: v.optional(pageQuerySchema),
-  pageSize: v.optional(pageSizeQuerySchema),
+  page: v.optional(pageQuerySchema, String(DEFAULT_PAGE)),
+  pageSize: v.optional(pageSizeQuerySchema, String(DEFAULT_PAGE_SIZE)),
 });
 
 export type ListNotificationsQuery = v.InferOutput<

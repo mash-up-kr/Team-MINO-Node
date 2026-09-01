@@ -1,14 +1,10 @@
-import { Controller, Get, Query } from "@nestjs/common";
+import { Controller, Get } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
 import type { RequestUser } from "../../common/guards/current-user.guard";
-import {
-  DEFAULT_PAGE,
-  DEFAULT_PAGE_SIZE,
-} from "../../common/pagination/pagination.constant";
 import type { PaginatedResponse } from "../../common/pagination/pagination.type";
-import { ValibotPipe } from "../../common/pipes/valibot.pipe";
+import { QuerySchema } from "../../common/swagger/query-schema.decorator";
 import {
   type ListNotificationsQuery,
   listNotificationsQuerySchema,
@@ -32,13 +28,13 @@ export class NotificationController {
   @ApiResponse({ status: 200, schema: notificationListResponseApiSchema })
   listNotifications(
     @CurrentUser() user: RequestUser,
-    @Query(new ValibotPipe(listNotificationsQuerySchema))
+    @QuerySchema(listNotificationsQuerySchema)
     query: ListNotificationsQuery,
   ): Promise<PaginatedResponse<NotificationItemResponse>> {
     return this.notificationService.listPage(
       user.id,
-      query.page ?? DEFAULT_PAGE,
-      query.pageSize ?? DEFAULT_PAGE_SIZE,
+      query.page,
+      query.pageSize,
     );
   }
 }
