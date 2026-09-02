@@ -3,6 +3,7 @@ import { PlaceE2eHarness } from "./place.e2e.helpers";
 import { registerPublicPlaceScenarios } from "./place.public.scenarios";
 import {
   registerDuplicateNotificationScenarios,
+  registerSaveFailedScenarios,
   registerWorkerPlaceScenarios,
 } from "./place.worker.scenarios";
 
@@ -16,4 +17,5 @@ describe("방 핀 추출 enqueue와 worker", () => {
   registerPublicPlaceScenarios(harness);
   registerWorkerPlaceScenarios(harness);
   registerDuplicateNotificationScenarios(harness);
+  registerSaveFailedScenarios(harness);
 });

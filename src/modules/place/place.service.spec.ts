@@ -362,6 +362,7 @@ describe("PlaceService", () => {
               CLOUD_TASKS_LOCATION: "asia-northeast3",
               CLOUD_TASKS_QUEUE: "test-queue",
               CLOUD_TASKS_INVOKER_EMAIL: "invoker@test.iam.gserviceaccount.com",
+              CLOUD_TASKS_MAX_ATTEMPTS: 10,
               APP_BASE_URL: "http://localhost:3000",
             }),
           ],
