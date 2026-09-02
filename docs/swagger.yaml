@@ -1535,14 +1535,19 @@ components:
             여러 방에 있으면 서버가 하나를 골라 싣는다 — 중복 저장·위치 기반은 가장
             최근에 저장된 핀, 코멘트 기반은 코멘트가 가장 많은 핀이다. pinId는 발송
             시점 스냅샷이라 핀이 지워졌거나 방을 나갔으면 placeId로 되돌아간다.
-          properties:
-            placeId:
-              type: string
-              format: uuid
-            pinId:
-              type: string
-              format: uuid
-              description: 장소 대상 3종에만 있다
-            roomId:
-              type: string
-              format: uuid
+          oneOf:
+            - type: object
+              required: [placeId, pinId]
+              properties:
+                placeId:
+                  type: string
+                  format: uuid
+                pinId:
+                  type: string
+                  format: uuid
+            - type: object
+              required: [roomId]
+              properties:
+                roomId:
+                  type: string
+                  format: uuid

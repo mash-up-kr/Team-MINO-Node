@@ -78,3 +78,20 @@ describe("NotificationService.recordAndNotify", () => {
     expect(sendToTokens).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("NotificationService.recordAndNotifyUser", () => {
+  it("토큰 조회가 실패해도 알림함 기록은 계속한다", async () => {
+    const error = new Error("db down");
+    const { service, record, sendToTokens, report } = makeService({
+      findPushToken: mock(() => Promise.reject(error)),
+    });
+
+    await service.recordAndNotifyUser(input);
+
+    expect(record).toHaveBeenCalledWith(input);
+    expect(sendToTokens).not.toHaveBeenCalled();
+    expect(report).toHaveBeenCalledWith(error, {
+      errorCode: "NOTIFICATION_TOKEN_LOOKUP_FAILED",
+    });
+  });
+});

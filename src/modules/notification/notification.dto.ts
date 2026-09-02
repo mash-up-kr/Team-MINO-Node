@@ -39,11 +39,21 @@ const notificationSchema: SchemaObject = {
       nullable: true,
       description:
         "이동 대상 식별자. 장소 대상은 placeId와 pinId, 방 대상은 roomId이며 저장 오류는 null이다. 장소 상세는 pinId로 연다.",
-      properties: {
-        placeId: { type: "string", format: "uuid" },
-        pinId: { type: "string", format: "uuid" },
-        roomId: { type: "string", format: "uuid" },
-      },
+      oneOf: [
+        {
+          type: "object",
+          required: ["placeId", "pinId"],
+          properties: {
+            placeId: { type: "string", format: "uuid" },
+            pinId: { type: "string", format: "uuid" },
+          },
+        },
+        {
+          type: "object",
+          required: ["roomId"],
+          properties: { roomId: { type: "string", format: "uuid" } },
+        },
+      ],
     },
     createdAt: { type: "string", format: "date-time" },
   },

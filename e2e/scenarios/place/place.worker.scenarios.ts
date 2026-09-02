@@ -348,15 +348,17 @@ export function registerDuplicateNotificationScenarios(
   it("재배달로 같은 task를 다시 처리해도 중복 알림이 생기지 않는다", async () => {
     // given
     await harness.postPin();
-    const task = harness.task;
-    expect((await harness.runTask(task)).status).toBe(204);
+    expect((await harness.runTask()).status).toBe(204);
+    await harness.postPin();
+    const duplicatedTask = harness.task;
+    expect((await harness.runTask(duplicatedTask)).status).toBe(204);
+    expect(await duplicateNotifications()).toHaveLength(EXTRACTED_PLACES);
 
     // when
-    expect((await harness.runTask(task)).status).toBe(204);
-    expect((await harness.runTask(task)).status).toBe(204);
+    expect((await harness.runTask(duplicatedTask)).status).toBe(204);
 
     // then
-    expect(await duplicateNotifications()).toHaveLength(0);
+    expect(await duplicateNotifications()).toHaveLength(EXTRACTED_PLACES);
   });
 
   it("저장 시도가 다르면 같은 장소라도 별개 행으로 남는다", async () => {
