@@ -125,7 +125,7 @@ export class NotificationService {
     const [first, ...rest] = created;
     if (!first) return 0;
 
-    const fcmToken = await this.notificationRepository.findPushToken(userId);
+    const fcmToken = await this.findPushTokenSafely(userId);
     if (!fcmToken) return created.length;
 
     // 여러 건이면 앱 밖 알림만 대표 하나로 묶는다. 대표는 알림함 행이 없다(FR-019).
