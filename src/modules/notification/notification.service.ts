@@ -40,6 +40,25 @@ export class NotificationService {
     }
   }
 
+  async recordAndNotifyUser(
+    input: RecordNotificationInput,
+    options?: { inbox?: boolean },
+  ): Promise<void> {
+    const fcmToken = await this.findPushTokenSafely(input.recipientId);
+    await this.recordAndNotify(input, fcmToken, options);
+  }
+
+  private async findPushTokenSafely(userId: string): Promise<string | null> {
+    try {
+      return await this.notificationRepository.findPushToken(userId);
+    } catch (error) {
+      this.reporter.report(error as Error, {
+        errorCode: "NOTIFICATION_TOKEN_LOOKUP_FAILED",
+      });
+      return null;
+    }
+  }
+
   async listPage(
     recipientId: string,
     page: number,

@@ -52,6 +52,13 @@ export interface ExtractedPlace {
   relation: string;
 }
 
+export interface DuplicatedPlace {
+  readonly pinId: string;
+  readonly placeId: string;
+  readonly placeName: string;
+  readonly thumbnailUrl: string | null;
+}
+
 export interface PlaceMatch {
   /** 게시글에서 추출한 장소. */
   extracted: ExtractedPlace;
