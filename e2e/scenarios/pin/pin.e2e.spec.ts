@@ -581,3 +581,105 @@ describe("핀 접근 기록", () => {
     expect(row?.value).toBe(2);
   });
 });
+
+describe("장소(핀) 삭제", () => {
+  it("방 멤버가 핀을 삭제하면 soft delete되고 목록에서 사라진다", async () => {
+    // 삭제 전용 장소, 핀 및 코멘트 추가
+    const [delPlace] = await db
+      .insert(places)
+      .values({
+        provider: "kakao",
+        providerPlaceId: `e2e-del-place-${randomUUID()}`,
+        name: "삭제 테스트 장소",
+        address: "서울시 강남구",
+        category: "음식점 > 카페",
+        categoryGroup: "cafe",
+        lat: 37.5,
+        lng: 127.0,
+      })
+      .returning();
+
+    const [targetPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: delPlace?.id ?? "",
+        createdBy: memberId,
+      })
+      .returning();
+    const pinId = targetPin?.id ?? "";
+
+    const [comment] = await db
+      .insert(pinComments)
+      .values({
+        pinId,
+        createdBy: memberId,
+        content: "삭제될 코멘트",
+      })
+      .returning();
+    const commentId = comment?.id ?? "";
+
+    // 삭제 전 목록에 있는지 확인
+    const beforeList = await api(
+      `/api/v1/pins?roomId=${roomAId}`,
+      memberAuthUid,
+    );
+    const beforeBody = (await beforeList.json()) as {
+      data: Array<{ id: string }>;
+    };
+    expect(beforeBody.data.some((p) => p.id === pinId)).toBe(true);
+
+    // DELETE 요청
+    const deleteRes = await api(`/api/v1/pins/${pinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(deleteRes.status).toBe(200);
+    expect(await deleteRes.json()).toEqual({ data: { ok: true } });
+
+    // 삭제 후 목록에서 제외 확인
+    const afterList = await api(
+      `/api/v1/pins?roomId=${roomAId}`,
+      memberAuthUid,
+    );
+    const afterBody = (await afterList.json()) as {
+      data: Array<{ id: string }>;
+    };
+    expect(afterBody.data.some((p) => p.id === pinId)).toBe(false);
+
+    // DB에서 pin과 comment의 deletedAt이 설정되었는지 확인
+    const [pinRow] = await db.select().from(pins).where(eq(pins.id, pinId));
+    expect(pinRow?.deletedAt).not.toBeNull();
+
+    const [commentRow] = await db
+      .select()
+      .from(pinComments)
+      .where(eq(pinComments.id, commentId));
+    expect(commentRow?.deletedAt).not.toBeNull();
+  });
+
+  it("이미 삭제되었거나 존재하지 않는 핀은 404를 반환한다", async () => {
+    const fakePinId = randomUUID();
+    const response = await api(`/api/v1/pins/${fakePinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(response.status).toBe(404);
+    const body = (await response.json()) as { errorCode: string };
+    expect(body.errorCode).toBe("PIN_NOT_FOUND");
+  });
+
+  it("방 멤버가 아닌 유저가 핀 삭제 시 403을 반환한다", async () => {
+    const response = await api(`/api/v1/pins/${firstPinId}`, outsiderAuthUid, {
+      method: "DELETE",
+    });
+    expect(response.status).toBe(403);
+    const body = (await response.json()) as { errorCode: string };
+    expect(body.errorCode).toBe("NOT_ROOM_MEMBER");
+  });
+
+  it("유효하지 않은 UUID는 400을 반환한다", async () => {
+    const response = await api("/api/v1/pins/not-a-uuid", memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(response.status).toBe(400);
+  });
+});

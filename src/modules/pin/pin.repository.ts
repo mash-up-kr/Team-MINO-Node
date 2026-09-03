@@ -17,6 +17,7 @@ import type {
   TargetRoomRow,
 } from "./pin.type";
 import { pinAccesses } from "./pin-access.schema";
+import { pinComments } from "./pin-comment.schema";
 
 /**
  * 핀 응답에 노출하는 컬럼 집합. drizzle은 entity 클래스 없이 테이블
@@ -225,5 +226,28 @@ export class PinRepository extends BaseRepository {
   /** 접근 로그 추가(append-only). */
   async insertAccess(pinId: string, userId: string): Promise<void> {
     await this.db.insert(pinAccesses).values({ pinId, userId });
+  }
+
+  /**
+   * 핀과 그 핀에 달린 코멘트를 한 트랜잭션으로 soft delete한다.
+   * 성공 시 true, 이미 삭제되었거나 없으면 false를 반환한다.
+   */
+  async softDelete(pinId: string): Promise<boolean> {
+    return await this.db.transaction(async (tx) => {
+      await tx
+        .update(pinComments)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(eq(pinComments.pinId, pinId), isNull(pinComments.deletedAt)),
+        );
+
+      const [deleted] = await tx
+        .update(pins)
+        .set({ deletedAt: new Date() })
+        .where(and(eq(pins.id, pinId), isNull(pins.deletedAt)))
+        .returning({ id: pins.id });
+
+      return deleted !== undefined;
+    });
   }
 }

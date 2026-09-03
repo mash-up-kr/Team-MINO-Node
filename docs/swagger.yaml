@@ -689,6 +689,25 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Pin]
+      summary: 장소(핀) 삭제
+      description: 해당 방에서 핀과 관련 코멘트를 soft delete한다. 핀이 속한 방의 멤버만 삭제할 수 있다.
+      parameters:
+        - $ref: "#/components/parameters/PinId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/pins/{pinId}/duplicate:
     post:

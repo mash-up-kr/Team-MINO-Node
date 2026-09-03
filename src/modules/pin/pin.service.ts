@@ -229,6 +229,18 @@ export class PinService {
     await this.pinRepository.insertAccess(pinId, userId);
   }
 
+  /**
+   * 장소(핀) 삭제. 해당 방에서 핀과 관련 코멘트를 soft delete한다.
+   * 방 멤버십을 검증하고, 멤버가 아니면 403, 핀이 없으면 404를 던진다.
+   */
+  async deletePin(userId: string, pinId: string): Promise<void> {
+    await this.findActivePinForUser(pinId, userId);
+    const deleted = await this.pinRepository.softDelete(pinId);
+    if (!deleted) {
+      throw this.pinNotFound();
+    }
+  }
+
   private async findActivePinForUser(pinId: string, userId: string) {
     const pin = await this.pinRepository.findActiveByIdForUser(pinId, userId);
     if (!pin) {
