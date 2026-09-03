@@ -1,22 +1,22 @@
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gte, isNull, sql } from "drizzle-orm";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
 import { pins } from "../pin/pin.schema";
+import { activeCommentCount, stalenessOfPin } from "../pin/pin.sql";
 import { pinAccesses } from "../pin/pin-access.schema";
-import { pinComments } from "../pin/pin-comment.schema";
 import { places } from "../place/place.schema";
+import { distanceToPlace } from "../place/place.sql";
 import { rooms } from "../room/room.schema";
 import { roomMembers } from "../room/room-member.schema";
 import { users } from "../user/user.schema";
 import {
   DECK_SIZE,
-  EARTH_RADIUS_METERS,
   LATEST_WINDOW_DAYS,
   METERS_PER_LAT_DEGREE,
   NEARBY_RADIUS_METERS,
 } from "./card.constant";
 import type { ListCardsQuery } from "./card.dto";
-import type { CandidateRow } from "./card.type";
+import type { CandidateRow, CardRoomRow } from "./card.type";
 
 const CARD_PLACE_COLUMNS = {
   id: places.id,
@@ -42,23 +42,38 @@ const CARD_AUTHOR_COLUMNS = {
 
 @Injectable()
 export class CardRepository extends BaseRepository {
-  async isActiveMemberOfRoom(roomId: string, userId: string): Promise<boolean> {
-    const [membership] = await this.db
+  /**
+   * 방 메타 + 요청 유저 멤버십을 한 쿼리로 조회한다 — 홈 헤더(캐릭터·뱃지)
+   * 렌더링과 접근 검증을 겸한다. 서브쿼리는 raw sql 비정규화 함정을 피해
+   * 쿼리 빌더로 만든다.
+   */
+  async findActiveRoomForUser(
+    roomId: string,
+    userId: string,
+  ): Promise<CardRoomRow | undefined> {
+    const membership = this.db
       .select({ one: sql`1` })
       .from(roomMembers)
-      .innerJoin(
-        rooms,
-        and(eq(roomMembers.roomId, rooms.id), isNull(rooms.deletedAt)),
-      )
       .where(
         and(
-          eq(roomMembers.roomId, roomId),
+          eq(roomMembers.roomId, rooms.id),
           eq(roomMembers.userId, userId),
           isNull(roomMembers.deletedAt),
         ),
-      )
+      );
+
+    const [room] = await this.db
+      .select({
+        id: rooms.id,
+        type: rooms.type,
+        name: rooms.name,
+        color: rooms.color,
+        isMember: sql<boolean>`${exists(membership)}`,
+      })
+      .from(rooms)
+      .where(and(eq(rooms.id, roomId), isNull(rooms.deletedAt)))
       .limit(1);
-    return membership !== undefined;
+    return room;
   }
 
   /**
@@ -72,7 +87,7 @@ export class CardRepository extends BaseRepository {
     userId: string,
     query: ListCardsQuery,
   ): Promise<CandidateRow[]> {
-    const staleness = this.stalenessOf(userId);
+    const staleness = stalenessOfPin(userId);
 
     return await this.db
       .select({
@@ -82,13 +97,7 @@ export class CardRepository extends BaseRepository {
         staleness: staleness.mapWith(pins.createdAt).as("staleness"),
         place: CARD_PLACE_COLUMNS,
         author: CARD_AUTHOR_COLUMNS,
-        manyComments: sql<number>`(
-          select count(*) from ${pinComments}
-          where ${pinComments.pinId} = ${pins.id}
-            and ${pinComments.deletedAt} is null
-        )`
-          .mapWith(Number)
-          .as("many_comments"),
+        manyComments: activeCommentCount().mapWith(Number).as("many_comments"),
         /*
          * 같은 장소가 저장된 방 수. (room_id, place_id) 활성 유니크라 핀 수 = 방 수다.
          * pins를 자기 자신과 대조해야 해서 서브쿼리 안에서 별칭을 직접 붙인다.
@@ -124,15 +133,6 @@ export class CardRepository extends BaseRepository {
       .limit(DECK_SIZE);
   }
 
-  /** 마지막으로 열어본 시점. 없으면 저장 시점. */
-  private stalenessOf(userId: string) {
-    return sql`coalesce(
-      (select max(${pinAccesses.createdAt}) from ${pinAccesses}
-       where ${pinAccesses.pinId} = ${pins.id} and ${pinAccesses.userId} = ${userId}),
-      ${pins.createdAt}
-    )`;
-  }
-
   /** 정렬 기준별 후보 조건. ggukPick은 방 전체를 후보로 본다. */
   private filter(query: ListCardsQuery) {
     if (query.sort === "latest") {
@@ -155,7 +155,7 @@ export class CardRepository extends BaseRepository {
     }
     if (query.sort === "nearby") {
       return [
-        asc(this.distanceFrom(query.lat as number, query.lng as number)),
+        asc(distanceToPlace(query.lat as number, query.lng as number)),
         asc(pins.id),
       ];
     }
@@ -179,17 +179,7 @@ export class CardRepository extends BaseRepository {
       sql`${places.lat} <= ${lat + latDelta}`,
       gte(places.lng, lng - lngDelta),
       sql`${places.lng} <= ${lng + lngDelta}`,
-      sql`${this.distanceFrom(lat, lng)} <= ${NEARBY_RADIUS_METERS}`,
+      sql`${distanceToPlace(lat, lng)} <= ${NEARBY_RADIUS_METERS}`,
     );
-  }
-
-  /** 요청 좌표에서 장소까지의 대권 거리(m). */
-  private distanceFrom(lat: number, lng: number) {
-    // acos 인자가 부동소수 오차로 1을 넘으면 NaN이 되므로 least로 막는다.
-    return sql`${EARTH_RADIUS_METERS} * acos(least(1,
-      cos(radians(${lat})) * cos(radians(${places.lat}))
-        * cos(radians(${places.lng}) - radians(${lng}))
-      + sin(radians(${lat})) * sin(radians(${places.lat}))
-    ))`;
   }
 }

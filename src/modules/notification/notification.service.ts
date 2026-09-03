@@ -40,6 +40,56 @@ export class NotificationService {
     }
   }
 
+  async recordAndNotifyUser(
+    input: RecordNotificationInput,
+    options?: { inbox?: boolean },
+  ): Promise<void> {
+    const fcmToken = await this.findPushTokenSafely(input.recipientId);
+    await this.recordAndNotify(input, fcmToken, options);
+  }
+
+  private async findPushTokenSafely(userId: string): Promise<string | null> {
+    try {
+      return await this.notificationRepository.findPushToken(userId);
+    } catch (error) {
+      this.reporter.report(error as Error, {
+        errorCode: "NOTIFICATION_TOKEN_LOOKUP_FAILED",
+      });
+      return null;
+    }
+  }
+
+  async remindTopCommentedPlaces(): Promise<number> {
+    const targets =
+      await this.notificationRepository.findTopCommentedPlacePerUser();
+    const today = new Date()
+      .toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+      .slice(0, 10);
+
+    // 전체 유저 대상이라 50개씩 끊어 동시 FCM 요청 수를 묶는다.
+    for (let index = 0; index < targets.length; index += 50) {
+      const chunk = targets.slice(index, index + 50);
+      await Promise.all(
+        chunk.map((target) =>
+          this.recordAndNotify(
+            {
+              recipientId: target.userId,
+              type: "TOP_COMMENTED_PLACE",
+              typeLabel: "코멘트가 제일 많이 달린 장소에요",
+              targetName: target.placeName,
+              thumbnailUrl: target.thumbnailUrl ?? undefined,
+              payload: { placeId: target.placeId, pinId: target.pinId },
+              key: `TOP_COMMENTED_PLACE:${target.placeId}:${today}`,
+            },
+            target.fcmToken,
+          ),
+        ),
+      );
+    }
+
+    return targets.length;
+  }
+
   async listPage(
     recipientId: string,
     page: number,

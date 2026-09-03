@@ -64,7 +64,8 @@ export const placeExtractionQueue = new gcp.cloudtasks.Queue(
       minBackoff: "10s",
       maxBackoff: "300s",
       maxDoublings: 4,
-      maxRetryDuration: "3600s",
+      // 시도 횟수만 종료 조건으로 써야 retryCount로 마지막 배달을 판별할 수 있다.
+      maxRetryDuration: "0s",
     },
   },
   { dependsOn: enabledServices },

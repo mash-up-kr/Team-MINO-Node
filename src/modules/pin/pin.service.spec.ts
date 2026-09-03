@@ -3,6 +3,7 @@ import { describe, expect, it, jest } from "bun:test";
 import { Test } from "@nestjs/testing";
 import { AppException } from "../../common/exceptions/app.exception";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
+import { RoomRepository } from "../room/room.repository";
 import { SourceRepository } from "../source/source.repository";
 import { PinRepository } from "./pin.repository";
 import { PinService } from "./pin.service";
@@ -25,6 +26,7 @@ describe("PinService.enqueueRoomPins", () => {
       providers: [
         PinService,
         { provide: PinRepository, useValue: pinRepository },
+        { provide: RoomRepository, useValue: {} },
         { provide: SourceRepository, useValue: sourceRepository },
         { provide: TasksService, useValue: tasksService },
       ],
@@ -43,5 +45,133 @@ describe("PinService.enqueueRoomPins", () => {
       errorCode: "SOURCE_UPSERT_FAILED",
     });
     expect(tasksService.enqueuePinExtraction).not.toHaveBeenCalled();
+  });
+});
+
+describe("PinService.deletePin", () => {
+  it("핀이 존재하고 유저가 방 멤버이면 softDelete를 호출하고 정상 완료된다", async () => {
+    // given
+    const pinRepository = {
+      findActiveByIdForUser: jest.fn(async () => ({
+        id: "pin-id",
+        roomId: "room-id",
+        placeId: "place-id",
+        sourceId: null,
+        isMember: true,
+      })),
+      softDelete: jest.fn(async () => true),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        PinService,
+        { provide: PinRepository, useValue: pinRepository },
+        { provide: RoomRepository, useValue: {} },
+        { provide: SourceRepository, useValue: {} },
+        { provide: TasksService, useValue: {} },
+      ],
+    }).compile();
+    const service = module.get(PinService);
+
+    // when
+    await service.deletePin("user-id", "pin-id");
+
+    // then
+    expect(pinRepository.findActiveByIdForUser).toHaveBeenCalledWith(
+      "pin-id",
+      "user-id",
+    );
+    expect(pinRepository.softDelete).toHaveBeenCalledWith("pin-id", "user-id");
+  });
+
+  it("핀이 존재하지 않으면 PIN_NOT_FOUND를 던진다", async () => {
+    // given
+    const pinRepository = {
+      findActiveByIdForUser: jest.fn(async () => undefined),
+      softDelete: jest.fn(),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        PinService,
+        { provide: PinRepository, useValue: pinRepository },
+        { provide: RoomRepository, useValue: {} },
+        { provide: SourceRepository, useValue: {} },
+        { provide: TasksService, useValue: {} },
+      ],
+    }).compile();
+    const service = module.get(PinService);
+
+    // when & then
+    const promise = service.deletePin("user-id", "pin-id");
+    await expect(promise).rejects.toBeInstanceOf(AppException);
+    await expect(promise).rejects.toMatchObject({
+      errorCode: "PIN_NOT_FOUND",
+      status: 404,
+    });
+    expect(pinRepository.softDelete).not.toHaveBeenCalled();
+  });
+
+  it("유저가 해당 방의 멤버가 아니면 NOT_ROOM_MEMBER를 던진다", async () => {
+    // given
+    const pinRepository = {
+      findActiveByIdForUser: jest.fn(async () => ({
+        id: "pin-id",
+        roomId: "room-id",
+        placeId: "place-id",
+        sourceId: null,
+        isMember: false,
+      })),
+      softDelete: jest.fn(),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        PinService,
+        { provide: PinRepository, useValue: pinRepository },
+        { provide: RoomRepository, useValue: {} },
+        { provide: SourceRepository, useValue: {} },
+        { provide: TasksService, useValue: {} },
+      ],
+    }).compile();
+    const service = module.get(PinService);
+
+    // when & then
+    const promise = service.deletePin("user-id", "pin-id");
+    await expect(promise).rejects.toBeInstanceOf(AppException);
+    await expect(promise).rejects.toMatchObject({
+      errorCode: "NOT_ROOM_MEMBER",
+      status: 403,
+    });
+    expect(pinRepository.softDelete).not.toHaveBeenCalled();
+  });
+
+  it("softDelete 결과가 false이면 PIN_NOT_FOUND를 던진다", async () => {
+    // given
+    const pinRepository = {
+      findActiveByIdForUser: jest.fn(async () => ({
+        id: "pin-id",
+        roomId: "room-id",
+        placeId: "place-id",
+        sourceId: null,
+        isMember: true,
+      })),
+      softDelete: jest.fn(async () => false),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        PinService,
+        { provide: PinRepository, useValue: pinRepository },
+        { provide: RoomRepository, useValue: {} },
+        { provide: SourceRepository, useValue: {} },
+        { provide: TasksService, useValue: {} },
+      ],
+    }).compile();
+    const service = module.get(PinService);
+
+    // when & then
+    const promise = service.deletePin("user-id", "pin-id");
+    await expect(promise).rejects.toBeInstanceOf(AppException);
+    await expect(promise).rejects.toMatchObject({
+      errorCode: "PIN_NOT_FOUND",
+      status: 404,
+    });
   });
 });

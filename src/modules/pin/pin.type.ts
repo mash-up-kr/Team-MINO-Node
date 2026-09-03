@@ -1,6 +1,30 @@
 import type { Pagination } from "../../common/pagination/pagination.type";
-import type { PlaceProvider } from "../place/place.schema";
+import type { PlaceCategoryGroup, PlaceProvider } from "../place/place.schema";
 import type { UserAvatar } from "../user/user.schema";
+
+/**
+ * 핀 목록 조회 조건 — HTTP 쿼리(ListPinsQuery)를 repository가 쓸 모양으로 옮긴 것.
+ *
+ * distance 정렬에만 좌표가 붙는 걸 타입으로 표현해, repository에서 좌표 존재를
+ * 단언(as number)하지 않아도 되게 한다.
+ */
+export type PinListSort =
+  | { type: "latest" }
+  | { type: "ggukPick" }
+  | { type: "commented" }
+  | { type: "distance"; lat: number; lng: number };
+
+/** roomId를 지정하면 그 방만, 아니면 요청 유저가 속한 모든 활성 방. */
+export type PinListScope =
+  | { type: "room"; roomId: string }
+  | { type: "allRooms" };
+
+export type PinListCriteria = {
+  scope: PinListScope;
+  /** null이면 카테고리 필터 없음(전체). */
+  categoryGroup: PlaceCategoryGroup | null;
+  sort: PinListSort;
+};
 
 export type PlaceResponse = {
   id: string;

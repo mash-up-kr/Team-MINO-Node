@@ -1,19 +1,23 @@
 import { Injectable } from "@nestjs/common";
-import { and, desc, eq, exists, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, inArray, isNull, sql } from "drizzle-orm";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
 import { places } from "../place/place.schema";
+import { distanceToPlace } from "../place/place.sql";
 import { rooms } from "../room/room.schema";
 import { roomMembers } from "../room/room-member.schema";
 import { sources } from "../source/source.schema";
 import { users } from "../user/user.schema";
 import { pins } from "./pin.schema";
+import { activeCommentCount, stalenessOfPin } from "./pin.sql";
 import type {
   PinForUserRow,
   PinJoinRow,
-  PinRow,
+  PinListCriteria,
+  PinListSort,
   TargetRoomRow,
 } from "./pin.type";
 import { pinAccesses } from "./pin-access.schema";
+import { pinComments } from "./pin-comment.schema";
 
 /**
  * 핀 응답에 노출하는 컬럼 집합. drizzle은 entity 클래스 없이 테이블
@@ -35,11 +39,12 @@ const PIN_AUTHOR_COLUMNS = {
 @Injectable()
 export class PinRepository extends BaseRepository {
   /**
-   * 방의 핀 목록(장소·저장자 조인). 정렬은 기획 TBD(5종 필터) 확정 전까지
-   * 최신순(createdAt DESC) 잠정. limit 미지정 시 전체를 반환한다.
+   * 핀 목록(장소·저장자 조인). 조회 범위·카테고리·정렬은 criteria가 정한다.
+   * limit 미지정 시 전체를 반환한다.
    */
-  async listByRoom(
-    roomId: string,
+  async listForUser(
+    userId: string,
+    criteria: PinListCriteria,
     range?: { limit: number; offset: number },
   ): Promise<PinJoinRow[]> {
     const query = this.db
@@ -49,15 +54,48 @@ export class PinRepository extends BaseRepository {
         author: PIN_AUTHOR_COLUMNS,
       })
       .from(pins)
-      .innerJoin(places, eq(pins.placeId, places.id))
+      .innerJoin(
+        places,
+        and(eq(pins.placeId, places.id), isNull(places.deletedAt)),
+      )
       .leftJoin(users, eq(pins.createdBy, users.id))
-      .where(and(eq(pins.roomId, roomId), isNull(pins.deletedAt)))
-      .orderBy(desc(pins.createdAt), desc(pins.id));
+      .where(
+        and(
+          criteria.scope.type === "room"
+            ? eq(pins.roomId, criteria.scope.roomId)
+            : exists(this.memberOfPinRoomSubquery(userId)),
+          isNull(pins.deletedAt),
+          criteria.categoryGroup
+            ? eq(places.categoryGroup, criteria.categoryGroup)
+            : undefined,
+        ),
+      )
+      .orderBy(...this.orderBy(criteria.sort, userId));
 
     if (!range) {
       return await query;
     }
     return await query.limit(range.limit).offset(range.offset);
+  }
+
+  /** id를 마지막 정렬 키로 둬서 동점에도 순서가 흔들리지 않게 한다. */
+  private orderBy(sort: PinListSort, userId: string) {
+    switch (sort.type) {
+      case "ggukPick":
+        // 오래 안 본 순.
+        return [asc(stalenessOfPin(userId)), asc(pins.id)];
+      case "distance":
+        return [asc(distanceToPlace(sort.lat, sort.lng)), asc(pins.id)];
+      case "commented":
+        return [desc(activeCommentCount()), desc(pins.createdAt), asc(pins.id)];
+      case "latest":
+        return [desc(pins.createdAt), asc(pins.id)];
+      default: {
+        // 정렬 기준을 추가하고 여기 case를 빠뜨리면 타입 검사에서 걸린다.
+        const exhaustive: never = sort;
+        throw new Error(`알 수 없는 정렬 기준: ${JSON.stringify(exhaustive)}`);
+      }
+    }
   }
 
   /** 핀 상세(장소·저장자·출처 조인) + 요청 유저 멤버십을 한 쿼리로 조회한다. */
@@ -76,7 +114,10 @@ export class PinRepository extends BaseRepository {
         isMember: sql<boolean>`${exists(this.memberOfPinRoomSubquery(userId))}`,
       })
       .from(pins)
-      .innerJoin(places, eq(pins.placeId, places.id))
+      .innerJoin(
+        places,
+        and(eq(pins.placeId, places.id), isNull(places.deletedAt)),
+      )
       .leftJoin(users, eq(pins.createdBy, users.id))
       .leftJoin(
         sources,
@@ -125,26 +166,6 @@ export class PinRepository extends BaseRepository {
       .where(and(eq(pins.id, pinId), isNull(pins.deletedAt)))
       .limit(1);
     return pin;
-  }
-
-  /** 목록 조회 전 방 멤버십 검증용 — roomId 기준 단건 판정. */
-  async isActiveMemberOfRoom(roomId: string, userId: string): Promise<boolean> {
-    const [membership] = await this.db
-      .select({ one: sql`1` })
-      .from(roomMembers)
-      .innerJoin(
-        rooms,
-        and(eq(roomMembers.roomId, rooms.id), isNull(rooms.deletedAt)),
-      )
-      .where(
-        and(
-          eq(roomMembers.roomId, roomId),
-          eq(roomMembers.userId, userId),
-          isNull(roomMembers.deletedAt),
-        ),
-      )
-      .limit(1);
-    return membership !== undefined;
   }
 
   /** 복제 대상 방들의 활성 여부 + 요청 유저 멤버십을 한 쿼리로 판정한다. */
@@ -205,5 +226,40 @@ export class PinRepository extends BaseRepository {
   /** 접근 로그 추가(append-only). */
   async insertAccess(pinId: string, userId: string): Promise<void> {
     await this.db.insert(pinAccesses).values({ pinId, userId });
+  }
+
+  /**
+   * 핀과 그 핀에 달린 코멘트를 한 트랜잭션으로 soft delete한다.
+   * 핀을 먼저 갱신해 행 독점 잠금을 걸어 동시 코멘트 작성을 차단하고,
+   * 핀에 달린 코멘트를 일괄 soft delete한다.
+   * 성공 시 true, 이미 삭제되었거나 없으면 false를 반환한다.
+   */
+  async softDelete(pinId: string, userId: string): Promise<boolean> {
+    return await this.db.transaction(async (tx) => {
+      const [deleted] = await tx
+        .update(pins)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(pins.id, pinId),
+            isNull(pins.deletedAt),
+            exists(this.memberOfPinRoomSubquery(userId)),
+          ),
+        )
+        .returning({ id: pins.id });
+
+      if (!deleted) {
+        return false;
+      }
+
+      await tx
+        .update(pinComments)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(eq(pinComments.pinId, pinId), isNull(pinComments.deletedAt)),
+        );
+
+      return true;
+    });
   }
 }

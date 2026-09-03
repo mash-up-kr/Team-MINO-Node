@@ -5,6 +5,7 @@ import { DatabaseModule } from "../../infrastructures/db/database.module";
 import { GeocoderModule } from "../../infrastructures/geocoder/geocoder.module";
 import { PlaceImageModule } from "../../infrastructures/place-image/place-image.module";
 import { ScraperModule } from "../../infrastructures/scraper/scraper.module";
+import { NotificationModule } from "../notification/notification.module";
 import { PlaceService } from "./place.service";
 import { PlaceResultRepository } from "./place-result.repository";
 import {
@@ -20,6 +21,7 @@ import {
     GeocoderModule,
     PlaceImageModule,
     ScraperModule,
+    NotificationModule,
   ],
   controllers: [PlaceWorkerController],
   providers: [

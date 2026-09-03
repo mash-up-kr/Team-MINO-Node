@@ -139,9 +139,9 @@ beforeAll(async () => {
   const insertedRooms = await db
     .insert(rooms)
     .values([
-      { ownerId: memberId, type: "shared", name: "카드방", color: "black" },
-      { ownerId: memberId, type: "shared", name: "신규방", color: "black" },
-      { ownerId: memberId, type: "shared", name: "복제방", color: "black" },
+      { ownerId: memberId, type: "shared", name: "카드방", color: "red" },
+      { ownerId: memberId, type: "shared", name: "신규방", color: "pink" },
+      { ownerId: memberId, type: "shared", name: "복제방", color: "blue" },
     ])
     .returning({ id: rooms.id });
   [roomId, freshRoomId, mirrorRoomId] = insertedRooms.map((room) => room.id);
@@ -189,9 +189,16 @@ describe("GET /api/v1/rooms/:roomId/cards", () => {
     const { status, body } = await cards(`/api/v1/rooms/${roomId}/cards`);
 
     expect(status).toBe(200);
-    expect(body.data).toHaveLength(10);
+    // 홈 헤더용 방 메타 — 캐릭터는 color에서 파생된다
+    expect(body.data.room).toEqual({
+      id: roomId,
+      type: "shared",
+      name: "카드방",
+      color: "red",
+    });
+    expect(body.data.cards).toHaveLength(10);
     // 열어본 0번은 묵힘이 갱신돼 상위 10에서 밀려난다.
-    const ids = body.data.map((card: { id: string }) => card.id);
+    const ids = body.data.cards.map((card: { id: string }) => card.id);
     expect(ids).not.toContain(pinIds[0]);
     expect(ids).toEqual(pinIds.slice(1, 11));
   });
@@ -199,7 +206,7 @@ describe("GET /api/v1/rooms/:roomId/cards", () => {
   it("지표를 가진 핀에 해당 라벨을 붙인다", async () => {
     const { body } = await cards(`/api/v1/rooms/${roomId}/cards`);
     const byId = new Map<string, string>(
-      body.data.map((card: { id: string; labelGroup: string }) => [
+      body.data.cards.map((card: { id: string; labelGroup: string }) => [
         card.id,
         card.labelGroup,
       ]),
@@ -212,7 +219,7 @@ describe("GET /api/v1/rooms/:roomId/cards", () => {
 
   it("가장 묵힌 4장은 가볼 만한 곳이 가져간다", async () => {
     const { body } = await cards(`/api/v1/rooms/${roomId}/cards`);
-    const worth = body.data
+    const worth = body.data.cards
       .filter(
         (card: { labelGroup: string }) => card.labelGroup === "worthVisiting",
       )
@@ -226,8 +233,8 @@ describe("GET /api/v1/rooms/:roomId/cards", () => {
     const { status, body } = await cards(`/api/v1/rooms/${freshRoomId}/cards`);
 
     expect(status).toBe(200);
-    expect(body.data).toHaveLength(3);
-    const labels = body.data.map(
+    expect(body.data.cards).toHaveLength(3);
+    const labels = body.data.cards.map(
       (card: { labelGroup: string }) => card.labelGroup,
     );
     expect(new Set(labels)).toEqual(new Set(["worthVisiting"]));
@@ -240,7 +247,7 @@ describe("GET /api/v1/rooms/:roomId/cards", () => {
     );
 
     expect(status).toBe(200);
-    expect(body.data).toEqual([]);
+    expect(body.data.cards).toEqual([]);
   });
 
   it("sort=latest는 최신 저장분을 앞에 둔다", async () => {
@@ -248,7 +255,7 @@ describe("GET /api/v1/rooms/:roomId/cards", () => {
       `/api/v1/rooms/${freshRoomId}/cards?sort=latest`,
     );
 
-    const times = body.data.map((card: { createdAt: string }) =>
+    const times = body.data.cards.map((card: { createdAt: string }) =>
       new Date(card.createdAt).getTime(),
     );
     expect(times).toEqual([...times].sort((a, b) => b - a));
@@ -260,7 +267,7 @@ describe("GET /api/v1/rooms/:roomId/cards", () => {
     );
 
     expect(status).toBe(200);
-    const ids = body.data.map((card: { id: string }) => card.id);
+    const ids = body.data.cards.map((card: { id: string }) => card.id);
     // 원점 근처는 0·1번뿐이고 나머지는 부산이라 걸러진다.
     expect(ids.sort()).toEqual([pinIds[0], pinIds[1]].sort());
   });

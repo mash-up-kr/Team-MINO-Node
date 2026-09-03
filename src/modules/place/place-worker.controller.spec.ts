@@ -8,20 +8,35 @@ import type { PlaceResultRepository } from "./place-result.repository";
 import { PlaceWorkerController } from "./place-worker.controller";
 
 const URL = "https://instagram.com/p/abc123/";
+const MAX_ATTEMPTS = 10;
+const ENQUEUED_AT = "2026-08-30T00:00:00.000Z";
 const TASK = {
   roomIds: ["11111111-1111-4111-8111-111111111111"],
   sourceId: "22222222-2222-4222-8222-222222222222",
   createdBy: "33333333-3333-4333-8333-333333333333",
   url: URL,
+  enqueuedAt: ENQUEUED_AT,
 };
+
+const DUPLICATED = {
+  pinId: "55555555-5555-4555-8555-555555555555",
+  placeId: "44444444-4444-4444-8444-444444444444",
+  placeName: "어니언 성수",
+  thumbnailUrl: "https://example.com/0.jpg",
+};
+
+const saveResult = (over: Record<string, unknown> = {}) => ({
+  retryableFailures: 0,
+  persistedPlaces: 0,
+  duplicatedPlaces: [],
+  ...over,
+});
 
 function createController() {
   const extractFromUrl = jest.fn();
   const activeRoomIdsForTask = jest.fn().mockResolvedValue(TASK.roomIds);
-  const save = jest.fn().mockResolvedValue({
-    retryableFailures: 0,
-    persistedPlaces: 0,
-  });
+  const save = jest.fn().mockResolvedValue(saveResult());
+  const recordAndNotifyUser = jest.fn().mockResolvedValue(undefined);
   const placeService: Pick<PlaceService, "extractFromUrl"> = {
     extractFromUrl,
   };
@@ -34,10 +49,16 @@ function createController() {
   };
 
   return {
-    controller: new PlaceWorkerController(placeService, placeResultRepository),
+    controller: new PlaceWorkerController(
+      placeService,
+      placeResultRepository,
+      { recordAndNotifyUser } as never,
+      { getOrThrow: () => MAX_ATTEMPTS } as never,
+    ),
     extractFromUrl,
     activeRoomIdsForTask,
     save,
+    recordAndNotifyUser,
   };
 }
 
@@ -70,7 +91,9 @@ describe("PlaceWorkerController retry policy", () => {
   it("부분 geocoder 실패는 성공 장소를 저장한 뒤 503으로 재시도한다", async () => {
     const { controller, extractFromUrl, save } = createController();
     extractFromUrl.mockResolvedValue([SUCCESSFUL_MATCH, FAILED_MATCH]);
-    save.mockResolvedValue({ retryableFailures: 1, persistedPlaces: 1 });
+    save.mockResolvedValue(
+      saveResult({ retryableFailures: 1, persistedPlaces: 1 }),
+    );
 
     await expect(controller.process(TASK)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
@@ -97,7 +120,7 @@ describe("PlaceWorkerController retry policy", () => {
   it("fulfilled empty 결과는 재시도하지 않고 acknowledge한다", async () => {
     const { controller, extractFromUrl, save } = createController();
     extractFromUrl.mockResolvedValue([{ ...SUCCESSFUL_MATCH, matches: [] }]);
-    save.mockResolvedValue({ retryableFailures: 0, persistedPlaces: 0 });
+    save.mockResolvedValue(saveResult());
 
     await expect(controller.process(TASK)).resolves.toBeUndefined();
   });
@@ -215,5 +238,124 @@ describe("PlaceWorkerController retry policy", () => {
     extractFromUrl.mockRejectedValue(error);
 
     await expect(controller.process(TASK)).resolves.toBeUndefined();
+  });
+});
+
+describe("PlaceWorkerController 중복 저장 알림", () => {
+  it("중복 장소마다 저장 시도 기준 key로 알린다", async () => {
+    const { controller, extractFromUrl, save, recordAndNotifyUser } =
+      createController();
+    extractFromUrl.mockResolvedValue([SUCCESSFUL_MATCH]);
+    save.mockResolvedValue(
+      saveResult({ persistedPlaces: 1, duplicatedPlaces: [DUPLICATED] }),
+    );
+
+    await controller.process(TASK);
+
+    expect(recordAndNotifyUser).toHaveBeenCalledTimes(1);
+    expect(recordAndNotifyUser).toHaveBeenCalledWith({
+      recipientId: TASK.createdBy,
+      type: "PIN_DUPLICATED",
+      typeLabel: "이미 저장해둔 곳이에요",
+      targetName: "어니언 성수",
+      thumbnailUrl: "https://example.com/0.jpg",
+      payload: {
+        placeId: "44444444-4444-4444-8444-444444444444",
+        pinId: "55555555-5555-4555-8555-555555555555",
+      },
+      key: `PIN_DUPLICATED:${TASK.sourceId}:${ENQUEUED_AT}:44444444-4444-4444-8444-444444444444`,
+    });
+  });
+
+  it("중복이 없으면 알리지 않는다", async () => {
+    const { controller, extractFromUrl, save, recordAndNotifyUser } =
+      createController();
+    extractFromUrl.mockResolvedValue([SUCCESSFUL_MATCH]);
+    save.mockResolvedValue(saveResult({ persistedPlaces: 1 }));
+
+    await controller.process(TASK);
+
+    expect(recordAndNotifyUser).not.toHaveBeenCalled();
+  });
+
+  it("재시도로 넘어가기 전에 알린다", async () => {
+    const { controller, extractFromUrl, save, recordAndNotifyUser } =
+      createController();
+    extractFromUrl.mockResolvedValue([SUCCESSFUL_MATCH]);
+    save.mockResolvedValue(
+      saveResult({
+        retryableFailures: 1,
+        persistedPlaces: 1,
+        duplicatedPlaces: [DUPLICATED],
+      }),
+    );
+
+    await expect(controller.process(TASK)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    expect(recordAndNotifyUser).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PlaceWorkerController 저장 실패 알림", () => {
+  const SAVE_FAILED = {
+    recipientId: TASK.createdBy,
+    type: "SAVE_FAILED",
+    typeLabel: "장소를 저장하지 못했어요.",
+    targetName: "잠시 후 다시 시도해주세요",
+    key: `SAVE_FAILED:${TASK.sourceId}:${ENQUEUED_AT}`,
+  };
+
+  it("영구 실패는 첫 시도에서 바로 알린다", async () => {
+    const { controller, extractFromUrl, recordAndNotifyUser } =
+      createController();
+    extractFromUrl.mockRejectedValue(
+      new AppException(
+        "INVALID_INSTAGRAM_URL",
+        "Instagram URL이 올바르지 않습니다.",
+        HttpStatus.BAD_REQUEST,
+      ),
+    );
+
+    await expect(controller.process(TASK)).resolves.toBeUndefined();
+    expect(recordAndNotifyUser).toHaveBeenCalledWith(SAVE_FAILED);
+  });
+
+  it("인식된 장소가 없으면 알린다", async () => {
+    const { controller, extractFromUrl, recordAndNotifyUser } =
+      createController();
+    extractFromUrl.mockResolvedValue([{ ...SUCCESSFUL_MATCH, matches: [] }]);
+
+    await controller.process(TASK);
+
+    expect(recordAndNotifyUser).toHaveBeenCalledWith(SAVE_FAILED);
+  });
+
+  const retryable = new AppException(
+    "AI_EXTRACTION_FAILED",
+    "AI 추출에 실패했습니다.",
+    HttpStatus.BAD_GATEWAY,
+  );
+
+  it("재시도가 남아 있으면 알리지 않는다", async () => {
+    const { controller, extractFromUrl, recordAndNotifyUser } =
+      createController();
+    extractFromUrl.mockRejectedValue(retryable);
+
+    await expect(controller.process(TASK, "0")).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    expect(recordAndNotifyUser).not.toHaveBeenCalled();
+  });
+
+  it("마지막 배달이면 알린다", async () => {
+    const { controller, extractFromUrl, recordAndNotifyUser } =
+      createController();
+    extractFromUrl.mockRejectedValue(retryable);
+
+    await expect(
+      controller.process(TASK, String(MAX_ATTEMPTS - 1)),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(recordAndNotifyUser).toHaveBeenCalledWith(SAVE_FAILED);
   });
 });

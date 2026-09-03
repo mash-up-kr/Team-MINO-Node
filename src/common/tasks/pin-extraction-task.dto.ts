@@ -12,6 +12,8 @@ export const pinExtractionTaskSchema = v.object({
   sourceId: taskIdSchema,
   createdBy: taskIdSchema,
   url: instagramUrlSchema,
+  // 저장 시도 시작 시각. sourceId는 게시물 URL당 하나라 시도를 가르지 못한다.
+  enqueuedAt: v.optional(v.pipe(v.string(), v.isoTimestamp())),
 });
 
 export type PinExtractionTask = v.InferOutput<typeof pinExtractionTaskSchema>;

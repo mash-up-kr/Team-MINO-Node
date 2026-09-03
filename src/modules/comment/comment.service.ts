@@ -60,9 +60,9 @@ export class CommentService {
     );
     if (!comment) {
       throw new AppException(
-        "COMMENT_CREATE_FAILED",
-        "코멘트를 작성하지 못했습니다.",
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        "PIN_NOT_FOUND",
+        "핀을 찾을 수 없습니다.",
+        HttpStatus.NOT_FOUND,
       );
     }
 

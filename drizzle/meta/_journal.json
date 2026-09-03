@@ -57,6 +57,20 @@
       "when": 1788172628762,
       "tag": "0007_deep_rictor",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788402854185,
+      "tag": "0008_nostalgic_grey_gargoyle",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788403218219,
+      "tag": "0009_little_revanche",
+      "breakpoints": true
     }
   ]
 }

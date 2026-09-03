@@ -555,17 +555,34 @@ paths:
             format: double
       responses:
         "200":
-          description: 최대 10장. 방의 후보가 적으면 그만큼 짧다
+          description: room(홈 헤더 메타) + cards 최대 10장. 방의 후보가 적으면 그만큼 짧다
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   data:
-                    type: array
-                    maxItems: 10
-                    items:
-                      $ref: "#/components/schemas/Card"
+                    type: object
+                    properties:
+                      room:
+                        type: object
+                        description: 홈 헤더(방 캐릭터·뱃지)용 메타. 캐릭터 이미지는 color에서 파생되는 클라이언트 번들 에셋
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          type:
+                            type: string
+                            enum: [personal, shared]
+                          name:
+                            type: string
+                          color:
+                            $ref: "#/components/schemas/ColorKey"
+                      cards:
+                        type: array
+                        maxItems: 10
+                        items:
+                          $ref: "#/components/schemas/Card"
         "400":
           $ref: "#/components/responses/BadRequest"
         "403":
@@ -576,23 +593,29 @@ paths:
       tags: [Pin]
       summary: 핀 목록 조회
       description: |
-        `roomId`의 핀 목록(좌표 포함). 요청 유저의 해당 방 멤버십을 검증한다.
+        `roomId` 지정 시 해당 방, 미지정 시 요청 유저가 속한 모든 활성 방의 핀 목록(좌표 포함)을 반환한다. 지정한 방은 멤버십을 검증하고, 전체 조회에서는 멤버십이 있는 방만 반환한다.
         **`page`/`pageSize` 미지정 시 전체를 반환한다** — 지도 전체 보기는 페이지네이션 구분이 애매해 전체 조회를 보장한다(성능 저하 확인 시 리팩토링, PR 리뷰 확정). 리스트 뷰 등에서는 offset 기반 페이지네이션한다.
-        **목록 정렬 5종** (`sort`, 기본 `all`) — 홈 카드 덱의 정렬 칩과 별개다.
-        - `all` 전체 / `ggukPick` 저장일 오래된 순 상위 30% / `latest` 저장일 최신순
-        - `distance` 요청 좌표 기준 반경 3km 이내 (`lat`·`lng` 필수) / `commented` 코멘트 수 상위 30%
+        **목록 정렬 5종** (`sort`, 기본 `all`)
+        - `all` 전체 노출 (최신순)
+        - `ggukPick` 오래 들여다보지 않은 순 (마지막 열람 시점 또는 저장 시각 기준 묵힘 순)
+        - `latest` 저장일 최신순
+        - `distance` 내 위치 기준 가까운 순 (`lat`·`lng` 필수)
+        - `commented` 코멘트 많은 순 (동점 시 최신순)
 
-        `ggukPick`의 판정 기준은 홈 카드 덱과 동일하다.
+        **카테고리 필터 3종** (`category`, 기본 `all`)
+        - `all` 전체 (필터 없음)
+        - `cafe` 카페/디저트/베이커리
+        - `restaurant` 음식점/식당
+
         **장소분류 라벨(`labelGroup`)은 이 응답에 없다** — 라벨은 홈 카드 덱이 부여하는 값이다.
-
-        카드형/리스트형 뷰 전환은 기획 미확정이나, 조회 계약이 아니라 클라 표현 문제로 본다.
       parameters:
         - name: roomId
           in: query
-          required: true
+          required: false
           schema:
             type: string
             format: uuid
+          description: 지정하면 해당 방만 조회한다. 생략하면 내가 속한 모든 활성 방을 조회한다.
         - name: sort
           in: query
           required: false
@@ -637,7 +660,11 @@ paths:
                     items:
                       $ref: "#/components/schemas/Pin"
                   pagination:
-                    $ref: "#/components/schemas/Pagination"
+                    allOf:
+                      - $ref: "#/components/schemas/Pagination"
+                    description: "전체 조회(page/pageSize 미지정) 시 생략"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "403":
           $ref: "#/components/responses/Forbidden"
 
@@ -658,6 +685,25 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/PinDetail"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Pin]
+      summary: 장소(핀) 삭제
+      description: 해당 방에서 핀과 관련 코멘트를 soft delete한다. 핀이 속한 방의 멤버만 삭제할 수 있다.
+      parameters:
+        - $ref: "#/components/parameters/PinId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -1509,17 +1555,29 @@ components:
           format: date-time
           description: 경과 시간 표기(방금/N시간 전/N월 N일)는 클라이언트가 기기 로컬 시간대 기준으로 계산한다
         payload:
-          type: object
-          nullable: true
           description: |
-            이동 대상 식별자. 장소 대상 3종은 placeId, 방 대상 2종은 roomId이며
+            이동 대상 식별자. 장소 대상 3종은 placeId와 pinId, 방 대상 2종은 roomId이며
             저장 오류는 null이다. 클라이언트가 type과 함께 보고 라우팅한다.
-            장소 대상은 placeId까지만 담는다. 도착지 방은 그 장소의 현재 표시 기준 방이
-            정한다(알림함 스펙 3.0.0 FR-022).
-          properties:
-            placeId:
-              type: string
-              format: uuid
-            roomId:
-              type: string
-              format: uuid
+            장소 상세는 핀 단위로 열리므로(핀은 장소×방 쌍) pinId로 연다. 같은 장소가
+            여러 방에 있으면 서버가 하나를 골라 싣는다 — 중복 저장·위치 기반은 가장
+            최근에 저장된 핀, 코멘트 기반은 코멘트가 가장 많은 핀이다. pinId는 발송
+            시점 스냅샷이라 핀이 지워졌거나 방을 나갔으면 placeId로 되돌아간다.
+          oneOf:
+            - type: object
+              required: [placeId, pinId]
+              properties:
+                placeId:
+                  type: string
+                  format: uuid
+                pinId:
+                  type: string
+                  format: uuid
+            - type: object
+              required: [roomId]
+              properties:
+                roomId:
+                  type: string
+                  format: uuid
+            - type: object
+              nullable: true
+              enum: [null]

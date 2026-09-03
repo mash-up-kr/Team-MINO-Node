@@ -20,9 +20,9 @@ export const pinAccesses = pgTable(
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
-    // 사용자가 이미 본 핀 조회용 (카드 제외 조건)
-    index().on(t.userId, t.pinId),
-    // 핀별 클릭수 집계용
+    // 사용자가 이미 본 핀 조회 및 묵힘(staleness) 계산용
+    index().on(t.userId, t.pinId, t.createdAt),
+    // 핀별 클릭수 집계용 (card.repository.ts 등)
     index().on(t.pinId),
   ],
 );

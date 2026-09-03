@@ -1,4 +1,5 @@
 import type { PlaceProvider } from "../place/place.schema";
+import type { RoomType } from "../room/room.schema";
 import type { UserAvatar } from "../user/user.schema";
 
 export const SORT_OPTIONS = ["ggukPick", "latest", "nearby"] as const;
@@ -35,6 +36,25 @@ export type CardAuthorResponse = {
   userId: string;
   nickname: string;
   avatar: UserAvatar | null;
+};
+
+/**
+ * 홈 헤더의 방 캐릭터·뱃지 렌더링용 방 메타.
+ * 캐릭터 이미지는 서버가 내리지 않는다 — color에서 파생되는 클라이언트 번들 에셋이다.
+ */
+export type CardRoomResponse = {
+  id: string;
+  type: RoomType;
+  name: string;
+  color: string;
+};
+
+/** 방 메타 + 요청 유저 멤버십 조회 행. */
+export type CardRoomRow = CardRoomResponse & { isMember: boolean };
+
+export type CardListResponse = {
+  room: CardRoomResponse;
+  cards: CardResponse[];
 };
 
 export type CardResponse = {

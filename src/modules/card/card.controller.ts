@@ -13,7 +13,7 @@ import {
   uuidParamSchema,
 } from "./card.dto";
 import { CardService } from "./card.service";
-import type { CardResponse } from "./card.type";
+import type { CardListResponse } from "./card.type";
 
 @ApiTags("card")
 @RequireCurrentUser()
@@ -26,7 +26,8 @@ export class CardController {
     summary: "홈 카드 피드 조회",
     description:
       "sort로 후보를 좁힌 뒤 장소분류 라벨 4종으로 최대 10장의 덱을 만든다. " +
-      "정원이 미달인 그룹은 채우지 않으므로 10장보다 짧을 수 있다. ",
+      "정원이 미달인 그룹은 채우지 않으므로 10장보다 짧을 수 있다. " +
+      "room은 홈 헤더(방 캐릭터·뱃지)용 메타 — 캐릭터는 room.color에서 파생되는 클라이언트 에셋이다.",
   })
   @ApiResponse({ status: 200, schema: cardListResponseApiSchema })
   @ApiResponse({
@@ -43,7 +44,7 @@ export class CardController {
     @CurrentUser() user: RequestUser,
     @Param("roomId", new ValibotPipe(uuidParamSchema)) roomId: string,
     @QuerySchema(listCardsQuerySchema) query: ListCardsQuery,
-  ): Promise<CardResponse[]> {
+  ): Promise<CardListResponse> {
     return this.cardService.listCards(user.id, roomId, query);
   }
 }

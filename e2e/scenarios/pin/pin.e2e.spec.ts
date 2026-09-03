@@ -2,12 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { AppModule } from "../../../src/app.module";
 import { DatabaseService } from "../../../src/infrastructures/db/database.service";
 import { pins } from "../../../src/modules/pin/pin.schema";
 import { pinAccesses } from "../../../src/modules/pin/pin-access.schema";
+import { pinComments } from "../../../src/modules/pin/pin-comment.schema";
 import { places } from "../../../src/modules/place/place.schema";
+import { classifyPlaceCategory } from "../../../src/modules/place/place.util";
 import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { sources } from "../../../src/modules/source/source.schema";
@@ -26,6 +28,8 @@ let roomAId: string;
 let roomBId: string;
 let outsiderRoomId: string;
 let firstPinId: string;
+let secondPinId: string;
+let thirdPinId: string;
 let placeIds: string[] = [];
 const sourceUrl = `https://www.instagram.com/p/e2e-${randomUUID()}/`;
 
@@ -85,16 +89,40 @@ beforeAll(async () => {
     { roomId: outsiderRoomId, userId: outsiderId },
   ]);
 
+  const placeDefs = [
+    {
+      name: "장소 0 (카페)",
+      category: "음식점 > 카페 > 디저트카페",
+      lat: 37.5445,
+      lng: 127.0559,
+    },
+    {
+      name: "장소 1 (식당)",
+      category: "음식점 > 한식 > 고기구이",
+      lat: 37.5545,
+      lng: 127.0559,
+    },
+    {
+      name: "장소 2 (기타)",
+      category: "가정,생활 > 문구,사무용품",
+      lat: 37.5645,
+      lng: 127.0559,
+    },
+  ];
+
   const seededPlaces = await db
     .insert(places)
     .values(
-      [0, 1, 2].map((n) => ({
+      placeDefs.map((def, n) => ({
         provider: "kakao" as const,
         providerPlaceId: `e2e-place-${randomUUID()}`,
-        name: `장소 ${n}`,
+        name: def.name,
+        category: def.category,
+        // 운영에서는 place upsert가 채우는 값이라 픽스처도 같은 분류기를 쓴다.
+        categoryGroup: classifyPlaceCategory(def.category),
         address: "서울 성동구 상원4길 10",
-        lat: 37.5445 + n * 0.001,
-        lng: 127.0559,
+        lat: def.lat,
+        lng: def.lng,
         externalUrl: "https://place.map.kakao.com/123",
         images: [`https://img.example.com/${n}.jpg`],
       })),
@@ -107,6 +135,7 @@ beforeAll(async () => {
     .values({ type: "instagram", originalUrl: sourceUrl })
     .returning({ id: sources.id });
 
+  const now = Date.now();
   const seededPins = await db
     .insert(pins)
     .values(
@@ -115,10 +144,27 @@ beforeAll(async () => {
         placeId,
         sourceId: index === 0 ? (source?.id as string) : null,
         createdBy: memberId,
+        // Pin 0: 3일 전, Pin 1: 2일 전, Pin 2: 1일 전
+        createdAt: new Date(now - (3 - index) * 86_400_000),
       })),
     )
     .returning({ id: pins.id });
   firstPinId = seededPins[0]?.id as string;
+  secondPinId = seededPins[1]?.id as string;
+  thirdPinId = seededPins[2]?.id as string;
+
+  // Pin 0에 코멘트 2개 추가 (commented 정렬 1위용)
+  await db.insert(pinComments).values([
+    { pinId: firstPinId, createdBy: memberId, content: "댓글 1" },
+    { pinId: firstPinId, createdBy: memberId, content: "댓글 2" },
+  ]);
+
+  // Pin 2에 접근 기록 추가 (오늘 열람 -> staleness가 오늘이 되어 ggukPick 최후순위로 밀림)
+  await db.insert(pinAccesses).values({
+    pinId: thirdPinId,
+    userId: memberId,
+    createdAt: new Date(now),
+  });
 });
 
 afterAll(async () => {
@@ -126,6 +172,48 @@ afterAll(async () => {
 });
 
 describe("핀 목록 조회", () => {
+  it("roomId 없이 조회하면 내 모든 활성 방의 핀만 반환한다", async () => {
+    const placeId = placeIds[0];
+    if (!placeId) {
+      throw new Error("전체 방 조회용 장소 시드가 없습니다.");
+    }
+    const seededPins = await db
+      .insert(pins)
+      .values([
+        {
+          roomId: roomBId,
+          placeId,
+          createdBy: memberId,
+        },
+        {
+          roomId: outsiderRoomId,
+          placeId,
+          createdBy: memberId,
+        },
+      ])
+      .returning({ id: pins.id });
+    const roomBPinId = seededPins[0]?.id;
+    const outsiderPinId = seededPins[1]?.id;
+    if (!roomBPinId || !outsiderPinId) {
+      throw new Error("전체 방 조회용 핀 시드에 실패했습니다.");
+    }
+
+    const response = await api("/api/v1/pins", memberAuthUid);
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { data: Array<{ id: string }> };
+    const ids = body.data.map((pin) => pin.id);
+    expect(ids).toContain(roomBPinId);
+    expect(ids).not.toContain(outsiderPinId);
+
+    await db.delete(pins).where(
+      inArray(
+        pins.id,
+        seededPins.map((pin) => pin.id),
+      ),
+    );
+  });
+
   it("page/pageSize 미지정 시 전체를 반환하고 pagination이 없다", async () => {
     const response = await api(`/api/v1/pins?roomId=${roomAId}`, memberAuthUid);
 
@@ -147,6 +235,119 @@ describe("핀 목록 조회", () => {
     expect(pin.images).toHaveLength(1);
     expect(pin.createdBy.userId).toBe(memberId);
     expect(pin.createdBy.nickname).toBe("핀러버");
+  });
+
+  it("기본 정렬(sort=all 및 sort=latest)은 최신 저장순으로 반환한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=latest`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    // Pin 2(1일 전) > Pin 1(2일 전) > Pin 0(3일 전)
+    expect(body.data.map((p) => p.id)).toEqual([
+      thirdPinId,
+      secondPinId,
+      firstPinId,
+    ]);
+  });
+
+  it("sort=ggukPick은 오래 들여다보지 않은 순서로 반환한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=ggukPick`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    // Pin 0(3일 전 미열람) > Pin 1(2일 전 미열람) > Pin 2(오늘 열람)
+    expect(body.data.map((p) => p.id)).toEqual([
+      firstPinId,
+      secondPinId,
+      thirdPinId,
+    ]);
+  });
+
+  it("sort=distance는 요청 좌표와 가까운 순서로 반환한다", async () => {
+    // Pin 2 좌표: (37.5645, 127.0559) 바로 근처에서 조회
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=distance&lat=37.5645&lng=127.0559`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    // Pin 2 (거리 0m) > Pin 1 (약 1.1km) > Pin 0 (약 2.2km)
+    expect(body.data.map((p) => p.id)).toEqual([
+      thirdPinId,
+      secondPinId,
+      firstPinId,
+    ]);
+  });
+
+  it("sort=distance인데 lat/lng가 없으면 400 에러를 반환한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=distance`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("sort=commented는 코멘트가 많은 순서로 반환한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=commented`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    // Pin 0(코멘트 2개) > Pin 2(최신, 0개) > Pin 1(0개)
+    expect(body.data[0]?.id).toBe(firstPinId);
+  });
+
+  it("category=cafe는 카페 장소만 필터링한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=cafe`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string; place: { category: string } }>;
+    };
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]?.id).toBe(firstPinId);
+    expect(body.data[0]?.place.category).toContain("카페");
+  });
+
+  it("category=restaurant는 카페를 제외한 음식점 장소만 필터링한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=restaurant`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string; place: { category: string } }>;
+    };
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]?.id).toBe(secondPinId);
+    expect(body.data[0]?.place.category).toContain("한식");
+  });
+
+  it("category=all은 모든 카테고리를 반환한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=all`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    expect(body.data).toHaveLength(3);
   });
 
   it("페이지네이션을 지정하면 pagination 메타가 함께 온다", async () => {
@@ -175,6 +376,100 @@ describe("핀 목록 조회", () => {
     };
     expect(secondBody.data).toHaveLength(1);
     expect(secondBody.pagination.hasNext).toBe(false);
+  });
+
+  it("Google provider 장소의 미매핑 카테고리(bar)는 전체(all)에서만 보인다", async () => {
+    const [googlePlace] = await db
+      .insert(places)
+      .values({
+        provider: "google",
+        providerPlaceId: `google-bar-${randomUUID()}`,
+        name: "구글 루프탑 바",
+        category: "bar",
+        categoryGroup: classifyPlaceCategory("bar"),
+        address: "서울 강남구 테헤란로 1",
+        lat: 37.5,
+        lng: 127.0,
+      })
+      .returning();
+    const [googlePin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: googlePlace!.id,
+        createdBy: memberId,
+      })
+      .returning();
+
+    const allRes = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=all`,
+      memberAuthUid,
+    );
+    const allBody = (await allRes.json()) as { data: Array<{ id: string }> };
+    expect(allBody.data.some((p) => p.id === googlePin!.id)).toBe(true);
+
+    const cafeRes = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=cafe`,
+      memberAuthUid,
+    );
+    const cafeBody = (await cafeRes.json()) as { data: Array<{ id: string }> };
+    expect(cafeBody.data.some((p) => p.id === googlePin!.id)).toBe(false);
+
+    const restRes = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=restaurant`,
+      memberAuthUid,
+    );
+    const restBody = (await restRes.json()) as { data: Array<{ id: string }> };
+    expect(restBody.data.some((p) => p.id === googlePin!.id)).toBe(false);
+
+    await db.delete(pins).where(eq(pins.id, googlePin!.id));
+    await db.delete(places).where(eq(places.id, googlePlace!.id));
+  });
+
+  it("soft-deleted 핀은 목록에서 격리되어 보이지 않는다", async () => {
+    const [deletedPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: placeIds[0]!,
+        createdBy: memberId,
+        deletedAt: new Date(),
+      })
+      .returning();
+
+    const res = await api(`/api/v1/pins?roomId=${roomAId}`, memberAuthUid);
+    const body = (await res.json()) as { data: Array<{ id: string }> };
+    expect(body.data.some((p) => p.id === deletedPin!.id)).toBe(false);
+
+    await db.delete(pins).where(eq(pins.id, deletedPin!.id));
+  });
+
+  it("soft-deleted 코멘트는 commented 정렬 카운트에서 제외된다", async () => {
+    const delComments = await db
+      .insert(pinComments)
+      .values(
+        [1, 2, 3, 4, 5].map((i) => ({
+          pinId: secondPinId,
+          createdBy: memberId,
+          content: `삭제된 코멘트 ${i}`,
+          deletedAt: new Date(),
+        })),
+      )
+      .returning();
+
+    const res = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=commented`,
+      memberAuthUid,
+    );
+    const body = (await res.json()) as { data: Array<{ id: string }> };
+    expect(body.data[0]?.id).toBe(firstPinId);
+
+    await db.delete(pinComments).where(
+      inArray(
+        pinComments.id,
+        delComments.map((c) => c.id),
+      ),
+    );
   });
 
   it("방 멤버가 아니면 403", async () => {
@@ -284,5 +579,284 @@ describe("핀 접근 기록", () => {
       .from(pinAccesses)
       .where(eq(pinAccesses.pinId, firstPinId));
     expect(row?.value).toBe(2);
+  });
+});
+
+describe("장소(핀) 삭제", () => {
+  it("방 멤버가 핀을 삭제하면 soft delete되고 목록에서 사라진다", async () => {
+    // 삭제 전용 장소, 핀 및 코멘트 추가
+    const [delPlace] = await db
+      .insert(places)
+      .values({
+        provider: "kakao",
+        providerPlaceId: `e2e-del-place-${randomUUID()}`,
+        name: "삭제 테스트 장소",
+        address: "서울시 강남구",
+        category: "음식점 > 카페",
+        categoryGroup: "cafe",
+        lat: 37.5,
+        lng: 127.0,
+      })
+      .returning();
+
+    const [targetPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: delPlace?.id ?? "",
+        createdBy: memberId,
+      })
+      .returning();
+    const pinId = targetPin?.id ?? "";
+
+    const [comment] = await db
+      .insert(pinComments)
+      .values({
+        pinId,
+        createdBy: memberId,
+        content: "삭제될 코멘트",
+      })
+      .returning();
+    const commentId = comment?.id ?? "";
+
+    // 삭제 전 목록에 있는지 확인
+    const beforeList = await api(
+      `/api/v1/pins?roomId=${roomAId}`,
+      memberAuthUid,
+    );
+    const beforeBody = (await beforeList.json()) as {
+      data: Array<{ id: string }>;
+    };
+    expect(beforeBody.data.some((p) => p.id === pinId)).toBe(true);
+
+    // DELETE 요청
+    const deleteRes = await api(`/api/v1/pins/${pinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(deleteRes.status).toBe(200);
+    expect(await deleteRes.json()).toEqual({ data: { ok: true } });
+
+    // 삭제 후 목록에서 제외 확인
+    const afterList = await api(
+      `/api/v1/pins?roomId=${roomAId}`,
+      memberAuthUid,
+    );
+    const afterBody = (await afterList.json()) as {
+      data: Array<{ id: string }>;
+    };
+    expect(afterBody.data.some((p) => p.id === pinId)).toBe(false);
+
+    // DB에서 pin과 comment의 deletedAt이 설정되었는지 확인
+    const [pinRow] = await db.select().from(pins).where(eq(pins.id, pinId));
+    expect(pinRow?.deletedAt).not.toBeNull();
+
+    const [commentRow] = await db
+      .select()
+      .from(pinComments)
+      .where(eq(pinComments.id, commentId));
+    expect(commentRow?.deletedAt).not.toBeNull();
+  });
+
+  it("이미 삭제되었거나 존재하지 않는 핀은 404를 반환한다", async () => {
+    const fakePinId = randomUUID();
+    const response = await api(`/api/v1/pins/${fakePinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(response.status).toBe(404);
+    const body = (await response.json()) as { errorCode: string };
+    expect(body.errorCode).toBe("PIN_NOT_FOUND");
+  });
+
+  it("같은 핀을 두 번 삭제하면 두 번째 요청은 404를 반환한다", async () => {
+    const [dupPlace] = await db
+      .insert(places)
+      .values({
+        provider: "kakao",
+        providerPlaceId: `e2e-dup-del-${randomUUID()}`,
+        name: "중복 삭제 테스트 장소",
+        address: "서울시 강남구",
+        lat: 37.5,
+        lng: 127.0,
+      })
+      .returning();
+
+    const [testPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: dupPlace?.id ?? "",
+        createdBy: memberId,
+      })
+      .returning();
+    const pinId = testPin?.id ?? "";
+
+    // 1차 삭제: 200
+    const res1 = await api(`/api/v1/pins/${pinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(res1.status).toBe(200);
+
+    // 2차 삭제 (이미 삭제된 핀): 404
+    const res2 = await api(`/api/v1/pins/${pinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(res2.status).toBe(404);
+    const body2 = (await res2.json()) as { errorCode: string };
+    expect(body2.errorCode).toBe("PIN_NOT_FOUND");
+  });
+
+  it("핀 삭제 후 같은 장소를 해당 방에 다시 저장할 수 있다 (partial unique index 검증)", async () => {
+    const [rePlace] = await db
+      .insert(places)
+      .values({
+        provider: "kakao",
+        providerPlaceId: `e2e-re-add-${randomUUID()}`,
+        name: "재등록 테스트 장소",
+        address: "서울시 마포구",
+        lat: 37.55,
+        lng: 126.92,
+      })
+      .returning();
+    const placeId = rePlace?.id ?? "";
+
+    // 최초 핀 추가 및 삭제
+    const [firstPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId,
+        createdBy: memberId,
+      })
+      .returning();
+    const firstPinId = firstPin?.id ?? "";
+
+    const delRes = await api(`/api/v1/pins/${firstPinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(delRes.status).toBe(200);
+
+    // 삭제된 후 같은 방에 같은 placeId로 새 핀 생성 성공 (유니크 제약 충돌 없음)
+    const [secondPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId,
+        createdBy: memberId,
+      })
+      .returning();
+    expect(secondPin?.id).toBeDefined();
+
+    // 목록에 새 핀이 조회됨
+    const listRes = await api(`/api/v1/pins?roomId=${roomAId}`, memberAuthUid);
+    const listBody = (await listRes.json()) as { data: Array<{ id: string }> };
+    expect(listBody.data.some((p) => p.id === secondPin?.id)).toBe(true);
+  });
+
+  it("삭제된 핀에 코멘트 작성 시 404를 반환한다 (동시성 안전)", async () => {
+    const [cmtPlace] = await db
+      .insert(places)
+      .values({
+        provider: "kakao",
+        providerPlaceId: `e2e-cmt-del-${randomUUID()}`,
+        name: "코멘트 삭제 경합 장소",
+        address: "서울시 성동구",
+        lat: 37.54,
+        lng: 127.05,
+      })
+      .returning();
+
+    const [cmtPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: cmtPlace?.id ?? "",
+        createdBy: memberId,
+      })
+      .returning();
+    const pinId = cmtPin?.id ?? "";
+
+    // 핀 삭제
+    await api(`/api/v1/pins/${pinId}`, memberAuthUid, { method: "DELETE" });
+
+    // 삭제된 핀에 코멘트 작성 시도 -> 404
+    const res = await api(`/api/v1/pins/${pinId}/comments`, memberAuthUid, {
+      method: "POST",
+      body: JSON.stringify({ content: "삭제된 핀에 코멘트 달기 시도" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("삭제 요청과 코멘트 작성 요청이 동시에 실행되어도 활성 코멘트가 남지 않는다 (동시성 잠금 검증)", async () => {
+    const [racePlace] = await db
+      .insert(places)
+      .values({
+        provider: "kakao",
+        providerPlaceId: `e2e-race-${randomUUID()}`,
+        name: "동시성 경합 테스트 장소",
+        address: "서울시 용산구",
+        lat: 37.53,
+        lng: 126.97,
+      })
+      .returning();
+
+    const [racePin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: racePlace?.id ?? "",
+        createdBy: memberId,
+      })
+      .returning();
+    const pinId = racePin?.id ?? "";
+
+    // 의도적으로 삭제 요청과 5개의 코멘트 작성 요청을 Promise.all로 동시 발송
+    const commentPromises = Array.from({ length: 5 }, (_, i) =>
+      api(`/api/v1/pins/${pinId}/comments`, memberAuthUid, {
+        method: "POST",
+        body: JSON.stringify({ content: `동시 코멘트 ${i}` }),
+      }),
+    );
+    const deletePromise = api(`/api/v1/pins/${pinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+
+    const [deleteRes, ...commentResponses] = await Promise.all([
+      deletePromise,
+      ...commentPromises,
+    ]);
+
+    // 삭제는 반드시 성공(200)해야 함
+    expect(deleteRes.status).toBe(200);
+
+    // 코멘트 요청은 직렬화 잠금에 의해 200(삭제 전 처리) 또는 404(삭제 후 처리) 중 하나여야 함
+    for (const cRes of commentResponses) {
+      expect([200, 404]).toContain(cRes.status);
+    }
+
+    // 핵심 무결성 검증: 핀이 삭제되었으므로 해당 핀에 속한 '활성 상태(deleted_at is null)'인 코멘트는 반드시 0개!
+    const [pinRow] = await db.select().from(pins).where(eq(pins.id, pinId));
+    expect(pinRow?.deletedAt).not.toBeNull();
+
+    const activeComments = await db
+      .select()
+      .from(pinComments)
+      .where(and(eq(pinComments.pinId, pinId), isNull(pinComments.deletedAt)));
+    expect(activeComments).toHaveLength(0);
+  });
+
+  it("방 멤버가 아닌 유저가 핀 삭제 시 403을 반환한다", async () => {
+    const response = await api(`/api/v1/pins/${firstPinId}`, outsiderAuthUid, {
+      method: "DELETE",
+    });
+    expect(response.status).toBe(403);
+    const body = (await response.json()) as { errorCode: string };
+    expect(body.errorCode).toBe("NOT_ROOM_MEMBER");
+  });
+
+  it("유효하지 않은 UUID는 400을 반환한다", async () => {
+    const response = await api("/api/v1/pins/not-a-uuid", memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(response.status).toBe(400);
   });
 });
