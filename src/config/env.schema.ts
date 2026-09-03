@@ -73,6 +73,83 @@ const envSchema = v.pipe(
      * local: `bun run start:local` 전용. enqueue는 no-op이고 워커 guard는 non-production에서만 우회한다.
      */
     CLOUD_TASKS_MODE: v.optional(v.picklist(["cloud", "local"]), "cloud"),
+
+    /*
+     * ── 초대 링크(유니버설 링크 / App Links) ─────────────────────────────
+     *
+     * 아래 값들은 전부 앱팀에서 받아야 한다. 저장소에는 원래 하나도 없었고,
+     * 도메인이 "이 앱을 인정한다"고 증명하는 데 쓰인다.
+     *
+     * 값이 비어 있으면 해당 플랫폼의 `.well-known`이 404가 된다.
+     * 앱 부팅은 막지 않는다 — 아직 인정하지 않는 상태가 곧 맞는 표현이라서다.
+     */
+
+    // 초대 링크가 올라가는 오리진. api.gguk.org가 아니라 apex(gguk.org)다.
+    APP_WEB_ORIGIN: v.optional(
+      v.pipe(v.string(), v.url(), v.startsWith("https://")),
+      "https://gguk.org",
+    ),
+    /*
+     * [앱팀 요청] iOS Team ID — 10자.
+     * Apple Developer > Membership. AASA의 appIDs 앞부분이 된다.
+     */
+    IOS_TEAM_ID: v.optional(v.pipe(v.string(), v.length(10))),
+    /*
+     * [앱팀 요청] iOS Bundle ID — 쉼표로 여러 개.
+     * dev/staging 번들이 따로 있으면 전부 넣어야 그 빌드에서도 링크가 열린다.
+     * 예: com.mashup.teamMino,com.mashup.teamMino.dev
+     */
+    IOS_BUNDLE_IDS: v.optional(v.pipe(v.string(), v.minLength(1))),
+    /*
+     * [앱팀 요청] App Store 숫자 ID. App Store Connect에 앱을 등록하면 발급된다.
+     * 랜딩의 "App Store에서 받기" 링크에만 쓴다.
+     */
+    IOS_APP_STORE_ID: v.optional(v.pipe(v.string(), v.regex(/^\d+$/))),
+    /*
+     * [앱팀 협의] iOS 커스텀 스킴. 유니버설 링크가 아니라 별도 메커니즘이다.
+     * 카카오톡 인앱 브라우저는 유니버설 링크를 발동시키지 않아서, 앱이 깔린
+     * 사용자를 앱으로 보내는 유일한 수단이 이것이다.
+     */
+    IOS_URL_SCHEME: v.optional(v.pipe(v.string(), v.minLength(1)), "gguk"),
+    /*
+     * Android 배포 패키지명.
+     * assetlinks.json의 배포 엔트리와 intent:// 링크의 package= 양쪽에 쓴다.
+     */
+    ANDROID_PACKAGE_NAME: v.optional(v.pipe(v.string(), v.minLength(1))),
+    /*
+     * 배포 패키지의 SHA-256 지문 — 쉼표로 둘.
+     *   1. 업로드 키 (Play에 올리는 aab 서명 키)
+     *   2. Play 앱 서명 키 (Play Console > 설정 > 앱 무결성 > 앱 서명 키 인증서)
+     *
+     * 2번이 빠지는 실수가 잦다. Play App Signing을 쓰면 구글이 aab를 다시 서명하므로
+     * 사용자 기기에 깔리는 앱의 지문은 2번이다. 빠뜨리면 프로덕션에서만 링크가 열리지 않는다.
+     */
+    ANDROID_SHA256_FINGERPRINTS: v.optional(v.pipe(v.string(), v.minLength(1))),
+    /*
+     * 디버그 빌드의 패키지명. 배포 빌드와 applicationId가 다르면 반드시 필요하다.
+     *
+     * Digital Asset Links는 한 엔트리에 패키지를 하나만 담는다. 그래서 지문만 위
+     * 목록에 더해서는 그 빌드의 App Links가 검증되지 않고, 패키지별 엔트리가 있어야 한다.
+     *
+     * 미설정이면 엔트리를 만들지 않는다. 디버그 빌드에서 링크가 열리지 않을 뿐 배포와는 무관하다.
+     */
+    ANDROID_DEBUG_PACKAGE_NAME: v.optional(v.pipe(v.string(), v.minLength(1))),
+    /** 디버그 패키지의 SHA-256 지문 — 쉼표로 여러 개. */
+    ANDROID_DEBUG_SHA256_FINGERPRINTS: v.optional(
+      v.pipe(v.string(), v.minLength(1)),
+    ),
+    /*
+     * [디자인 요청] 공유 카드 이미지 URL. 절대 URL이어야 크롤러가 읽는다.
+     *
+     * 규격 1200x630 (landing.template.ts의 OG_IMAGE_WIDTH/HEIGHT와 같아야 한다).
+     * 카카오톡·iMessage·X·슬랙이 모두 이 한 장을 쓴다. PNG 또는 JPG.
+     *
+     * 카카오톡이 OG를 캐싱하므로, 링크를 뿌린 뒤에 넣으면 이미 공유된 카드는
+     * 바뀌지 않는다. 첫 배포 전에 채워야 한다.
+     */
+    OG_IMAGE_URL: v.optional(
+      v.pipe(v.string(), v.url(), v.startsWith("https://")),
+    ),
   }),
   /*
    * 운영(production)에서는 Cloud Tasks가 호출할 APP_BASE_URL이 반드시 https여야 한다.
