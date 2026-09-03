@@ -623,7 +623,7 @@ PR #44에서 8개 테이블이 정의·머지됐다. **모든 테이블에 soft 
 ### [004] 방 상세 · 권한
 
 - **방 > API > 방 상세 조회** — `GET /rooms/{roomId}`
-  - 방 정보 + 핀 리스트(지도뷰용 좌표 포함, **지도 핀은 전체 반환**). 멤버십 검증. 목록 정렬 5종·카테고리 필터 3종 파라미터 포함.
+  - 방 정보와 핀 수·멤버 수 메타를 반환하고 멤버십을 검증한다. 핀 목록의 정렬·카테고리 필터는 `GET /api/v1/pins?roomId=...`에서 지원한다.
 - **방 > API > 방 편집** — `PATCH /rooms/{roomId}`
   - 이름·색상 수정. **방장 권한 검증**.
 - **방 > API > 방 나가기 · 방장 위임** — `DELETE /rooms/{roomId}/members/me`, `PUT /rooms/{roomId}/owner`, `GET /rooms/{roomId}/members`
