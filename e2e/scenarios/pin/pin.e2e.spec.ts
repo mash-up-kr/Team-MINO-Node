@@ -2,12 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { count, eq } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 import { AppModule } from "../../../src/app.module";
 import { DatabaseService } from "../../../src/infrastructures/db/database.service";
 import { pins } from "../../../src/modules/pin/pin.schema";
 import { pinAccesses } from "../../../src/modules/pin/pin-access.schema";
+import { pinComments } from "../../../src/modules/pin/pin-comment.schema";
 import { places } from "../../../src/modules/place/place.schema";
+import { classifyPlaceCategory } from "../../../src/modules/place/place.util";
 import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { sources } from "../../../src/modules/source/source.schema";
@@ -26,6 +28,8 @@ let roomAId: string;
 let roomBId: string;
 let outsiderRoomId: string;
 let firstPinId: string;
+let secondPinId: string;
+let thirdPinId: string;
 let placeIds: string[] = [];
 const sourceUrl = `https://www.instagram.com/p/e2e-${randomUUID()}/`;
 
@@ -85,16 +89,40 @@ beforeAll(async () => {
     { roomId: outsiderRoomId, userId: outsiderId },
   ]);
 
+  const placeDefs = [
+    {
+      name: "장소 0 (카페)",
+      category: "음식점 > 카페 > 디저트카페",
+      lat: 37.5445,
+      lng: 127.0559,
+    },
+    {
+      name: "장소 1 (식당)",
+      category: "음식점 > 한식 > 고기구이",
+      lat: 37.5545,
+      lng: 127.0559,
+    },
+    {
+      name: "장소 2 (기타)",
+      category: "가정,생활 > 문구,사무용품",
+      lat: 37.5645,
+      lng: 127.0559,
+    },
+  ];
+
   const seededPlaces = await db
     .insert(places)
     .values(
-      [0, 1, 2].map((n) => ({
+      placeDefs.map((def, n) => ({
         provider: "kakao" as const,
         providerPlaceId: `e2e-place-${randomUUID()}`,
-        name: `장소 ${n}`,
+        name: def.name,
+        category: def.category,
+        // 운영에서는 place upsert가 채우는 값이라 픽스처도 같은 분류기를 쓴다.
+        categoryGroup: classifyPlaceCategory(def.category),
         address: "서울 성동구 상원4길 10",
-        lat: 37.5445 + n * 0.001,
-        lng: 127.0559,
+        lat: def.lat,
+        lng: def.lng,
         externalUrl: "https://place.map.kakao.com/123",
         images: [`https://img.example.com/${n}.jpg`],
       })),
@@ -107,6 +135,7 @@ beforeAll(async () => {
     .values({ type: "instagram", originalUrl: sourceUrl })
     .returning({ id: sources.id });
 
+  const now = Date.now();
   const seededPins = await db
     .insert(pins)
     .values(
@@ -115,10 +144,27 @@ beforeAll(async () => {
         placeId,
         sourceId: index === 0 ? (source?.id as string) : null,
         createdBy: memberId,
+        // Pin 0: 3일 전, Pin 1: 2일 전, Pin 2: 1일 전
+        createdAt: new Date(now - (3 - index) * 86_400_000),
       })),
     )
     .returning({ id: pins.id });
   firstPinId = seededPins[0]?.id as string;
+  secondPinId = seededPins[1]?.id as string;
+  thirdPinId = seededPins[2]?.id as string;
+
+  // Pin 0에 코멘트 2개 추가 (commented 정렬 1위용)
+  await db.insert(pinComments).values([
+    { pinId: firstPinId, createdBy: memberId, content: "댓글 1" },
+    { pinId: firstPinId, createdBy: memberId, content: "댓글 2" },
+  ]);
+
+  // Pin 2에 접근 기록 추가 (오늘 열람 -> staleness가 오늘이 되어 ggukPick 최후순위로 밀림)
+  await db.insert(pinAccesses).values({
+    pinId: thirdPinId,
+    userId: memberId,
+    createdAt: new Date(now),
+  });
 });
 
 afterAll(async () => {
@@ -126,6 +172,48 @@ afterAll(async () => {
 });
 
 describe("핀 목록 조회", () => {
+  it("roomId 없이 조회하면 내 모든 활성 방의 핀만 반환한다", async () => {
+    const placeId = placeIds[0];
+    if (!placeId) {
+      throw new Error("전체 방 조회용 장소 시드가 없습니다.");
+    }
+    const seededPins = await db
+      .insert(pins)
+      .values([
+        {
+          roomId: roomBId,
+          placeId,
+          createdBy: memberId,
+        },
+        {
+          roomId: outsiderRoomId,
+          placeId,
+          createdBy: memberId,
+        },
+      ])
+      .returning({ id: pins.id });
+    const roomBPinId = seededPins[0]?.id;
+    const outsiderPinId = seededPins[1]?.id;
+    if (!roomBPinId || !outsiderPinId) {
+      throw new Error("전체 방 조회용 핀 시드에 실패했습니다.");
+    }
+
+    const response = await api("/api/v1/pins", memberAuthUid);
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { data: Array<{ id: string }> };
+    const ids = body.data.map((pin) => pin.id);
+    expect(ids).toContain(roomBPinId);
+    expect(ids).not.toContain(outsiderPinId);
+
+    await db.delete(pins).where(
+      inArray(
+        pins.id,
+        seededPins.map((pin) => pin.id),
+      ),
+    );
+  });
+
   it("page/pageSize 미지정 시 전체를 반환하고 pagination이 없다", async () => {
     const response = await api(`/api/v1/pins?roomId=${roomAId}`, memberAuthUid);
 
@@ -147,6 +235,119 @@ describe("핀 목록 조회", () => {
     expect(pin.images).toHaveLength(1);
     expect(pin.createdBy.userId).toBe(memberId);
     expect(pin.createdBy.nickname).toBe("핀러버");
+  });
+
+  it("기본 정렬(sort=all 및 sort=latest)은 최신 저장순으로 반환한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=latest`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    // Pin 2(1일 전) > Pin 1(2일 전) > Pin 0(3일 전)
+    expect(body.data.map((p) => p.id)).toEqual([
+      thirdPinId,
+      secondPinId,
+      firstPinId,
+    ]);
+  });
+
+  it("sort=ggukPick은 오래 들여다보지 않은 순서로 반환한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=ggukPick`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    // Pin 0(3일 전 미열람) > Pin 1(2일 전 미열람) > Pin 2(오늘 열람)
+    expect(body.data.map((p) => p.id)).toEqual([
+      firstPinId,
+      secondPinId,
+      thirdPinId,
+    ]);
+  });
+
+  it("sort=distance는 요청 좌표와 가까운 순서로 반환한다", async () => {
+    // Pin 2 좌표: (37.5645, 127.0559) 바로 근처에서 조회
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=distance&lat=37.5645&lng=127.0559`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    // Pin 2 (거리 0m) > Pin 1 (약 1.1km) > Pin 0 (약 2.2km)
+    expect(body.data.map((p) => p.id)).toEqual([
+      thirdPinId,
+      secondPinId,
+      firstPinId,
+    ]);
+  });
+
+  it("sort=distance인데 lat/lng가 없으면 400 에러를 반환한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=distance`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("sort=commented는 코멘트가 많은 순서로 반환한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=commented`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    // Pin 0(코멘트 2개) > Pin 2(최신, 0개) > Pin 1(0개)
+    expect(body.data[0]?.id).toBe(firstPinId);
+  });
+
+  it("category=cafe는 카페 장소만 필터링한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=cafe`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string; place: { category: string } }>;
+    };
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]?.id).toBe(firstPinId);
+    expect(body.data[0]?.place.category).toContain("카페");
+  });
+
+  it("category=restaurant는 카페를 제외한 음식점 장소만 필터링한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=restaurant`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string; place: { category: string } }>;
+    };
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]?.id).toBe(secondPinId);
+    expect(body.data[0]?.place.category).toContain("한식");
+  });
+
+  it("category=all은 모든 카테고리를 반환한다", async () => {
+    const response = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=all`,
+      memberAuthUid,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Array<{ id: string }>;
+    };
+    expect(body.data).toHaveLength(3);
   });
 
   it("페이지네이션을 지정하면 pagination 메타가 함께 온다", async () => {
@@ -175,6 +376,100 @@ describe("핀 목록 조회", () => {
     };
     expect(secondBody.data).toHaveLength(1);
     expect(secondBody.pagination.hasNext).toBe(false);
+  });
+
+  it("Google provider 장소의 미매핑 카테고리(bar)는 전체(all)에서만 보인다", async () => {
+    const [googlePlace] = await db
+      .insert(places)
+      .values({
+        provider: "google",
+        providerPlaceId: `google-bar-${randomUUID()}`,
+        name: "구글 루프탑 바",
+        category: "bar",
+        categoryGroup: classifyPlaceCategory("bar"),
+        address: "서울 강남구 테헤란로 1",
+        lat: 37.5,
+        lng: 127.0,
+      })
+      .returning();
+    const [googlePin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: googlePlace!.id,
+        createdBy: memberId,
+      })
+      .returning();
+
+    const allRes = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=all`,
+      memberAuthUid,
+    );
+    const allBody = (await allRes.json()) as { data: Array<{ id: string }> };
+    expect(allBody.data.some((p) => p.id === googlePin!.id)).toBe(true);
+
+    const cafeRes = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=cafe`,
+      memberAuthUid,
+    );
+    const cafeBody = (await cafeRes.json()) as { data: Array<{ id: string }> };
+    expect(cafeBody.data.some((p) => p.id === googlePin!.id)).toBe(false);
+
+    const restRes = await api(
+      `/api/v1/pins?roomId=${roomAId}&category=restaurant`,
+      memberAuthUid,
+    );
+    const restBody = (await restRes.json()) as { data: Array<{ id: string }> };
+    expect(restBody.data.some((p) => p.id === googlePin!.id)).toBe(false);
+
+    await db.delete(pins).where(eq(pins.id, googlePin!.id));
+    await db.delete(places).where(eq(places.id, googlePlace!.id));
+  });
+
+  it("soft-deleted 핀은 목록에서 격리되어 보이지 않는다", async () => {
+    const [deletedPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: placeIds[0]!,
+        createdBy: memberId,
+        deletedAt: new Date(),
+      })
+      .returning();
+
+    const res = await api(`/api/v1/pins?roomId=${roomAId}`, memberAuthUid);
+    const body = (await res.json()) as { data: Array<{ id: string }> };
+    expect(body.data.some((p) => p.id === deletedPin!.id)).toBe(false);
+
+    await db.delete(pins).where(eq(pins.id, deletedPin!.id));
+  });
+
+  it("soft-deleted 코멘트는 commented 정렬 카운트에서 제외된다", async () => {
+    const delComments = await db
+      .insert(pinComments)
+      .values(
+        [1, 2, 3, 4, 5].map((i) => ({
+          pinId: secondPinId,
+          createdBy: memberId,
+          content: `삭제된 코멘트 ${i}`,
+          deletedAt: new Date(),
+        })),
+      )
+      .returning();
+
+    const res = await api(
+      `/api/v1/pins?roomId=${roomAId}&sort=commented`,
+      memberAuthUid,
+    );
+    const body = (await res.json()) as { data: Array<{ id: string }> };
+    expect(body.data[0]?.id).toBe(firstPinId);
+
+    await db.delete(pinComments).where(
+      inArray(
+        pinComments.id,
+        delComments.map((c) => c.id),
+      ),
+    );
   });
 
   it("방 멤버가 아니면 403", async () => {

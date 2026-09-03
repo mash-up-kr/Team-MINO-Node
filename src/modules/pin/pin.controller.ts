@@ -32,9 +32,10 @@ export class PinController {
   @ApiOperation({
     summary: "핀 목록 조회",
     description:
-      "roomId의 핀 목록(좌표 포함). page/pageSize 미지정 시 전체 반환(지도 전체 보기), 지정 시 offset 페이지네이션.",
+      "roomId 지정 시 해당 방, 미지정 시 요청 유저의 모든 활성 방 핀 목록(좌표 포함). 5종 정렬(all, ggukPick, latest, distance, commented) 및 3종 카테고리 필터(all, cafe, restaurant) 지원. page/pageSize 미지정 시 전체 반환(지도 전체 보기), 지정 시 offset 페이지네이션.",
   })
   @ApiResponse({ status: 200, schema: pinListResponseApiSchema })
+  @ApiResponse({ status: 400, schema: errorResponseApiSchema })
   @ApiResponse({ status: 403, schema: errorResponseApiSchema })
   listPins(
     @CurrentUser() user: RequestUser,
