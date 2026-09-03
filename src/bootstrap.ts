@@ -1,5 +1,5 @@
 import { ConfigService } from "@nestjs/config";
-import { NestFactory } from "@nestjs/core";
+import { NestFactory, Reflector } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { Logger } from "nestjs-pino";
 import { BunHonoAdapter } from "./adapters/bun-hono.adapter";
@@ -19,7 +19,7 @@ export async function bootstrap(): Promise<void> {
   const errorReporter = app.get(SentryErrorReporter);
   app.useLogger(logger);
   app.useGlobalFilters(new HttpExceptionFilter(errorReporter));
-  app.useGlobalInterceptors(new ResponseInterceptor());
+  app.useGlobalInterceptors(new ResponseInterceptor(app.get(Reflector)));
   app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()
