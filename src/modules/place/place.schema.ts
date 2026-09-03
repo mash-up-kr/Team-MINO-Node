@@ -12,6 +12,13 @@ import {
 export const PLACE_PROVIDERS = ["kakao", "google"] as const;
 export type PlaceProvider = (typeof PLACE_PROVIDERS)[number];
 
+/**
+ * 카테고리 필터용 그룹. provider가 주는 원본 문자열(category)은 표기가 제각각이라
+ * 저장 시점에 한 번 분류해 두고, 조회는 이 컬럼만 비교한다(classifyPlaceCategory).
+ */
+export const PLACE_CATEGORY_GROUPS = ["cafe", "restaurant", "other"] as const;
+export type PlaceCategoryGroup = (typeof PLACE_CATEGORY_GROUPS)[number];
+
 export const places = pgTable(
   "places",
   {
@@ -27,6 +34,10 @@ export const places = pgTable(
     lat: numeric({ mode: "number", precision: 10, scale: 7 }).notNull(),
     lng: numeric({ mode: "number", precision: 10, scale: 7 }).notNull(),
     category: varchar({ length: 64 }),
+    categoryGroup: varchar({ length: 16 })
+      .$type<PlaceCategoryGroup>()
+      .notNull()
+      .default("other"),
     phone: varchar({ length: 32 }),
     externalUrl: text(),
     images: jsonb().$type<string[]>(),
