@@ -3,6 +3,7 @@ import { describe, expect, it, jest } from "bun:test";
 import { Test } from "@nestjs/testing";
 import { AppException } from "../../common/exceptions/app.exception";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
+import { RoomRepository } from "../room/room.repository";
 import { SourceRepository } from "../source/source.repository";
 import { PinRepository } from "./pin.repository";
 import { PinService } from "./pin.service";
@@ -25,6 +26,7 @@ describe("PinService.enqueueRoomPins", () => {
       providers: [
         PinService,
         { provide: PinRepository, useValue: pinRepository },
+        { provide: RoomRepository, useValue: {} },
         { provide: SourceRepository, useValue: sourceRepository },
         { provide: TasksService, useValue: tasksService },
       ],

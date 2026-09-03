@@ -115,6 +115,29 @@ export class RoomRepository extends BaseRepository {
     return sql<boolean>`${exists(this.memberSubquery(userId))}`;
   }
 
+  /**
+   * 방이 활성이고 요청 유저가 그 방의 활성 멤버인지 — roomId 기준 단건 판정.
+   * 방에 소속된 리소스(핀·카드)의 접근 권한 검사에 쓴다.
+   */
+  async isActiveMember(roomId: string, userId: string): Promise<boolean> {
+    const [membership] = await this.db
+      .select({ one: sql`1` })
+      .from(roomMembers)
+      .innerJoin(
+        rooms,
+        and(eq(roomMembers.roomId, rooms.id), isNull(rooms.deletedAt)),
+      )
+      .where(
+        and(
+          eq(roomMembers.roomId, roomId),
+          eq(roomMembers.userId, userId),
+          isNull(roomMembers.deletedAt),
+        ),
+      )
+      .limit(1);
+    return membership !== undefined;
+  }
+
   /** 방 상세/나가기 — 핀 수·멤버 수·요청 유저 멤버십까지 한 쿼리로 조회한다. */
   async findActiveByIdForUser(
     roomId: string,
