@@ -63,16 +63,29 @@ export class CommentRepository {
   }
 
   async create(pinId: string, createdBy: string, content: string) {
-    const [comment] = await this.db
-      .insert(pinComments)
-      .values({ pinId, createdBy, content })
-      .returning({
-        id: pinComments.id,
-        content: pinComments.content,
-        createdAt: pinComments.createdAt,
-      });
+    return await this.db.transaction(async (tx) => {
+      // 핀이 활성 상태인지 row lock(FOR SHARE)으로 확인하여 동시 삭제와의 경합을 직렬화한다.
+      const [pin] = await tx
+        .select({ id: pins.id })
+        .from(pins)
+        .where(and(eq(pins.id, pinId), isNull(pins.deletedAt)))
+        .for("share");
 
-    return comment;
+      if (!pin) {
+        return undefined;
+      }
+
+      const [comment] = await tx
+        .insert(pinComments)
+        .values({ pinId, createdBy, content })
+        .returning({
+          id: pinComments.id,
+          content: pinComments.content,
+          createdAt: pinComments.createdAt,
+        });
+
+      return comment;
+    });
   }
 
   async findActiveComment(pinId: string, commentId: string) {

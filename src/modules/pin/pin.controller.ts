@@ -1,4 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+} from "@nestjs/common";
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequireCurrentUser } from "../../common/decorators/require-current-user.decorator";
@@ -98,6 +106,25 @@ export class PinController {
     @Param("pinId", new ValibotPipe(uuidParamSchema)) pinId: string,
   ): Promise<typeof OK> {
     await this.pinService.recordAccess(user.id, pinId);
+    return OK;
+  }
+
+  @Delete(":pinId")
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "장소(핀) 삭제",
+    description:
+      "해당 방에서 핀과 관련 코멘트를 soft delete한다. 방 멤버만 삭제 가능.",
+  })
+  @ApiResponse({ status: 200, schema: okResponseApiSchema })
+  @ApiResponse({ status: 400, schema: errorResponseApiSchema })
+  @ApiResponse({ status: 403, schema: errorResponseApiSchema })
+  @ApiResponse({ status: 404, schema: errorResponseApiSchema })
+  async deletePin(
+    @CurrentUser() user: RequestUser,
+    @Param("pinId", new ValibotPipe(uuidParamSchema)) pinId: string,
+  ): Promise<typeof OK> {
+    await this.pinService.deletePin(user.id, pinId);
     return OK;
   }
 }
