@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { AppModule } from "../../../src/app.module";
 import { DatabaseService } from "../../../src/infrastructures/db/database.service";
 import { pins } from "../../../src/modules/pin/pin.schema";
@@ -784,6 +784,64 @@ describe("장소(핀) 삭제", () => {
       body: JSON.stringify({ content: "삭제된 핀에 코멘트 달기 시도" }),
     });
     expect(res.status).toBe(404);
+  });
+
+  it("삭제 요청과 코멘트 작성 요청이 동시에 실행되어도 활성 코멘트가 남지 않는다 (동시성 잠금 검증)", async () => {
+    const [racePlace] = await db
+      .insert(places)
+      .values({
+        provider: "kakao",
+        providerPlaceId: `e2e-race-${randomUUID()}`,
+        name: "동시성 경합 테스트 장소",
+        address: "서울시 용산구",
+        lat: 37.53,
+        lng: 126.97,
+      })
+      .returning();
+
+    const [racePin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: racePlace?.id ?? "",
+        createdBy: memberId,
+      })
+      .returning();
+    const pinId = racePin?.id ?? "";
+
+    // 의도적으로 삭제 요청과 5개의 코멘트 작성 요청을 Promise.all로 동시 발송
+    const commentPromises = Array.from({ length: 5 }, (_, i) =>
+      api(`/api/v1/pins/${pinId}/comments`, memberAuthUid, {
+        method: "POST",
+        body: JSON.stringify({ content: `동시 코멘트 ${i}` }),
+      }),
+    );
+    const deletePromise = api(`/api/v1/pins/${pinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+
+    const [deleteRes, ...commentResponses] = await Promise.all([
+      deletePromise,
+      ...commentPromises,
+    ]);
+
+    // 삭제는 반드시 성공(200)해야 함
+    expect(deleteRes.status).toBe(200);
+
+    // 코멘트 요청은 직렬화 잠금에 의해 200(삭제 전 처리) 또는 404(삭제 후 처리) 중 하나여야 함
+    for (const cRes of commentResponses) {
+      expect([200, 404]).toContain(cRes.status);
+    }
+
+    // 핵심 무결성 검증: 핀이 삭제되었으므로 해당 핀에 속한 '활성 상태(deleted_at is null)'인 코멘트는 반드시 0개!
+    const [pinRow] = await db.select().from(pins).where(eq(pins.id, pinId));
+    expect(pinRow?.deletedAt).not.toBeNull();
+
+    const activeComments = await db
+      .select()
+      .from(pinComments)
+      .where(and(eq(pinComments.pinId, pinId), isNull(pinComments.deletedAt)));
+    expect(activeComments).toHaveLength(0);
   });
 
   it("방 멤버가 아닌 유저가 핀 삭제 시 403을 반환한다", async () => {
