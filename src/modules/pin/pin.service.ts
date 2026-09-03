@@ -235,7 +235,7 @@ export class PinService {
    */
   async deletePin(userId: string, pinId: string): Promise<void> {
     await this.findActivePinForUser(pinId, userId);
-    const deleted = await this.pinRepository.softDelete(pinId);
+    const deleted = await this.pinRepository.softDelete(pinId, userId);
     if (!deleted) {
       throw this.pinNotFound();
     }

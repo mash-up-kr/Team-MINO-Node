@@ -80,7 +80,7 @@ describe("PinService.deletePin", () => {
       "pin-id",
       "user-id",
     );
-    expect(pinRepository.softDelete).toHaveBeenCalledWith("pin-id");
+    expect(pinRepository.softDelete).toHaveBeenCalledWith("pin-id", "user-id");
   });
 
   it("핀이 존재하지 않으면 PIN_NOT_FOUND를 던진다", async () => {

@@ -234,12 +234,18 @@ export class PinRepository extends BaseRepository {
    * 핀에 달린 코멘트를 일괄 soft delete한다.
    * 성공 시 true, 이미 삭제되었거나 없으면 false를 반환한다.
    */
-  async softDelete(pinId: string): Promise<boolean> {
+  async softDelete(pinId: string, userId: string): Promise<boolean> {
     return await this.db.transaction(async (tx) => {
       const [deleted] = await tx
         .update(pins)
         .set({ deletedAt: new Date() })
-        .where(and(eq(pins.id, pinId), isNull(pins.deletedAt)))
+        .where(
+          and(
+            eq(pins.id, pinId),
+            isNull(pins.deletedAt),
+            exists(this.memberOfPinRoomSubquery(userId)),
+          ),
+        )
         .returning({ id: pins.id });
 
       if (!deleted) {
