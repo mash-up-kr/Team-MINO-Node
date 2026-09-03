@@ -230,10 +230,22 @@ export class PinRepository extends BaseRepository {
 
   /**
    * 핀과 그 핀에 달린 코멘트를 한 트랜잭션으로 soft delete한다.
+   * 핀을 먼저 갱신해 행 독점 잠금을 걸어 동시 코멘트 작성을 차단하고,
+   * 핀에 달린 코멘트를 일괄 soft delete한다.
    * 성공 시 true, 이미 삭제되었거나 없으면 false를 반환한다.
    */
   async softDelete(pinId: string): Promise<boolean> {
     return await this.db.transaction(async (tx) => {
+      const [deleted] = await tx
+        .update(pins)
+        .set({ deletedAt: new Date() })
+        .where(and(eq(pins.id, pinId), isNull(pins.deletedAt)))
+        .returning({ id: pins.id });
+
+      if (!deleted) {
+        return false;
+      }
+
       await tx
         .update(pinComments)
         .set({ deletedAt: new Date() })
@@ -241,13 +253,7 @@ export class PinRepository extends BaseRepository {
           and(eq(pinComments.pinId, pinId), isNull(pinComments.deletedAt)),
         );
 
-      const [deleted] = await tx
-        .update(pins)
-        .set({ deletedAt: new Date() })
-        .where(and(eq(pins.id, pinId), isNull(pins.deletedAt)))
-        .returning({ id: pins.id });
-
-      return deleted !== undefined;
+      return true;
     });
   }
 }

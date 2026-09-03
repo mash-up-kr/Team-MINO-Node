@@ -667,6 +667,125 @@ describe("장소(핀) 삭제", () => {
     expect(body.errorCode).toBe("PIN_NOT_FOUND");
   });
 
+  it("같은 핀을 두 번 삭제하면 두 번째 요청은 404를 반환한다", async () => {
+    const [dupPlace] = await db
+      .insert(places)
+      .values({
+        provider: "kakao",
+        providerPlaceId: `e2e-dup-del-${randomUUID()}`,
+        name: "중복 삭제 테스트 장소",
+        address: "서울시 강남구",
+        lat: 37.5,
+        lng: 127.0,
+      })
+      .returning();
+
+    const [testPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: dupPlace?.id ?? "",
+        createdBy: memberId,
+      })
+      .returning();
+    const pinId = testPin?.id ?? "";
+
+    // 1차 삭제: 200
+    const res1 = await api(`/api/v1/pins/${pinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(res1.status).toBe(200);
+
+    // 2차 삭제 (이미 삭제된 핀): 404
+    const res2 = await api(`/api/v1/pins/${pinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(res2.status).toBe(404);
+    const body2 = (await res2.json()) as { errorCode: string };
+    expect(body2.errorCode).toBe("PIN_NOT_FOUND");
+  });
+
+  it("핀 삭제 후 같은 장소를 해당 방에 다시 저장할 수 있다 (partial unique index 검증)", async () => {
+    const [rePlace] = await db
+      .insert(places)
+      .values({
+        provider: "kakao",
+        providerPlaceId: `e2e-re-add-${randomUUID()}`,
+        name: "재등록 테스트 장소",
+        address: "서울시 마포구",
+        lat: 37.55,
+        lng: 126.92,
+      })
+      .returning();
+    const placeId = rePlace?.id ?? "";
+
+    // 최초 핀 추가 및 삭제
+    const [firstPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId,
+        createdBy: memberId,
+      })
+      .returning();
+    const firstPinId = firstPin?.id ?? "";
+
+    const delRes = await api(`/api/v1/pins/${firstPinId}`, memberAuthUid, {
+      method: "DELETE",
+    });
+    expect(delRes.status).toBe(200);
+
+    // 삭제된 후 같은 방에 같은 placeId로 새 핀 생성 성공 (유니크 제약 충돌 없음)
+    const [secondPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId,
+        createdBy: memberId,
+      })
+      .returning();
+    expect(secondPin?.id).toBeDefined();
+
+    // 목록에 새 핀이 조회됨
+    const listRes = await api(`/api/v1/pins?roomId=${roomAId}`, memberAuthUid);
+    const listBody = (await listRes.json()) as { data: Array<{ id: string }> };
+    expect(listBody.data.some((p) => p.id === secondPin?.id)).toBe(true);
+  });
+
+  it("삭제된 핀에 코멘트 작성 시 404를 반환한다 (동시성 안전)", async () => {
+    const [cmtPlace] = await db
+      .insert(places)
+      .values({
+        provider: "kakao",
+        providerPlaceId: `e2e-cmt-del-${randomUUID()}`,
+        name: "코멘트 삭제 경합 장소",
+        address: "서울시 성동구",
+        lat: 37.54,
+        lng: 127.05,
+      })
+      .returning();
+
+    const [cmtPin] = await db
+      .insert(pins)
+      .values({
+        roomId: roomAId,
+        placeId: cmtPlace?.id ?? "",
+        createdBy: memberId,
+      })
+      .returning();
+    const pinId = cmtPin?.id ?? "";
+
+    // 핀 삭제
+    await api(`/api/v1/pins/${pinId}`, memberAuthUid, { method: "DELETE" });
+
+    // 삭제된 핀에 코멘트 작성 시도 -> 404
+    const res = await api(`/api/v1/pins/${pinId}/comments`, memberAuthUid, {
+      method: "POST",
+      body: JSON.stringify({ content: "삭제된 핀에 코멘트 달기 시도" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
   it("방 멤버가 아닌 유저가 핀 삭제 시 403을 반환한다", async () => {
     const response = await api(`/api/v1/pins/${firstPinId}`, outsiderAuthUid, {
       method: "DELETE",
