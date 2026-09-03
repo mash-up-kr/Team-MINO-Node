@@ -34,6 +34,40 @@ function escapeHtml(value: string): string {
 }
 
 /**
+ * 두 페이지가 공유하는 골격.
+ *
+ * 랜딩과 오류 페이지는 진입 경로가 달라 함수를 나누지만(하나는 핸들러가, 다른 하나는
+ * 예외 필터가 부른다), 보이는 뼈대는 같다. 스타일·메타를 한 곳에서만 고치도록 뽑는다.
+ *
+ * `head`와 `body`는 이미 만들어진 HTML이라 이스케이프하지 않는다. 호출부가 사용자
+ * 입력을 넣을 때 escapeHtml을 거치는 책임을 진다.
+ */
+function renderPage(page: {
+  title: string;
+  description: string;
+  head?: string;
+  body?: string;
+}): string {
+  return `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(page.title)}</title>
+${page.head ?? ""}
+<style>${BASE_STYLE}</style>
+</head>
+<body>
+<main>
+  <h1>${escapeHtml(page.title)}</h1>
+  <p class="meta">${escapeHtml(page.description)}</p>
+${page.body ?? ""}
+</main>
+</body>
+</html>`;
+}
+
+/**
  * 초대 랜딩 페이지.
  *
  * 이 페이지에 도달했다는 건 "앱이 안 열렸다"는 뜻이지 "앱이 없다"는 뜻이 아니다.
@@ -57,25 +91,16 @@ export function renderLanding(view: LandingView, inviteUrl: string): string {
       `장소 ${invitation.pinCount}개 · 멤버 ${invitation.memberCount}명`)
     : "링크가 만료되었거나 주소가 잘못되었을 수 있어요.";
 
-  return `<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(title)}</title>
-<meta property="og:type" content="website">
+  return renderPage({
+    title,
+    description: subtitle(view),
+    head: `<meta property="og:type" content="website">
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
 <meta property="og:url" content="${escapeHtml(inviteUrl)}">
 ${previewMetaTags(view, title)}
-${invitation ? "" : '<meta name="robots" content="noindex">'}
-<style>${BASE_STYLE}</style>
-</head>
-<body>
-<main>
-  <h1>${escapeHtml(title)}</h1>
-  <p class="meta">${escapeHtml(subtitle(view))}</p>
-
+${invitation ? "" : '<meta name="robots" content="noindex">'}`,
+    body: `
   <div class="actions">
     <a class="button primary" id="install" href="${escapeHtml(view.appStoreUrl ?? view.playStoreUrl ?? inviteUrl)}">설치하고 참여하기</a>
     <a class="button secondary" id="open-app" href="${escapeHtml(view.iosAppUrl)}">앱에서 열기</a>
@@ -85,10 +110,8 @@ ${invitation ? "" : '<meta name="robots" content="noindex">'}
     <span id="reopen-hint" hidden>앱을 설치한 뒤 <strong>이 링크를 다시 눌러</strong> 주세요.<br></span>
     초대 코드 <strong>${escapeHtml(view.code)}</strong>
   </p>
-</main>
-${platformScript(view)}
-</body>
-</html>`;
+${platformScript(view)}`,
+  });
 }
 
 /**
@@ -185,34 +208,27 @@ function platformScript(view: LandingView): string {
 }
 
 /**
- * 초대 링크가 유효하지 않을 때의 페이지.
+ * 랜딩을 그리지 못했을 때의 페이지.
  *
- * 랜딩은 사람이 브라우저로 여는 화면이라, 오타·삭제된 방·개인방 코드처럼
- * 충분히 흔한 경우에 JSON 오류 본문이 그대로 노출되면 안 된다.
+ * 여기로 오는 경우는 둘뿐이다 — 코드가 형식 검사를 통과하지 못했거나(400),
+ * 예기치 못한 오류가 났거나(500). 형식은 맞는데 없거나 만료된 코드는
+ * renderLanding이 200으로 그리므로 이쪽으로 오지 않는다.
+ *
+ * 그래서 앱으로 보내는 버튼이 없다. 형식이 틀린 코드로는 앱에 넘길 값 자체가
+ * 만들어지지 않기 때문이다.
+ *
  * `.well-known`은 OS가 읽는 파일이라 이 페이지를 쓰지 않는다(그쪽은 JSON 그대로).
  */
 export function renderLandingError(status: number): string {
   const message =
-    status === 404
-      ? "초대 링크를 찾을 수 없어요."
-      : status === 400
-        ? "초대 링크 형식이 올바르지 않아요."
-        : "초대 링크를 열 수 없어요.";
+    status === 400
+      ? "초대 링크 형식이 올바르지 않아요."
+      : "초대 링크를 열 수 없어요.";
 
-  return `<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(message)}</title>
-<meta name="robots" content="noindex">
-<style>${BASE_STYLE}</style>
-</head>
-<body>
-<main>
-  <h1>${escapeHtml(message)}</h1>
-  <p class="meta">링크가 만료되었거나 주소가 잘못되었을 수 있어요.<br>초대한 분에게 링크를 다시 받아주세요.</p>
-</main>
-</body>
-</html>`;
+  return renderPage({
+    title: message,
+    description:
+      "링크가 만료되었거나 주소가 잘못되었을 수 있어요. 초대한 분에게 링크를 다시 받아주세요.",
+    head: '<meta name="robots" content="noindex">',
+  });
 }
