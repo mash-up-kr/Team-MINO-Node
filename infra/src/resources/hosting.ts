@@ -23,12 +23,15 @@ const version = new gcp.firebase.HostingVersion(
     siteId: project,
     config: {
       /*
-       * Firebase Hosting은 appAssociation 기본값이 AUTO라, 요청하지 않아도
-       * /.well-known/apple-app-site-association을 직접 만들어 내려보낸다.
-       * (지금은 종료된 Dynamic Links 시절의 동작이다.)
-       * 그러면 Cloud Run이 서빙하는 우리 AASA가 가려져 iOS 링크가 열리지 않는다.
+       * Hosting에는 appAssociation(AUTO/NONE) 설정이 있지만 @pulumi/gcp의
+       * HostingVersionConfig는 headers·redirects·rewrites만 받아 여기서 끌 수 없다.
+       *
+       * AUTO는 Dynamic Links가 구성된 사이트에서만 자체 AASA를 만들어 내려보내고,
+       * Dynamic Links는 2025-08에 종료돼 생성 대상이 없다. 그래도 이게 켜지면
+       * Cloud Run이 서빙하는 우리 AASA가 가려지므로, 배포 후
+       * /.well-known/apple-app-site-association 응답이 우리 것인지 확인해야 한다.
+       * 실제로 가려지면 Firebase CLI나 Hosting REST API로 NONE을 설정한다.
        */
-      appAssociation: "NONE",
       headers: [
         {
           glob: "**",
