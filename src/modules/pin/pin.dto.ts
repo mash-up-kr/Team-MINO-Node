@@ -58,6 +58,7 @@ const coordinateSchema = (min: number, max: number, label: string) =>
     v.transform(Number),
     v.minValue(min),
     v.maxValue(max),
+    v.description("sort=distance일 때 필수"),
   );
 
 /**
@@ -67,9 +68,26 @@ const coordinateSchema = (min: number, max: number, label: string) =>
  */
 export const listPinsQuerySchema = v.pipe(
   v.object({
-    roomId: v.optional(uuidParamSchema),
-    sort: v.optional(v.picklist(PIN_SORT_OPTIONS), "all"),
-    category: v.optional(v.picklist(PIN_CATEGORY_OPTIONS), PIN_CATEGORY_ALL),
+    roomId: v.optional(
+      v.pipe(
+        uuidParamSchema,
+        v.description("방 UUID. 생략하면 내가 속한 모든 활성 방을 조회."),
+      ),
+    ),
+    sort: v.optional(
+      v.pipe(
+        v.picklist(PIN_SORT_OPTIONS),
+        v.description("기본값은 all. distance는 lat·lng가 필요."),
+      ),
+      "all",
+    ),
+    category: v.optional(
+      v.pipe(
+        v.picklist(PIN_CATEGORY_OPTIONS),
+        v.description("기본값은 all (전체)."),
+      ),
+      PIN_CATEGORY_ALL,
+    ),
     lat: v.optional(coordinateSchema(-90, 90, "lat")),
     lng: v.optional(coordinateSchema(-180, 180, "lng")),
     page: v.optional(pageQuerySchema),
