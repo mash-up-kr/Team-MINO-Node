@@ -29,6 +29,12 @@ export const placeQuerySchema = v.object({
       "A short phrase describing how the place relates to the post content.",
     ),
   ),
+  image_indices: v.pipe(
+    v.array(v.number()),
+    v.description(
+      "0-based indices of the provided images that show THIS place, in the order the images were given. Assign each image to at most one place. Return an empty array when no image clearly shows this place.",
+    ),
+  ),
 });
 
 export type PlaceQuery = v.InferOutput<typeof placeQuerySchema>;
@@ -62,6 +68,11 @@ export interface DuplicatedPlace {
 export interface PlaceMatch {
   /** 게시글에서 추출한 장소. */
   extracted: ExtractedPlace;
+  /**
+   * 이 장소에 해당하는 이미지의 공개 URL. 모델이 고른 인덱스를 검증해 추린 값이라
+   * 게시글 전체 이미지의 부분집합이다. 고르지 못했으면 전체로 폴백한다.
+   */
+  images: string[];
   /** 이 장소에 대한 지오코딩 후보(장소 내 랭킹순, 첫 번째가 최상위). 없으면 빈 배열. */
   matches: PlaceCandidate[];
   /** fulfilled 빈 배열과 provider 실패를 구분해 재시도 정책에 전달한다. */

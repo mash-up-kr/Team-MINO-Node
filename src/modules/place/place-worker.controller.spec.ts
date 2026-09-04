@@ -77,6 +77,7 @@ const CANDIDATE: GeoCandidate = {
 };
 
 const SUCCESSFUL_MATCH: PlaceMatch = {
+  images: [],
   extracted: {
     placeName: "어니언 성수",
     areaName: "성수동",
