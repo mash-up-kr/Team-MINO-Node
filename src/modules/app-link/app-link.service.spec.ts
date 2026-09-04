@@ -1,11 +1,16 @@
 import { describe, expect, it } from "bun:test";
+import { HttpStatus } from "@nestjs/common";
+import { AppException } from "../../common/exceptions/app.exception";
 import type { InvitationService } from "../invitation/invitation.service";
 import type { AppLinkConfig } from "./app-link.config";
 import { AppLinkService } from "./app-link.service";
 
 const CODE = "XL9AJC";
 
-function createService(overrides: Partial<AppLinkConfig> = {}) {
+function createService(
+  overrides: Partial<AppLinkConfig> = {},
+  preview?: () => Promise<unknown>,
+) {
   const config = {
     webOrigin: "https://gguk.org",
     appleAppIds: ["D2DRA3F792.com.mashup.teamMino"],
@@ -22,19 +27,21 @@ function createService(overrides: Partial<AppLinkConfig> = {}) {
   } as AppLinkConfig;
 
   const invitationService = {
-    preview: async () => ({
-      room: {
-        id: "room-id",
-        type: "shared" as const,
-        name: "우리끼리",
-        description: null,
-        color: "black",
-        pinCount: 12,
-        memberCount: 3,
-        members: [],
-      },
-      inviter: { nickname: "이영", avatar: null },
-    }),
+    preview:
+      preview ??
+      (async () => ({
+        room: {
+          id: "room-id",
+          type: "shared" as const,
+          name: "우리끼리",
+          description: null,
+          color: "black",
+          pinCount: 12,
+          memberCount: 3,
+          members: [],
+        },
+        inviter: { nickname: "이영", avatar: null },
+      })),
   } as unknown as InvitationService;
 
   return new AppLinkService(config, invitationService);
@@ -142,6 +149,36 @@ describe("AppLinkService", () => {
       }).landing(CODE);
 
       expect(appStoreUrl).toBeUndefined();
+    });
+  });
+
+  describe("미리보기 실패 처리", () => {
+    /*
+     * 코드가 잘못된 경우는 페이지를 그려야 한다. 앱이 설치돼 있으면 앱 쪽 에러
+     * 화면이 낫고, 미설치자에게는 설치 버튼을 보여줘야 한다.
+     */
+    it("4xx는 삼키고 방 정보만 비운다", async () => {
+      const service = createService({}, async () => {
+        throw new AppException("NOT_FOUND", "없음", HttpStatus.NOT_FOUND);
+      });
+
+      const view = await service.landing(CODE);
+
+      expect(view.invitation).toBeUndefined();
+      expect(view.iosAppUrl).toBe(`gguk://r/${CODE}`);
+    });
+
+    /*
+     * DB 장애까지 삼키면 장애가 "없는 초대"로 둔갑해 사용자에게도 Sentry에도
+     * 드러나지 않는다. 필터로 올려 오류 페이지와 5xx 보고로 이어지게 한다.
+     */
+    it("5xx는 되던진다", async () => {
+      const failure = new Error("connection refused");
+      const service = createService({}, async () => {
+        throw failure;
+      });
+
+      expect(service.landing(CODE)).rejects.toThrow(failure);
     });
   });
 

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { InvitationService } from "../invitation/invitation.service";
 import { AppLinkConfig } from "./app-link.config";
 import { INVITE_PATH_COMPONENT, INVITE_PATH_PREFIX } from "./app-link.constant";
@@ -55,6 +55,9 @@ export class AppLinkService {
    * 코드가 유효하지 않아도 페이지는 그린다. 방 정보만 비우고 버튼은 그대로 둬서
    * 앱이 설치돼 있으면 앱으로 넘긴다. 앱은 어차피 이 경우를 처리해야 한다 —
    * 설치자가 링크를 직접 누르면 OS가 코드 검증 없이 앱을 열기 때문이다.
+   *
+   * 다만 삼키는 건 코드가 잘못된 경우(4xx)뿐이다. DB 장애 같은 5xx까지 삼키면
+   * 장애가 "없는 초대"로 둔갑해 사용자에게도 Sentry에도 드러나지 않는다.
    */
   async landing(code: string): Promise<LandingView> {
     return {
@@ -69,7 +72,11 @@ export class AppLinkService {
           pinCount: preview.room.pinCount,
           memberCount: preview.room.memberCount,
         }))
-        .catch(() => undefined),
+        .catch((error: unknown) => {
+          if (isClientError(error)) return undefined;
+
+          throw error;
+        }),
       iosAppUrl: this.iosAppUrl(code),
       androidAppUrl: this.androidIntentUrl(code),
       appStoreUrl: this.appStoreUrl(),
@@ -153,4 +160,12 @@ export class AppLinkService {
 
     return `https://apps.apple.com/app/id${appStoreId}`;
   }
+}
+
+/** 초대 코드 자체가 잘못됐다는 뜻의 오류인지. 그 외는 우리 쪽 장애다. */
+function isClientError(error: unknown): boolean {
+  return (
+    error instanceof HttpException &&
+    error.getStatus() < HttpStatus.INTERNAL_SERVER_ERROR
+  );
 }
