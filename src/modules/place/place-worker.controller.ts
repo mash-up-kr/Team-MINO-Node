@@ -37,7 +37,6 @@ interface PlaceResultStore {
   save(
     task: PinExtractionTask,
     matches: PlaceMatch[],
-    images: string[],
   ): Promise<{
     readonly retryableFailures: number;
     readonly persistedPlaces: number;
@@ -102,14 +101,10 @@ export class PlaceWorkerController {
     const activeTask: PinExtractionTask = { ...task, roomIds: activeRoomIds };
 
     try {
-      const { matches, images } = await this.placeService.extractFromUrl(
+      const { matches } = await this.placeService.extractFromUrl(
         activeTask.url,
       );
-      const result = await this.placeResultRepository.save(
-        activeTask,
-        matches,
-        images,
-      );
+      const result = await this.placeResultRepository.save(activeTask, matches);
       await this.notifyDuplicated(activeTask, result.duplicatedPlaces);
       if (result.retryableFailures > 0) {
         throw new ServiceUnavailableException(

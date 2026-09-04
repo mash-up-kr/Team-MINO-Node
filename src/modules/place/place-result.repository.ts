@@ -10,7 +10,7 @@ import { placeSources } from "../source/place-source.schema";
 import { sources } from "../source/source.schema";
 import { users } from "../user/user.schema";
 import { places } from "./place.schema";
-import type { DuplicatedPlace, PlaceMatch } from "./place.type";
+import type { DuplicatedPlace, PlaceCandidate, PlaceMatch } from "./place.type";
 import { classifyPlaceCategory } from "./place.util";
 
 type TransactionClient = Parameters<
@@ -74,9 +74,6 @@ export class PlaceResultRepository {
   async save(
     task: PinExtractionTask,
     matches: PlaceMatch[],
-    // 기본값을 두지 않는다. 새 호출자가 빠뜨리면 이미지가 조용히 NULL로 돌아가므로
-    // 컴파일 단계에서 잡히게 한다.
-    images: string[],
   ): Promise<PlaceSaveResult> {
     // retryable을 명시한 AppException은 그 값을 그대로 따르고, 명시하지 않았으면
     // 5xx만 재시도 가능으로 본다(AppException 기본 규칙과 동일). geocoder가 모든
@@ -90,24 +87,26 @@ export class PlaceResultRepository {
         (reason.retryable ?? reason.getStatus() >= 500)
       );
     }).length;
+    // 핀에 넣을 이미지는 장소별로 다르므로 후보와 짝지어 들고 간다.
     const successfulMatches = matches.flatMap((match) => {
       if (match.geocoding.status !== "fulfilled") return [];
       const candidate = match.matches[0];
-      return candidate ? [candidate] : [];
+      return candidate ? [{ candidate, images: match.images }] : [];
     });
     // 한 게시물에서 뽑은 서로 다른 추출 결과가 같은 실제 장소로 지오코딩되면
     // provider+providerPlaceId가 겹친다. 그대로 배치 upsert에 넘기면 한 INSERT문
     // 안에서 같은 충돌 대상을 두 번 건드리게 되어 Postgres가 통째로 던진다
-    // ("ON CONFLICT DO UPDATE command cannot affect row a second time") — 먼저
-    // provider+providerPlaceId 기준으로 중복을 제거한다(처음 것을 채택).
-    const uniquePlaces = Array.from(
-      new Map(
-        successfulMatches.map((candidate) => [
-          `${candidate.provider}:${candidate.providerPlaceId}`,
-          candidate,
+    // ("ON CONFLICT DO UPDATE command cannot affect row a second time") —
+    // Map이 같은 키를 덮어써 장소당 한 건만 남긴다. 이때 이미지도 남은 쪽
+    // 것만 유지한다(겹친 추출이 사진을 나눠 가진 드문 케이스는 합치지 않는다).
+    const uniquePlaces = [
+      ...new Map(
+        successfulMatches.map((match) => [
+          `${match.candidate.provider}:${match.candidate.providerPlaceId}`,
+          match,
         ]),
       ).values(),
-    );
+    ];
 
     if (uniquePlaces.length === 0) {
       return { retryableFailures, persistedPlaces: 0, duplicatedPlaces: [] };
@@ -119,7 +118,7 @@ export class PlaceResultRepository {
       const insertedPlaces = await tx
         .insert(places)
         .values(
-          uniquePlaces.map((candidate) => ({
+          uniquePlaces.map(({ candidate }) => ({
             provider: candidate.provider,
             providerPlaceId: candidate.providerPlaceId,
             name: candidate.placeName,
@@ -130,8 +129,6 @@ export class PlaceResultRepository {
             category: candidate.category,
             categoryGroup: classifyPlaceCategory(candidate.category),
             externalUrl: candidate.mapUrl,
-            // 이미지가 0장이면 null로 넣어야 아래 coalesce가 기존 값을 지킨다.
-            images: images.length > 0 ? images : null,
           })),
         )
         .onConflictDoUpdate({
@@ -146,12 +143,22 @@ export class PlaceResultRepository {
             category: sql`excluded.category`,
             categoryGroup: sql`excluded.category_group`,
             externalUrl: sql`excluded.external_url`,
-            // 이번에 이미지가 없으면(캡션만 있는 글, 호스트 차단 등) 이미 저장된 썸네일을 지우지 않는다.
-            images: sql`coalesce(excluded.images, ${places.images})`,
             updatedAt: sql`now()`,
           },
         })
-        .returning({ id: places.id });
+        .returning({
+          id: places.id,
+          provider: places.provider,
+          providerPlaceId: places.providerPlaceId,
+        });
+
+      // upsert 반환 순서에 기대지 않고 장소 키로 이미지를 맞춘다.
+      const imagesByPlaceKey = new Map(
+        uniquePlaces.map(({ candidate, images }) => [
+          `${candidate.provider}:${candidate.providerPlaceId}`,
+          images,
+        ]),
+      );
 
       if (insertedPlaces.length !== uniquePlaces.length) {
         throw new AppException(
@@ -183,12 +190,20 @@ export class PlaceResultRepository {
         .insert(pins)
         .values(
           task.roomIds.flatMap((roomId) =>
-            insertedPlaces.map((place) => ({
-              roomId,
-              placeId: place.id,
-              sourceId: task.sourceId,
-              createdBy: task.createdBy,
-            })),
+            insertedPlaces.map((place) => {
+              const placeImages = imagesByPlaceKey.get(
+                `${place.provider}:${place.providerPlaceId}`,
+              );
+              return {
+                roomId,
+                placeId: place.id,
+                sourceId: task.sourceId,
+                createdBy: task.createdBy,
+                // 게시물 이미지는 핀(게시물×방)의 것이다. 같은 장소를 다른 글로
+                // 저장한 사람의 사진이 이 핀의 썸네일을 덮지 않는다.
+                images: placeImages?.length ? placeImages : null,
+              };
+            }),
           ),
         )
         .onConflictDoNothing({
