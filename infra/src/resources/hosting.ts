@@ -23,14 +23,22 @@ const version = new gcp.firebase.HostingVersion(
     siteId: project,
     config: {
       /*
-       * Hosting에는 appAssociation(AUTO/NONE) 설정이 있지만 @pulumi/gcp의
-       * HostingVersionConfig는 headers·redirects·rewrites만 받아 여기서 끌 수 없다.
+       * ⚠️ 이 config를 바꾸면 firebase.json을 다시 배포해야 한다.
        *
-       * AUTO는 Dynamic Links가 구성된 사이트에서만 자체 AASA를 만들어 내려보내고,
-       * Dynamic Links는 2025-08에 종료돼 생성 대상이 없다. 그래도 이게 켜지면
-       * Cloud Run이 서빙하는 우리 AASA가 가려지므로, 배포 후
-       * /.well-known/apple-app-site-association 응답이 우리 것인지 확인해야 한다.
-       * 실제로 가려지면 Firebase CLI나 Hosting REST API로 NONE을 설정한다.
+       * Hosting의 appAssociation 기본값 AUTO는 프로젝트에 등록된 앱 정보로
+       * `.well-known` 두 파일을 자동 생성하고, 그게 아래 rewrites보다 우선한다.
+       * 실제로 그 상태에서 Play 앱 서명 키가 빠진 assetlinks.json이 서빙돼
+       * 스토어 설치본에서만 App Links 검증이 실패했다.
+       *
+       * 꺼야 하는데 @pulumi/gcp의 HostingVersionConfig는 headers·redirects·rewrites만
+       * 받아 여기서 표현할 수 없다. 그래서 저장소 루트 firebase.json이 같은 설정에
+       * appAssociation: "NONE"을 더해 Firebase CLI로 배포한다.
+       *
+       * 문제는 HostingVersion이 불변이라, 이 config가 바뀌면 Pulumi가 새 버전을
+       * 만들어 릴리스하고 appAssociation이 AUTO로 돌아간다는 점이다. 아무도
+       * `.well-known`을 보지 않으므로 조용히 되돌아간다. 바꿨다면 반드시
+       *   npx firebase-tools deploy --only hosting --project team-mino-prod
+       * 를 다시 돌리고 응답이 우리 것인지 확인한다.
        */
       headers: [
         {
