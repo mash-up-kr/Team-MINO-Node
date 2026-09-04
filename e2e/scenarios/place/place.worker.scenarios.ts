@@ -281,7 +281,7 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
     const stored = await harness.db
       .select({ images: places.images })
       .from(places);
-    expect(stored.length).toBeGreaterThan(0);
+    expect(stored).toHaveLength(2);
     for (const place of stored) {
       expect(place.images).toEqual(images);
     }

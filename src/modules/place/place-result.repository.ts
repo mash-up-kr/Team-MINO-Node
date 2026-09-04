@@ -74,7 +74,9 @@ export class PlaceResultRepository {
   async save(
     task: PinExtractionTask,
     matches: PlaceMatch[],
-    images: string[] = [],
+    // 기본값을 두지 않는다. 새 호출자가 빠뜨리면 이미지가 조용히 NULL로 돌아가므로
+    // 컴파일 단계에서 잡히게 한다.
+    images: string[],
   ): Promise<PlaceSaveResult> {
     // retryable을 명시한 AppException은 그 값을 그대로 따르고, 명시하지 않았으면
     // 5xx만 재시도 가능으로 본다(AppException 기본 규칙과 동일). geocoder가 모든
