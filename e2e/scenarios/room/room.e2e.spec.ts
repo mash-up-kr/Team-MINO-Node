@@ -356,7 +356,6 @@ describe("방 목록 썸네일", () => {
           address: "서울 성동구 상원4길 10",
           lat: 37.5445 + n * 0.001,
           lng: 127.0559,
-          images: n <= 5 ? [`https://img.example.com/thumb-${n}.jpg`] : null,
         })),
       )
       .returning({ id: places.id });
@@ -368,6 +367,9 @@ describe("방 목록 썸네일", () => {
         roomId: thumbRoomId,
         placeId: place.id,
         createdBy: ownerId,
+        // 1~5번 핀은 게시물 이미지 보유, 6번(가장 최신)은 이미지 없음
+        images:
+          index < 5 ? [`https://img.example.com/thumb-${index + 1}.jpg`] : null,
         createdAt: new Date(base + (index + 1) * 60_000),
       })),
     );
@@ -411,7 +413,6 @@ describe("방 목록 썸네일", () => {
         address: "서울 성동구 상원4길 10",
         lat: 37.51,
         lng: 127.0559,
-        images: null,
       })
       .returning({ id: places.id });
     await db.insert(pins).values({

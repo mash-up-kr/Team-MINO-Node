@@ -31,7 +31,6 @@ const CARD_PLACE_COLUMNS = {
   category: places.category,
   phone: places.phone,
   externalUrl: places.externalUrl,
-  images: places.images,
 };
 
 const CARD_AUTHOR_COLUMNS = {
@@ -95,6 +94,7 @@ export class CardRepository extends BaseRepository {
         roomId: pins.roomId,
         createdAt: pins.createdAt,
         staleness: staleness.mapWith(pins.createdAt).as("staleness"),
+        images: pins.images,
         place: CARD_PLACE_COLUMNS,
         author: CARD_AUTHOR_COLUMNS,
         manyComments: activeCommentCount().mapWith(Number).as("many_comments"),

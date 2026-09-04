@@ -61,7 +61,7 @@ export type CardResponse = {
   id: string;
   roomId: string;
   place: CardPlaceResponse;
-  /** places.images가 pins로 이동 예정(DB 변경)이라 응답에서 먼저 핀 소속으로 내린다 */
+  /** 이 핀이 만들어진 게시물의 이미지(pins.images). 장소가 아니라 핀 소속이다. */
   images: string[];
   createdBy: CardAuthorResponse | null;
   createdAt: Date;
@@ -71,7 +71,6 @@ export type CardResponse = {
 /** 저장된 장소의 원본 행. 응답 매핑 전 단계다. */
 export type CandidatePlaceRow = Omit<CardPlaceResponse, "mapUrl"> & {
   externalUrl: string | null;
-  images: string[] | null;
 };
 
 /** createdBy가 없는 핀은 leftJoin 결과가 null 필드 객체로 오므로 userId로 판별한다. */
@@ -91,6 +90,7 @@ export type CandidateRow = {
    * `가볼 만한 곳` 선발과 `ggukPick` 후보 정렬이 같이 쓴다.
    */
   staleness: Date;
+  images: string[] | null;
   place: CandidatePlaceRow;
   author: CandidateAuthorRow;
   manyComments: number;
@@ -111,13 +111,13 @@ export function toCardResponse(
         }
       : null;
 
-  const { externalUrl, images, ...place } = row.place;
+  const { externalUrl, ...place } = row.place;
 
   return {
     id: row.id,
     roomId: row.roomId,
     place: { ...place, mapUrl: externalUrl },
-    images: images ?? [],
+    images: row.images ?? [],
     createdBy: author,
     createdAt: row.createdAt,
     labelGroup,
