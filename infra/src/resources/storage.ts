@@ -5,9 +5,12 @@ import { enabledServices } from "@/resources/apis";
 import { developersGroup, serverServiceAccount } from "@/resources/identity";
 
 /**
- * 인스타 게시글 이미지를 담는 버킷. Vertex Gemini는 인스타 CDN 이미지를 URL로 읽지 못한다
- * (인스타 robots.txt가 Googlebot 포함 모든 봇을 차단). 그래서 앱이 이미지를 내려받아 여기에
- * 올리고 gs:// URI로 넘긴다. Vertex는 같은 프로젝트의 GCS 객체를 robots 검사 없이 읽는다.
+ * 인스타 게시글 이미지를 담는 버킷. 두 가지 용도로 읽힌다.
+ *
+ * 1) Vertex Gemini. 인스타 CDN 이미지를 URL로 읽지 못하므로(인스타 robots.txt가 Googlebot
+ *    포함 모든 봇을 차단) 앱이 내려받아 여기에 올리고 gs:// URI로 넘긴다. Vertex는 같은
+ *    프로젝트의 GCS 객체를 robots 검사 없이 읽는다.
+ * 2) 앱/웹 클라이언트. 저장된 장소의 썸네일을 https:// URL로 직접 띄운다.
  *
  * env 시크릿(team-mino-env-{local,prod})과 같은 축으로 APP_ENV별 버킷을 둔다. 로컬 실행이
  * 운영 버킷에 이미지를 쌓지 않도록 분리하는 것이 목적이다.
@@ -19,8 +22,6 @@ function createPlaceImagesBucket(appEnv: "local" | "prod") {
       name: `team-mino-place-images-${appEnv}`,
       location: region,
       uniformBucketLevelAccess: true,
-      // 게시글 이미지는 공개 대상이 아니다. 접근은 아래 IAM으로만 허용한다.
-      publicAccessPrevention: "enforced",
     },
     { dependsOn: enabledServices },
   );
@@ -35,6 +36,20 @@ function createPlaceImagesBucket(appEnv: "local" | "prod") {
       bucket: bucket.name,
       role: "roles/storage.objectViewer",
       member: pulumi.interpolate`serviceAccount:${vertexServiceAgent.email}`,
+    },
+  );
+
+  /*
+   * 클라이언트가 <img src>로 바로 띄우도록 공개 읽기를 연다. 서명 URL은 만료되므로
+   * places.images에 담을 수 없다. 원본은 인스타에 이미 공개된 이미지이고 객체 경로도
+   * 공개된 shortcode 기반이라, 이 버킷으로 새로 노출되는 정보는 없다.
+   */
+  new gcp.storage.BucketIAMMember(
+    `team-mino-place-images-${appEnv}-public-reader`,
+    {
+      bucket: bucket.name,
+      role: "roles/storage.objectViewer",
+      member: "allUsers",
     },
   );
 
