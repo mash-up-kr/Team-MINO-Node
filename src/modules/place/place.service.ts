@@ -11,7 +11,7 @@ import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import {
   type ExtractedPlace,
   type PlaceCandidate,
-  type PlaceMatch,
+  type PlaceExtraction,
   type PlaceQuery,
   placeExtractionSchema,
 } from "./place.type";
@@ -38,12 +38,13 @@ Respond in the same language as the source content (use Korean when the content 
   ) {}
 
   /** Instagram URL → scrape → AI extraction → geocoding fan-out → ranking. */
-  async extractFromUrl(url: string): Promise<PlaceMatch[]> {
+  async extractFromUrl(url: string): Promise<PlaceExtraction> {
     const post = await this.scraperService.fetchPost(url);
-    const queries = await this.extractQueries(post);
+    const { queries, images } = await this.extractQueries(post);
 
+    // 장소를 못 뽑아도 이미지는 이미 올라갔으므로 그대로 함께 돌려준다.
     if (queries.length === 0) {
-      return [];
+      return { matches: [], images };
     }
 
     const settled = await Promise.allSettled(
@@ -68,7 +69,7 @@ Respond in the same language as the source content (use Korean when the content 
       );
     }
 
-    return queries.map((query, index) => {
+    const matches = queries.map((query, index) => {
       const result = settled[index];
       if (result.status === "fulfilled") {
         return {
@@ -83,6 +84,8 @@ Respond in the same language as the source content (use Korean when the content 
         geocoding: { status: "rejected" as const, reason: result.reason },
       };
     });
+
+    return { matches, images };
   }
 
   private toExtractedPlace(query: PlaceQuery): ExtractedPlace {
@@ -94,7 +97,13 @@ Respond in the same language as the source content (use Korean when the content 
     };
   }
 
-  private async extractQueries(post: ScrapedPost): Promise<PlaceQuery[]> {
+  /**
+   * AI가 뽑은 장소와 함께, 이 게시글에서 저장된 이미지의 공개 URL을 돌려준다.
+   * Vertex에는 gs://로 넘기지만 DB·클라이언트에는 https:// 쪽이 필요하다.
+   */
+  private async extractQueries(
+    post: ScrapedPost,
+  ): Promise<{ queries: PlaceQuery[]; images: string[] }> {
     // 인스타 이미지는 Vertex가 URL로 못 읽으므로(robots 차단), GCS에 올려 gs://로 넘긴다.
     const images = await this.placeImageService.storePostImages(
       post.shortcode,
@@ -105,7 +114,7 @@ Respond in the same language as the source content (use Korean when the content 
       placeExtractionSchema,
       content,
     );
-    return places;
+    return { queries: places, images: images.map((image) => image.publicUrl) };
   }
 
   private buildContent(

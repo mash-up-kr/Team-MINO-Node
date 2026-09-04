@@ -35,7 +35,8 @@ const SOURCE_PREFIX = "instagram";
 const INDEX_DIGITS = 3;
 
 /**
- * 인스타 게시글 이미지를 내려받아 GCS에 올리고 gs:// URI를 돌려준다.
+ * 인스타 게시글 이미지를 내려받아 GCS에 올리고, Vertex용 gs:// URI와 클라이언트용
+ * 공개 https:// URL을 함께 돌려준다.
  *
  * Vertex Gemini는 인스타 CDN 이미지를 URL로 직접 읽지 못한다(인스타 robots.txt가
  * 크롤러를 차단). 대신 같은 프로젝트의 GCS 객체는 robots 검사 없이 읽으므로, 앱이 한 번
@@ -62,7 +63,7 @@ export class PlaceImageService {
   }
 
   /**
-   * 게시글 이미지들을 병렬로 저장하고 gs:// URI 목록을 반환한다.
+   * 게시글 이미지들을 병렬로 저장하고 저장된 이미지 목록을 반환한다.
    * 개별 이미지 실패는 건너뛰고(부분 성공 허용) 성공한 것만 필터링한다.
    */
   async storePostImages(
@@ -140,12 +141,17 @@ export class PlaceImageService {
       const objectName = `${SOURCE_PREFIX}/${shortcode}/${paddedIndex}`;
       const file = this.storage.bucket(this.bucketName).file(objectName);
       const gsUri = `gs://${this.bucketName}/${objectName}`;
+      const publicUrl = `https://storage.googleapis.com/${this.bucketName}/${objectName}`;
 
       // 이미 올린 게시글이면 다시 받지 않고 저장된 타입만 읽어 재사용한다(멱등).
       const [exists] = await file.exists();
       if (exists) {
         const [metadata] = await file.getMetadata();
-        return { gsUri, mediaType: metadata.contentType ?? "image/jpeg" };
+        return {
+          gsUri,
+          publicUrl,
+          mediaType: metadata.contentType ?? "image/jpeg",
+        };
       }
 
       const downloaded = await this.download(imageUrl);
@@ -155,7 +161,7 @@ export class PlaceImageService {
         contentType: downloaded.mediaType,
         resumable: false,
       });
-      return { gsUri, mediaType: downloaded.mediaType };
+      return { gsUri, publicUrl, mediaType: downloaded.mediaType };
     } catch (error) {
       this.logger.warn({ err: error, imageUrl }, "이미지 저장 실패 — 스킵");
       return null;

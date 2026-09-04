@@ -25,6 +25,12 @@ const DUPLICATED = {
   thumbnailUrl: "https://example.com/0.jpg",
 };
 
+/** extractFromUrl은 매치와 게시글 이미지를 함께 돌려준다. */
+const extraction = (matches: PlaceMatch[], images: string[] = []) => ({
+  matches,
+  images,
+});
+
 const saveResult = (over: Record<string, unknown> = {}) => ({
   retryableFailures: 0,
   persistedPlaces: 0,
@@ -90,7 +96,9 @@ const FAILED_MATCH: PlaceMatch = {
 describe("PlaceWorkerController retry policy", () => {
   it("부분 geocoder 실패는 성공 장소를 저장한 뒤 503으로 재시도한다", async () => {
     const { controller, extractFromUrl, save } = createController();
-    extractFromUrl.mockResolvedValue([SUCCESSFUL_MATCH, FAILED_MATCH]);
+    extractFromUrl.mockResolvedValue(
+      extraction([SUCCESSFUL_MATCH, FAILED_MATCH]),
+    );
     save.mockResolvedValue(
       saveResult({ retryableFailures: 1, persistedPlaces: 1 }),
     );
@@ -98,7 +106,24 @@ describe("PlaceWorkerController retry policy", () => {
     await expect(controller.process(TASK)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
-    expect(save).toHaveBeenCalledWith(TASK, [SUCCESSFUL_MATCH, FAILED_MATCH]);
+    expect(save).toHaveBeenCalledWith(
+      TASK,
+      [SUCCESSFUL_MATCH, FAILED_MATCH],
+      [],
+    );
+  });
+
+  it("추출된 게시글 이미지를 저장소로 그대로 넘긴다", async () => {
+    const { controller, extractFromUrl, save } = createController();
+    const images = [
+      "https://storage.googleapis.com/bucket/instagram/abc123/000",
+      "https://storage.googleapis.com/bucket/instagram/abc123/001",
+    ];
+    extractFromUrl.mockResolvedValue(extraction([SUCCESSFUL_MATCH], images));
+    save.mockResolvedValue(saveResult({ persistedPlaces: 1 }));
+
+    await expect(controller.process(TASK)).resolves.toBeUndefined();
+    expect(save).toHaveBeenCalledWith(TASK, [SUCCESSFUL_MATCH], images);
   });
 
   it("모든 geocoder 실패는 저장 없이 503으로 재시도한다", async () => {
@@ -119,7 +144,9 @@ describe("PlaceWorkerController retry policy", () => {
 
   it("fulfilled empty 결과는 재시도하지 않고 acknowledge한다", async () => {
     const { controller, extractFromUrl, save } = createController();
-    extractFromUrl.mockResolvedValue([{ ...SUCCESSFUL_MATCH, matches: [] }]);
+    extractFromUrl.mockResolvedValue(
+      extraction([{ ...SUCCESSFUL_MATCH, matches: [] }]),
+    );
     save.mockResolvedValue(saveResult());
 
     await expect(controller.process(TASK)).resolves.toBeUndefined();
@@ -150,7 +177,7 @@ describe("PlaceWorkerController retry policy", () => {
         `11111111-1111-4111-8111-${String(index).padStart(12, "0")}`,
     );
     activeRoomIdsForTask.mockResolvedValue(roomIds);
-    extractFromUrl.mockResolvedValue([]);
+    extractFromUrl.mockResolvedValue(extraction([]));
 
     await expect(
       controller.process({ ...TASK, roomIds }),
@@ -245,7 +272,7 @@ describe("PlaceWorkerController 중복 저장 알림", () => {
   it("중복 장소마다 저장 시도 기준 key로 알린다", async () => {
     const { controller, extractFromUrl, save, recordAndNotifyUser } =
       createController();
-    extractFromUrl.mockResolvedValue([SUCCESSFUL_MATCH]);
+    extractFromUrl.mockResolvedValue(extraction([SUCCESSFUL_MATCH]));
     save.mockResolvedValue(
       saveResult({ persistedPlaces: 1, duplicatedPlaces: [DUPLICATED] }),
     );
@@ -270,7 +297,7 @@ describe("PlaceWorkerController 중복 저장 알림", () => {
   it("중복이 없으면 알리지 않는다", async () => {
     const { controller, extractFromUrl, save, recordAndNotifyUser } =
       createController();
-    extractFromUrl.mockResolvedValue([SUCCESSFUL_MATCH]);
+    extractFromUrl.mockResolvedValue(extraction([SUCCESSFUL_MATCH]));
     save.mockResolvedValue(saveResult({ persistedPlaces: 1 }));
 
     await controller.process(TASK);
@@ -281,7 +308,7 @@ describe("PlaceWorkerController 중복 저장 알림", () => {
   it("재시도로 넘어가기 전에 알린다", async () => {
     const { controller, extractFromUrl, save, recordAndNotifyUser } =
       createController();
-    extractFromUrl.mockResolvedValue([SUCCESSFUL_MATCH]);
+    extractFromUrl.mockResolvedValue(extraction([SUCCESSFUL_MATCH]));
     save.mockResolvedValue(
       saveResult({
         retryableFailures: 1,
@@ -324,7 +351,9 @@ describe("PlaceWorkerController 저장 실패 알림", () => {
   it("인식된 장소가 없으면 알린다", async () => {
     const { controller, extractFromUrl, recordAndNotifyUser } =
       createController();
-    extractFromUrl.mockResolvedValue([{ ...SUCCESSFUL_MATCH, matches: [] }]);
+    extractFromUrl.mockResolvedValue(
+      extraction([{ ...SUCCESSFUL_MATCH, matches: [] }]),
+    );
 
     await controller.process(TASK);
 
