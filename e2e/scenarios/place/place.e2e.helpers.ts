@@ -143,12 +143,14 @@ export class PlaceE2eHarness {
           area_name: "성수동",
           area_type: "landmark",
           relation: "첫 코스",
+          image_indices: [0],
         },
         {
           place_name: "대림창고",
           area_name: "성수동",
           area_type: "landmark",
           relation: "둘째 코스",
+          image_indices: [1],
         },
       ],
     });
