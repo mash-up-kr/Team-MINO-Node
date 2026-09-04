@@ -10,7 +10,7 @@ import { placeSources } from "../source/place-source.schema";
 import { sources } from "../source/source.schema";
 import { users } from "../user/user.schema";
 import { places } from "./place.schema";
-import type { DuplicatedPlace, PlaceMatch } from "./place.type";
+import type { DuplicatedPlace, PostExtraction } from "./place.type";
 import { classifyPlaceCategory } from "./place.util";
 
 type TransactionClient = Parameters<
@@ -73,8 +73,9 @@ export class PlaceResultRepository {
 
   async save(
     task: PinExtractionTask,
-    matches: PlaceMatch[],
+    extraction: PostExtraction,
   ): Promise<PlaceSaveResult> {
+    const { matches, images } = extraction;
     // retryable을 명시한 AppException은 그 값을 그대로 따르고, 명시하지 않았으면
     // 5xx만 재시도 가능으로 본다(AppException 기본 규칙과 동일). geocoder가 모든
     // 실패를 502로 뭉뚱그려도 retryable: false를 명시한 영구 실패(파싱 오류 등)는
@@ -127,6 +128,8 @@ export class PlaceResultRepository {
             category: candidate.category,
             categoryGroup: classifyPlaceCategory(candidate.category),
             externalUrl: candidate.mapUrl,
+            // 게시물 이미지는 이 게시물에서 나온 모든 장소가 공유한다.
+            images: images.length > 0 ? images : null,
           })),
         )
         .onConflictDoUpdate({
@@ -141,6 +144,8 @@ export class PlaceResultRepository {
             category: sql`excluded.category`,
             categoryGroup: sql`excluded.category_group`,
             externalUrl: sql`excluded.external_url`,
+            // 이미지가 없는 재추출이 기존 썸네일을 지우지 않도록 보존한다.
+            images: sql`coalesce(excluded.images, ${places.images})`,
             updatedAt: sql`now()`,
           },
         })

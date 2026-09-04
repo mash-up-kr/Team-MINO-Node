@@ -59,6 +59,13 @@ export interface DuplicatedPlace {
   readonly thumbnailUrl: string | null;
 }
 
+/** 게시물 한 건의 추출 결과 — 장소 매칭과 게시물 이미지를 함께 전달한다. */
+export interface PostExtraction {
+  matches: PlaceMatch[];
+  /** 게시물 이미지의 공개 URL(업로드 순). 이 게시물에서 나온 모든 장소가 공유한다. */
+  images: string[];
+}
+
 export interface PlaceMatch {
   /** 게시글에서 추출한 장소. */
   extracted: ExtractedPlace;

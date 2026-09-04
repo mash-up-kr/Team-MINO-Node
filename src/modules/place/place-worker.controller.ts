@@ -22,17 +22,17 @@ import {
 } from "../../common/tasks/pin-extraction-task.dto";
 import type { Env } from "../../config/env.schema";
 import { NotificationService } from "../notification/notification.service";
-import type { DuplicatedPlace, PlaceMatch } from "./place.type";
+import type { DuplicatedPlace, PostExtraction } from "./place.type";
 
 interface PlaceExtractor {
-  extractFromUrl(url: string): Promise<PlaceMatch[]>;
+  extractFromUrl(url: string): Promise<PostExtraction>;
 }
 
 interface PlaceResultStore {
   activeRoomIdsForTask(task: PinExtractionTask): Promise<string[]>;
   save(
     task: PinExtractionTask,
-    matches: PlaceMatch[],
+    extraction: PostExtraction,
   ): Promise<{
     readonly retryableFailures: number;
     readonly persistedPlaces: number;
@@ -97,8 +97,11 @@ export class PlaceWorkerController {
     const activeTask: PinExtractionTask = { ...task, roomIds: activeRoomIds };
 
     try {
-      const matches = await this.placeService.extractFromUrl(activeTask.url);
-      const result = await this.placeResultRepository.save(activeTask, matches);
+      const extraction = await this.placeService.extractFromUrl(activeTask.url);
+      const result = await this.placeResultRepository.save(
+        activeTask,
+        extraction,
+      );
       await this.notifyDuplicated(activeTask, result.duplicatedPlaces);
       if (result.retryableFailures > 0) {
         throw new ServiceUnavailableException(

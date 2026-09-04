@@ -11,8 +11,8 @@ import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import {
   type ExtractedPlace,
   type PlaceCandidate,
-  type PlaceMatch,
   type PlaceQuery,
+  type PostExtraction,
   placeExtractionSchema,
 } from "./place.type";
 
@@ -38,12 +38,12 @@ Respond in the same language as the source content (use Korean when the content 
   ) {}
 
   /** Instagram URL → scrape → AI extraction → geocoding fan-out → ranking. */
-  async extractFromUrl(url: string): Promise<PlaceMatch[]> {
+  async extractFromUrl(url: string): Promise<PostExtraction> {
     const post = await this.scraperService.fetchPost(url);
-    const queries = await this.extractQueries(post);
+    const { queries, images } = await this.extractQueries(post);
 
     if (queries.length === 0) {
-      return [];
+      return { matches: [], images };
     }
 
     const settled = await Promise.allSettled(
@@ -68,7 +68,7 @@ Respond in the same language as the source content (use Korean when the content 
       );
     }
 
-    return queries.map((query, index) => {
+    const matches = queries.map((query, index) => {
       const result = settled[index];
       if (result.status === "fulfilled") {
         return {
@@ -83,6 +83,7 @@ Respond in the same language as the source content (use Korean when the content 
         geocoding: { status: "rejected" as const, reason: result.reason },
       };
     });
+    return { matches, images };
   }
 
   private toExtractedPlace(query: PlaceQuery): ExtractedPlace {
@@ -94,18 +95,24 @@ Respond in the same language as the source content (use Korean when the content 
     };
   }
 
-  private async extractQueries(post: ScrapedPost): Promise<PlaceQuery[]> {
+  /**
+   * 게시물에서 장소 질의를 뽑는다. 업로드한 이미지의 공개 URL도 함께 돌려준다 —
+   * 분석 입력으로만 쓰고 버리면 썸네일로 노출할 이미지가 남지 않는다.
+   */
+  private async extractQueries(
+    post: ScrapedPost,
+  ): Promise<{ queries: PlaceQuery[]; images: string[] }> {
     // 인스타 이미지는 Vertex가 URL로 못 읽으므로(robots 차단), GCS에 올려 gs://로 넘긴다.
-    const images = await this.placeImageService.storePostImages(
+    const stored = await this.placeImageService.storePostImages(
       post.shortcode,
       post.imageUrls,
     );
-    const content = this.buildContent(post, images);
+    const content = this.buildContent(post, stored);
     const { places } = await this.aiService.extract(
       placeExtractionSchema,
       content,
     );
-    return places;
+    return { queries: places, images: stored.map((image) => image.publicUrl) };
   }
 
   private buildContent(

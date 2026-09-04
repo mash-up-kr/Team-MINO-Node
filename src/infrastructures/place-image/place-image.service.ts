@@ -140,12 +140,18 @@ export class PlaceImageService {
       const objectName = `${SOURCE_PREFIX}/${shortcode}/${paddedIndex}`;
       const file = this.storage.bucket(this.bucketName).file(objectName);
       const gsUri = `gs://${this.bucketName}/${objectName}`;
+      // 버킷은 공개 읽기라 서명 없이 이 URL로 바로 렌더링된다.
+      const publicUrl = `https://storage.googleapis.com/${this.bucketName}/${objectName}`;
 
       // 이미 올린 게시글이면 다시 받지 않고 저장된 타입만 읽어 재사용한다(멱등).
       const [exists] = await file.exists();
       if (exists) {
         const [metadata] = await file.getMetadata();
-        return { gsUri, mediaType: metadata.contentType ?? "image/jpeg" };
+        return {
+          gsUri,
+          publicUrl,
+          mediaType: metadata.contentType ?? "image/jpeg",
+        };
       }
 
       const downloaded = await this.download(imageUrl);
@@ -155,7 +161,7 @@ export class PlaceImageService {
         contentType: downloaded.mediaType,
         resumable: false,
       });
-      return { gsUri, mediaType: downloaded.mediaType };
+      return { gsUri, publicUrl, mediaType: downloaded.mediaType };
     } catch (error) {
       this.logger.warn({ err: error, imageUrl }, "이미지 저장 실패 — 스킵");
       return null;

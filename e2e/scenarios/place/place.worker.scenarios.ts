@@ -31,6 +31,69 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
     ).toHaveLength(2);
   });
 
+  it("게시물 이미지의 공개 URL을 장소에 저장해 썸네일로 쓸 수 있게 한다", async () => {
+    harness.placeImage.storePostImages.mockResolvedValueOnce([
+      {
+        gsUri: "gs://bucket/instagram/e2e-pin/000",
+        publicUrl:
+          "https://storage.googleapis.com/bucket/instagram/e2e-pin/000",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://bucket/instagram/e2e-pin/001",
+        publicUrl:
+          "https://storage.googleapis.com/bucket/instagram/e2e-pin/001",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    await harness.postPin(harness.memberAuthUid, {
+      url: "https://instagram.com/p/e2e-pin/",
+      roomIds: [harness.room],
+    });
+
+    expect((await harness.runTask()).status).toBe(204);
+
+    const saved = await harness.db.select().from(places);
+    expect(saved.length).toBeGreaterThan(0);
+    // 한 게시물에서 나온 장소들은 같은 이미지 목록을 공유한다.
+    for (const place of saved) {
+      expect(place.images).toEqual([
+        "https://storage.googleapis.com/bucket/instagram/e2e-pin/000",
+        "https://storage.googleapis.com/bucket/instagram/e2e-pin/001",
+      ]);
+    }
+  });
+
+  it("이미지가 없는 재추출은 기존 썸네일을 지우지 않는다", async () => {
+    harness.placeImage.storePostImages.mockResolvedValueOnce([
+      {
+        gsUri: "gs://bucket/instagram/e2e-pin/000",
+        publicUrl:
+          "https://storage.googleapis.com/bucket/instagram/e2e-pin/000",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    await harness.postPin(harness.memberAuthUid, {
+      url: "https://instagram.com/p/e2e-pin/",
+      roomIds: [harness.room],
+    });
+    await harness.runTask();
+
+    // 이미지 수집이 실패한(빈 배열) 재추출
+    await harness.postPin(harness.memberAuthUid, {
+      url: "https://instagram.com/p/e2e-pin/",
+      roomIds: [harness.room],
+    });
+    await harness.runTask();
+
+    const saved = await harness.db.select().from(places);
+    for (const place of saved) {
+      expect(place.images).toEqual([
+        "https://storage.googleapis.com/bucket/instagram/e2e-pin/000",
+      ]);
+    }
+  });
+
   it("작업 대기 중 나간 방은 제외하고 남은 방에만 저장한다", async () => {
     await harness.postPin(harness.memberAuthUid, {
       url: "https://instagram.com/p/e2e-pin/",

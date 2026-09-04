@@ -68,7 +68,7 @@ describe("PlaceService", () => {
     geocoder.searchAll.mockResolvedValue([makeCandidate()]);
 
     // when
-    const result = await service.extractFromUrl(URL);
+    const { matches: result } = await service.extractFromUrl(URL);
 
     // then
     expect(instagram.fetchPost).toHaveBeenCalledWith(URL);
@@ -113,7 +113,7 @@ describe("PlaceService", () => {
       ]);
 
     // when
-    const result = await service.extractFromUrl(URL);
+    const { matches: result } = await service.extractFromUrl(URL);
 
     // then
     expect(geocoder.searchAll).toHaveBeenCalledTimes(2);
@@ -143,7 +143,7 @@ describe("PlaceService", () => {
     }
 
     // when
-    const result = await service.extractFromUrl(URL);
+    const { matches: result } = await service.extractFromUrl(URL);
 
     // then
     expect(result).toHaveLength(3);
@@ -175,7 +175,7 @@ describe("PlaceService", () => {
       .mockRejectedValueOnce(new Error("provider down"));
 
     // when
-    const result = await service.extractFromUrl(URL);
+    const { matches: result } = await service.extractFromUrl(URL);
 
     // then
     expect(geocoder.searchAll).toHaveBeenCalledTimes(2);
@@ -252,7 +252,7 @@ describe("PlaceService", () => {
     geocoder.searchAll.mockResolvedValue([]);
 
     // when
-    const result = await service.extractFromUrl(URL);
+    const { matches: result } = await service.extractFromUrl(URL);
 
     // then
     expect(result).toHaveLength(1);
@@ -273,7 +273,7 @@ describe("PlaceService", () => {
     ai.extract.mockResolvedValue({ places: [] });
 
     // when
-    const result = await service.extractFromUrl(URL);
+    const { matches: result } = await service.extractFromUrl(URL);
 
     // then
     expect(result).toEqual([]);
@@ -312,7 +312,7 @@ describe("PlaceService", () => {
     ]);
 
     // when
-    const result = await service.extractFromUrl(URL);
+    const { matches: result } = await service.extractFromUrl(URL);
 
     // then
     expect(result[0].matches[0]?.placeName).toBe("정보 많은 곳");
@@ -338,7 +338,7 @@ describe("PlaceService", () => {
     ]);
 
     // when
-    const result = await service.extractFromUrl(URL);
+    const { matches: result } = await service.extractFromUrl(URL);
 
     // then
     expect(result[0].matches[0]?.placeName).toBe("가까운 후보");
