@@ -3,6 +3,7 @@ import { describe, expect, it, jest } from "bun:test";
 import { Test } from "@nestjs/testing";
 import { AppException } from "../../common/exceptions/app.exception";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
+import { NotificationService } from "../notification/notification.service";
 import { RoomRepository } from "../room/room.repository";
 import { SourceRepository } from "../source/source.repository";
 import { PinRepository } from "./pin.repository";
@@ -29,6 +30,10 @@ describe("PinService.enqueueRoomPins", () => {
         { provide: RoomRepository, useValue: {} },
         { provide: SourceRepository, useValue: sourceRepository },
         { provide: TasksService, useValue: tasksService },
+        {
+          provide: NotificationService,
+          useValue: { recordAndNotifyUser: jest.fn() },
+        },
       ],
     }).compile();
     const service = module.get(PinService);
@@ -45,6 +50,51 @@ describe("PinService.enqueueRoomPins", () => {
       errorCode: "SOURCE_UPSERT_FAILED",
     });
     expect(tasksService.enqueuePinExtraction).not.toHaveBeenCalled();
+  });
+
+  it("인스타그램 링크가 아니면 저장 실패 알림을 보내고 enqueue하지 않는다", async () => {
+    // given
+    const pinRepository = {
+      listTargetRoomsWithMembership: jest.fn(async () => [
+        { roomId: "room-id", isMember: true },
+      ]),
+    };
+    const sourceRepository = {
+      ensureActiveInstagramSource: jest.fn(async () => "source-id"),
+    };
+    const tasksService = {
+      enqueuePinExtraction: jest.fn(async () => undefined),
+    };
+    const notificationService = {
+      recordAndNotifyUser: jest.fn(async () => undefined),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        PinService,
+        { provide: PinRepository, useValue: pinRepository },
+        { provide: RoomRepository, useValue: {} },
+        { provide: SourceRepository, useValue: sourceRepository },
+        { provide: TasksService, useValue: tasksService },
+        { provide: NotificationService, useValue: notificationService },
+      ],
+    }).compile();
+    const service = module.get(PinService);
+
+    // when
+    await service.enqueueRoomPins("user-id", {
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      roomIds: ["room-id"],
+    });
+
+    // then
+    expect(notificationService.recordAndNotifyUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: "user-id",
+        type: "SAVE_FAILED",
+      }),
+    );
+    expect(tasksService.enqueuePinExtraction).not.toHaveBeenCalled();
+    expect(sourceRepository.ensureActiveInstagramSource).not.toHaveBeenCalled();
   });
 });
 
@@ -68,6 +118,10 @@ describe("PinService.deletePin", () => {
         { provide: RoomRepository, useValue: {} },
         { provide: SourceRepository, useValue: {} },
         { provide: TasksService, useValue: {} },
+        {
+          provide: NotificationService,
+          useValue: { recordAndNotifyUser: jest.fn() },
+        },
       ],
     }).compile();
     const service = module.get(PinService);
@@ -96,6 +150,10 @@ describe("PinService.deletePin", () => {
         { provide: RoomRepository, useValue: {} },
         { provide: SourceRepository, useValue: {} },
         { provide: TasksService, useValue: {} },
+        {
+          provide: NotificationService,
+          useValue: { recordAndNotifyUser: jest.fn() },
+        },
       ],
     }).compile();
     const service = module.get(PinService);
@@ -129,6 +187,10 @@ describe("PinService.deletePin", () => {
         { provide: RoomRepository, useValue: {} },
         { provide: SourceRepository, useValue: {} },
         { provide: TasksService, useValue: {} },
+        {
+          provide: NotificationService,
+          useValue: { recordAndNotifyUser: jest.fn() },
+        },
       ],
     }).compile();
     const service = module.get(PinService);
@@ -162,6 +224,10 @@ describe("PinService.deletePin", () => {
         { provide: RoomRepository, useValue: {} },
         { provide: SourceRepository, useValue: {} },
         { provide: TasksService, useValue: {} },
+        {
+          provide: NotificationService,
+          useValue: { recordAndNotifyUser: jest.fn() },
+        },
       ],
     }).compile();
     const service = module.get(PinService);
