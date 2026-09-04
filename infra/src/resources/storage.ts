@@ -23,9 +23,13 @@ function createPlaceImagesBucket(appEnv: "local" | "prod") {
       location: region,
       uniformBucketLevelAccess: true,
       /*
-       * 아래 allUsers 바인딩을 받으려면 공개 차단이 꺼져 있어야 한다. 이 필드는
-       * Optional+Computed라 설정에서 지우면 diff가 안 생기고 이전 값(enforced)이
-       * 그대로 남는다. 그러면 바인딩이 거부되므로 끄는 값을 명시한다.
+       * "inherited"는 공개 차단을 끄는 값이 아니라 상위(조직·폴더·프로젝트) 정책을
+       * 따르는 값이다. 아래 allUsers 바인딩은 상위 정책이 공개를 허용할 때만 유효하다.
+       * team-mino-prod의 유효 정책은 storage.publicAccessPrevention enforce: false라
+       * 현재는 허용된다. 정책이 켜지면 바인딩이 남아 있어도 익명 요청이 거부된다.
+       *
+       * "enforced"를 지우는 것으로는 부족하다. 이 필드는 Optional+Computed라
+       * 설정에서 빼면 diff가 생기지 않고 이전 값이 그대로 남는다.
        */
       publicAccessPrevention: "inherited",
     },

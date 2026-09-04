@@ -34,9 +34,15 @@ export class RoomPinController {
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: "인스타그램 링크에서 장소를 추출해 여러 방에 핀을 추가한다",
+    description:
+      "인스타그램 게시물 링크가 아니면 400이 아니라 202를 반환하고 SAVE_FAILED 알림을 보낸다. " +
+      "400은 roomIds가 잘못된 경우에만 나온다.",
   })
   @ApiBody({ schema: createRoomPinsRequestApiSchema })
-  @ApiResponse({ status: 202, description: "장소 추출 작업 등록 완료" })
+  @ApiResponse({
+    status: 202,
+    description: "장소 추출 작업 등록 완료. 지원하지 않는 링크도 202다.",
+  })
   @ApiResponse({ status: 400, schema: errorResponseApiSchema })
   @ApiResponse({ status: 403, schema: errorResponseApiSchema })
   @ApiResponse({ status: 502, schema: errorResponseApiSchema })

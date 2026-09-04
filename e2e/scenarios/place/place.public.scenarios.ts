@@ -1,6 +1,7 @@
 import { expect, it } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
+import { notifications } from "../../../src/modules/notification/notification.schema";
 import { sources } from "../../../src/modules/source/source.schema";
 import { NORMALIZED_POST_URL, PlaceE2eHarness } from "./place.e2e.helpers";
 
@@ -68,18 +69,27 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
     expect(await harness.db.select().from(sources)).toHaveLength(0);
   });
 
-  it("잘못된 URL은 400이고 enqueue하지 않는다", async () => {
+  it("인스타그램 링크가 아니면 202로 접수하고 SAVE_FAILED 알림만 남긴다", async () => {
     const response = await harness.postPin(harness.memberAuthUid, {
-      url: "not-a-url",
+      url: "https://www.youtube.com/watch?v=e2e",
       roomIds: [harness.room],
     });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({ data: { ok: true } });
     expect(harness.enqueuePinExtraction).not.toHaveBeenCalled();
+    expect(await harness.db.select().from(sources)).toHaveLength(0);
+    expect(
+      await harness.db
+        .select({ type: notifications.type })
+        .from(notifications)
+        .where(eq(notifications.recipientId, harness.member)),
+    ).toEqual([{ type: "SAVE_FAILED" }]);
   });
 
-  it("evil query-domain과 notinstagram/profile URL은 source write 전에 400이다", async () => {
+  it("evil query-domain과 notinstagram/profile URL은 source write 없이 접수만 된다", async () => {
     const invalidUrls = [
+      "not-a-url",
       "https://evil.com/?next=instagram.com/p/abc123",
       "https://notinstagram.com/p/abc123",
       "https://www.instagram.com/profile",
@@ -92,10 +102,26 @@ export function registerPublicPlaceScenarios(harness: PlaceE2eHarness): void {
         url,
         roomIds: [harness.room],
       });
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(202);
     }
     expect(harness.enqueuePinExtraction).not.toHaveBeenCalled();
     expect(await harness.db.select().from(sources)).toHaveLength(0);
+    expect(
+      await harness.db
+        .select({ id: notifications.id })
+        .from(notifications)
+        .where(eq(notifications.recipientId, harness.member)),
+    ).toHaveLength(invalidUrls.length);
+  });
+
+  it("빈 링크는 400이고 enqueue하지 않는다", async () => {
+    const response = await harness.postPin(harness.memberAuthUid, {
+      url: "",
+      roomIds: [harness.room],
+    });
+
+    expect(response.status).toBe(400);
+    expect(harness.enqueuePinExtraction).not.toHaveBeenCalled();
   });
 
   it("빈 배열 또는 중복 방 ID는 enqueue하지 않는다", async () => {
