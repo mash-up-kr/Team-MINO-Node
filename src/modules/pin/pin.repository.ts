@@ -50,6 +50,7 @@ export class PinRepository extends BaseRepository {
     const query = this.db
       .select({
         ...PIN_COLUMNS,
+        images: pins.images,
         place: places,
         author: PIN_AUTHOR_COLUMNS,
       })
@@ -108,6 +109,7 @@ export class PinRepository extends BaseRepository {
     const [row] = await this.db
       .select({
         ...PIN_COLUMNS,
+        images: pins.images,
         place: places,
         author: PIN_AUTHOR_COLUMNS,
         sourceUrl: sources.originalUrl,
