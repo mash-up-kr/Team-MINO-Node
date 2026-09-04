@@ -11,5 +11,7 @@ import { InvitationService } from "./invitation.service";
   imports: [AuthModule, DatabaseModule, NotificationModule, SentryModule],
   controllers: [InvitationController],
   providers: [InvitationService, InvitationRepository],
+  // 초대 랜딩(AppLinkModule)이 미리보기를 그대로 재사용한다.
+  exports: [InvitationService],
 })
 export class InvitationModule {}

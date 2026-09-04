@@ -14,6 +14,7 @@ import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
 import { DatabaseModule } from "./infrastructures/db/database.module";
 import { SentryModule } from "./infrastructures/sentry/sentry.module";
+import { AppLinkModule } from "./modules/app-link/app-link.module";
 import { CardModule } from "./modules/card/card.module";
 import { CommentModule } from "./modules/comment/comment.module";
 import { InvitationModule } from "./modules/invitation/invitation.module";
@@ -53,6 +54,7 @@ import { UserModule } from "./modules/user/user.module";
     UserModule,
     CardModule,
     NotificationModule,
+    AppLinkModule,
   ],
   controllers: [HealthController],
   providers: [DrizzleHealthIndicator, DbKeepAliveService],
