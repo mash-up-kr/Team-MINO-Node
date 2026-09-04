@@ -98,6 +98,8 @@ export type PinRow = {
   roomId: string;
   placeId: string;
   sourceId: string | null;
+  /** 이 핀이 만들어진 게시물의 이미지. 복제 시 그대로 물려준다. */
+  images: string[] | null;
 };
 
 /** 요청 유저 관점의 핀 조회 행 — 소속 방 멤버십 검증을 본 쿼리에서 함께 내린다. */
