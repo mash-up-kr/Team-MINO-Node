@@ -161,15 +161,15 @@ describe("GET /r/:code", () => {
     expect(html).not.toContain("errorCode");
   });
 
-  it("없는 코드 페이지는 색인되지 않게 한다", async () => {
-    const html = await (await fetch(`${baseUrl}/r/ZZ99ZZ`)).text();
+  /*
+   * 초대 코드는 그 자체가 방의 접근 권한이라, 색인되면 링크를 받지 않은 사람도
+   * 검색으로 방에 들어올 수 있다. 유효 여부와 무관하게 막는다.
+   */
+  it("유효 여부와 무관하게 색인되지 않게 한다", async () => {
+    const valid = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
+    const missing = await (await fetch(`${baseUrl}/r/ZZ99ZZ`)).text();
 
-    expect(html).toContain('name="robots" content="noindex"');
-  });
-
-  it("유효한 코드 페이지는 noindex를 붙이지 않는다", async () => {
-    const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
-
-    expect(html).not.toContain("noindex");
+    expect(valid).toContain('name="robots" content="noindex"');
+    expect(missing).toContain('name="robots" content="noindex"');
   });
 });

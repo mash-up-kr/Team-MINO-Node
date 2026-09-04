@@ -80,6 +80,10 @@ ${page.body ?? ""}
  * 플랫폼 판별은 서버가 아니라 브라우저에서 한다. 서버가 UA로 갈라 렌더링하면
  * 캐시가 한 플랫폼용 HTML을 다른 플랫폼에 내주기 때문이다(Vary 관리가 필요해진다).
  * 두 플랫폼 링크를 모두 심어 두고 아래 스크립트가 맞는 쪽만 남긴다.
+ *
+ * 코드의 유효 여부와 무관하게 noindex를 붙인다. 초대 코드는 그 자체가 방의 접근
+ * 권한이라(PRD 4장), 색인되면 링크를 받지 않은 사람도 검색으로 방에 들어올 수 있다.
+ * 공유 카드는 OG 태그를 읽는 것이라 이 지시어의 대상이 아니다.
  */
 export function renderLanding(view: LandingView, inviteUrl: string): string {
   const invitation = view.invitation;
@@ -99,7 +103,7 @@ export function renderLanding(view: LandingView, inviteUrl: string): string {
 <meta property="og:description" content="${escapeHtml(description)}">
 <meta property="og:url" content="${escapeHtml(inviteUrl)}">
 ${previewMetaTags(view, title)}
-${invitation ? "" : '<meta name="robots" content="noindex">'}`,
+<meta name="robots" content="noindex">`,
     body: `
   <div class="actions">
     <a class="button primary" id="install" href="${escapeHtml(view.appStoreUrl ?? view.playStoreUrl ?? inviteUrl)}">설치하고 참여하기</a>
