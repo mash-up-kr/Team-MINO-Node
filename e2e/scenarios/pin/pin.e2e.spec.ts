@@ -124,7 +124,6 @@ beforeAll(async () => {
         lat: def.lat,
         lng: def.lng,
         externalUrl: "https://place.map.kakao.com/123",
-        images: [`https://img.example.com/${n}.jpg`],
       })),
     )
     .returning({ id: places.id });
@@ -144,6 +143,7 @@ beforeAll(async () => {
         placeId,
         sourceId: index === 0 ? (source?.id as string) : null,
         createdBy: memberId,
+        images: [`https://img.example.com/${index}.jpg`],
         // Pin 0: 3일 전, Pin 1: 2일 전, Pin 2: 1일 전
         createdAt: new Date(now - (3 - index) * 86_400_000),
       })),
