@@ -157,7 +157,7 @@ const pinSchema: SchemaObject = {
     images: {
       type: "array",
       items: { type: "string" },
-      description: "게시물 이미지 (places.images — pins 이동 전 임시 매핑)",
+      description: "이 핀이 만들어진 게시물의 이미지 (pins.images)",
     },
     createdBy: {
       type: "object",

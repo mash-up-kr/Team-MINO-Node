@@ -368,6 +368,9 @@ describe("방 목록 썸네일", () => {
         roomId: thumbRoomId,
         placeId: place.id,
         createdBy: ownerId,
+        // 1~5번 핀은 게시물 이미지 보유, 6번(가장 최신)은 이미지 없음
+        images:
+          index < 5 ? [`https://img.example.com/thumb-${index + 1}.jpg`] : null,
         createdAt: new Date(base + (index + 1) * 60_000),
       })),
     );

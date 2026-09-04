@@ -57,7 +57,10 @@ export class NotificationRepository extends BaseRepository {
         fcmToken: users.fcmToken,
         placeId: places.id,
         placeName: places.name,
-        thumbnailUrl: sql<string | null>`${places.images} ->> 0`.as(
+        // 조인 행이 핀×코멘트라 최빈 썸네일 = 코멘트가 가장 많은 핀의 것.
+        thumbnailUrl: sql<
+          string | null
+        >`mode() within group (order by ${pins.images} ->> 0)`.as(
           "thumbnail_url",
         ),
         // 조인 행이 핀×코멘트라 최빈 핀이 곧 코멘트가 가장 많은 핀이다.
