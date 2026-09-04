@@ -124,7 +124,6 @@ beforeAll(async () => {
         lat: def.lat,
         lng: def.lng,
         externalUrl: "https://place.map.kakao.com/123",
-        images: [`https://img.example.com/${n}.jpg`],
       })),
     )
     .returning({ id: places.id });

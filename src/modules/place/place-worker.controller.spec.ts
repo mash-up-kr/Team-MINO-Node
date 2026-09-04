@@ -107,24 +107,7 @@ describe("PlaceWorkerController retry policy", () => {
     await expect(controller.process(TASK)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
-    expect(save).toHaveBeenCalledWith(
-      TASK,
-      [SUCCESSFUL_MATCH, FAILED_MATCH],
-      [],
-    );
-  });
-
-  it("추출된 게시글 이미지를 저장소로 그대로 넘긴다", async () => {
-    const { controller, extractFromUrl, save } = createController();
-    const images = [
-      "https://storage.googleapis.com/bucket/instagram/abc123/000",
-      "https://storage.googleapis.com/bucket/instagram/abc123/001",
-    ];
-    extractFromUrl.mockResolvedValue(extraction([SUCCESSFUL_MATCH], images));
-    save.mockResolvedValue(saveResult({ persistedPlaces: 1 }));
-
-    await expect(controller.process(TASK)).resolves.toBeUndefined();
-    expect(save).toHaveBeenCalledWith(TASK, [SUCCESSFUL_MATCH], images);
+    expect(save).toHaveBeenCalledWith(TASK, [SUCCESSFUL_MATCH, FAILED_MATCH]);
   });
 
   it("모든 geocoder 실패는 저장 없이 503으로 재시도한다", async () => {

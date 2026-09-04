@@ -129,7 +129,8 @@ export const createRoomPinsRequestApiSchema = toJsonSchema(
 
 const placeSchema: SchemaObject = {
   type: "object",
-  description: "places 컬럼 전체 (images 제외 — 핀 응답으로 이동)",
+  description:
+    "places 컬럼 전체 (게시물 이미지는 핀 소속 images 필드로 내려간다)",
   properties: {
     id: { type: "string", format: "uuid" },
     provider: { type: "string", enum: ["kakao", "google"] },

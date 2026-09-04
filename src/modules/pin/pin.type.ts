@@ -82,7 +82,6 @@ export type PlaceRow = {
   category: string | null;
   phone: string | null;
   externalUrl: string | null;
-  images: string[] | null;
   createdAt: Date;
   updatedAt: Date;
 };
