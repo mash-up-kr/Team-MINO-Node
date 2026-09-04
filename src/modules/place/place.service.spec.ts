@@ -21,6 +21,7 @@ describe("PlaceService", () => {
     area_name: "성수동",
     area_type: "landmark",
     relation: "카페 방문 후기",
+    image_indices: [],
   };
 
   function makePost(overrides: Partial<ScrapedPost> = {}): ScrapedPost {
@@ -132,6 +133,7 @@ describe("PlaceService", () => {
       area_name: "성수동",
       area_type: "landmark",
       relation: "코스",
+      image_indices: [],
     }));
     instagram.fetchPost.mockResolvedValue(makePost());
     ai.extract.mockResolvedValue({ places });
@@ -202,6 +204,76 @@ describe("PlaceService", () => {
     await expect(promise).rejects.toMatchObject({
       errorCode: "GEOCODER_ALL_FAILED",
     });
+  });
+
+  it("모델이 고른 인덱스만 그 장소의 이미지로 담는다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://b/0",
+        publicUrl: "https://img/0",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://b/1",
+        publicUrl: "https://img/1",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://b/2",
+        publicUrl: "https://img/2",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    ai.extract.mockResolvedValue({
+      places: [
+        { ...QUERY, image_indices: [2, 0] },
+        { ...QUERY, place_name: "대림창고", image_indices: [1] },
+      ],
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then — 인덱스순 정렬, 장소별 부분집합
+    expect(matches[0].images).toEqual(["https://img/0", "https://img/2"]);
+    expect(matches[1].images).toEqual(["https://img/1"]);
+  });
+
+  it("인덱스가 전부 무효(범위 밖·중복·누락)면 게시물 전체 이미지로 폴백한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://b/0",
+        publicUrl: "https://img/0",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://b/1",
+        publicUrl: "https://img/1",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    ai.extract.mockResolvedValue({
+      places: [
+        { ...QUERY, image_indices: [9, -1, 1.5] },
+        // 검증을 안 거친 입력(테스트 mock 등)은 필드 자체가 없을 수 있다
+        { ...QUERY, place_name: "대림창고", image_indices: undefined },
+      ],
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then
+    expect(matches[0].images).toEqual(["https://img/0", "https://img/1"]);
+    expect(matches[1].images).toEqual(["https://img/0", "https://img/1"]);
   });
 
   it("프롬프트 + 캡션 + 태그 위치 + 저장된 이미지(gs://)로 멀티모달 content를 구성한다", async () => {
