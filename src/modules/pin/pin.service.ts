@@ -230,6 +230,9 @@ export class PinService {
           placeId: pin.placeId,
           sourceId: pin.sourceId,
           createdBy: userId,
+          // 같은 게시물에서 온 복제본이라 이미지도 함께 물려준다. GCS 객체는
+          // 그대로 두고 URL만 복사하므로 저장 비용은 늘지 않는다.
+          images: pin.images,
         })),
       );
     } catch (error) {

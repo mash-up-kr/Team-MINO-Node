@@ -523,6 +523,13 @@ describe("다른 방에 핀 복제", () => {
   });
 
   it("대상 방에 핀이 복제된다", async () => {
+    // 원본 핀의 게시물 이미지가 복제본에 물려지는지 함께 검증한다 (URL만 복사, GCS 객체는 공유)
+    const sourceImages = ["https://img.example.com/pin-src-0.jpg"];
+    await db
+      .update(pins)
+      .set({ images: sourceImages })
+      .where(eq(pins.id, firstPinId));
+
     const response = await api(
       `/api/v1/pins/${firstPinId}/duplicate`,
       memberAuthUid,
@@ -539,6 +546,12 @@ describe("다른 방에 핀 복제", () => {
     };
     expect(body.data).toHaveLength(1);
     expect(body.data[0]?.place.id).toBe(placeIds[0]);
+
+    const [copied] = await db
+      .select({ images: pins.images })
+      .from(pins)
+      .where(eq(pins.roomId, roomBId));
+    expect(copied?.images).toEqual(sourceImages);
   });
 
   it("대상 방 중 하나라도 같은 장소가 있으면 409로 전체 거절한다", async () => {

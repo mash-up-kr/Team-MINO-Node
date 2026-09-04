@@ -258,6 +258,77 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
     }
   });
 
+  it("모델이 고른 인덱스대로 장소별 이미지를 핀에 나눠 담는다", async () => {
+    const images = [
+      "https://storage.googleapis.com/bucket/instagram/e2e-pin/000",
+      "https://storage.googleapis.com/bucket/instagram/e2e-pin/001",
+    ];
+    harness.placeImage.storePostImages.mockResolvedValue(
+      images.map((publicUrl, index) => ({
+        gsUri: `gs://bucket/instagram/e2e-pin/00${index}`,
+        publicUrl,
+        mediaType: "image/jpeg",
+      })),
+    );
+    await harness.postPin();
+
+    expect((await harness.runTask()).status).toBe(204);
+
+    // 기본 추출 mock은 어니언 성수 → 0번, 대림창고 → 1번을 가리킨다.
+    const saved = await harness.db
+      .select({ name: places.name, images: pins.images })
+      .from(pins)
+      .innerJoin(places, eq(places.id, pins.placeId));
+    expect(saved).not.toHaveLength(0);
+    for (const pin of saved) {
+      expect(pin.images).toEqual(
+        pin.name === "어니언 성수" ? [images[0]] : [images[1]],
+      );
+    }
+  });
+
+  it("모델이 인덱스를 못 고르면 게시물 전체 이미지로 폴백한다", async () => {
+    const images = [
+      "https://storage.googleapis.com/bucket/instagram/e2e-pin/000",
+      "https://storage.googleapis.com/bucket/instagram/e2e-pin/001",
+    ];
+    harness.placeImage.storePostImages.mockResolvedValue(
+      images.map((publicUrl, index) => ({
+        gsUri: `gs://bucket/instagram/e2e-pin/00${index}`,
+        publicUrl,
+        mediaType: "image/jpeg",
+      })),
+    );
+    // 범위를 벗어난 인덱스와 빈 배열 — 둘 다 폴백 대상이다.
+    harness.ai.extract.mockResolvedValueOnce({
+      places: [
+        {
+          place_name: "어니언 성수",
+          area_name: "성수동",
+          area_type: "landmark",
+          relation: "첫 코스",
+          image_indices: [7, -1],
+        },
+        {
+          place_name: "대림창고",
+          area_name: "성수동",
+          area_type: "landmark",
+          relation: "둘째 코스",
+          image_indices: [],
+        },
+      ],
+    });
+    await harness.postPin();
+
+    expect((await harness.runTask()).status).toBe(204);
+
+    const saved = await harness.db.select({ images: pins.images }).from(pins);
+    expect(saved).not.toHaveLength(0);
+    for (const pin of saved) {
+      expect(pin.images).toEqual(images);
+    }
+  });
+
   /*
    * 같은 장소가 이미지 없는 다른 글로 재유입될 때 upsert가 excluded.images를 그대로
    * 쓰면 멀쩡한 썸네일이 NULL로 덮인다. coalesce가 그걸 막는지 본다.
