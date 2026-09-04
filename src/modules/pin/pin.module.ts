@@ -3,6 +3,7 @@ import { CurrentUserGuard } from "../../common/guards/current-user.guard";
 import { AuthModule } from "../../infrastructures/auth/auth.module";
 import { DatabaseModule } from "../../infrastructures/db/database.module";
 import { TasksModule } from "../../infrastructures/tasks/tasks.module";
+import { NotificationModule } from "../notification/notification.module";
 import { RoomRepository } from "../room/room.repository";
 import { SourceRepository } from "../source/source.repository";
 import { PinController } from "./pin.controller";
@@ -11,7 +12,7 @@ import { PinService } from "./pin.service";
 import { RoomPinController } from "./room-pin.controller";
 
 @Module({
-  imports: [AuthModule, DatabaseModule, TasksModule],
+  imports: [AuthModule, DatabaseModule, TasksModule, NotificationModule],
   controllers: [PinController, RoomPinController],
   providers: [
     PinService,

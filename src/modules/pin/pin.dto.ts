@@ -1,6 +1,5 @@
 import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
-import { instagramUrlSchema } from "../../common/instagram/instagram-url.dto";
 import {
   pageQuerySchema,
   pageSizeQuerySchema,
@@ -10,8 +9,12 @@ import type { SchemaObject } from "../../common/swagger/schema";
 
 export const uuidParamSchema = v.pipe(v.string(), v.uuid());
 
+/**
+ * url은 형식만 본다. 인스타그램 게시물 링크인지는 PinService가 판정하고,
+ * 아니면 400 대신 202 + 저장 실패 알림으로 알린다(클라이언트 확정).
+ */
 export const createRoomPinsRequestSchema = v.object({
-  url: instagramUrlSchema,
+  url: v.pipe(v.string(), v.minLength(1, "링크가 비어 있습니다.")),
   roomIds: v.pipe(
     v.array(uuidParamSchema),
     v.minLength(1, "저장할 방이 최소 하나 필요합니다."),

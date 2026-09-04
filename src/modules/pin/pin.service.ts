@@ -1,12 +1,17 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { AppException } from "../../common/exceptions/app.exception";
 import {
+  isInstagramUrl,
+  normalizeInstagramUrl,
+} from "../../common/instagram/instagram-url.dto";
+import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
 } from "../../common/pagination/pagination.constant";
 import type { PinExtractionTask } from "../../common/tasks/pin-extraction-task.dto";
 import { isUniqueViolation } from "../../infrastructures/db/db.error";
 import { TasksService } from "../../infrastructures/tasks/tasks.service";
+import { NotificationService } from "../notification/notification.service";
 import { RoomRepository } from "../room/room.repository";
 import { SourceRepository } from "../source/source.repository";
 import {
@@ -66,8 +71,13 @@ export class PinService {
     private readonly roomRepository: RoomRepository,
     private readonly sourceRepository: SourceRepository,
     private readonly tasksService: TasksService,
+    private readonly notificationService: NotificationService,
   ) {}
 
+  /**
+   * 인스타그램 게시물 링크가 아니면 400이 아니라 저장 실패 알림으로 알린다.
+   * 공유 시트에서 넘어온 링크라 클라이언트가 응답을 띄울 화면이 없다(클라이언트 확정).
+   */
   async enqueueRoomPins(
     userId: string,
     input: CreateRoomPinsRequest,
@@ -83,9 +93,14 @@ export class PinService {
       throw this.notRoomMember();
     }
 
-    const sourceId = await this.sourceRepository.ensureActiveInstagramSource(
-      input.url,
-    );
+    if (!isInstagramUrl(input.url)) {
+      await this.notifyUnsupportedUrl(userId);
+      return;
+    }
+    const url = normalizeInstagramUrl(input.url);
+
+    const sourceId =
+      await this.sourceRepository.ensureActiveInstagramSource(url);
     if (!sourceId) {
       throw new AppException(
         "SOURCE_UPSERT_FAILED",
@@ -97,10 +112,20 @@ export class PinService {
       roomIds: input.roomIds,
       sourceId,
       createdBy: userId,
-      url: input.url,
+      url,
       enqueuedAt: new Date().toISOString(),
     };
     await this.tasksService.enqueuePinExtraction(task);
+  }
+
+  /** 큐에 태우기 전이라 sourceId가 없다. key를 비워 시도마다 알림이 남게 한다. */
+  private async notifyUnsupportedUrl(userId: string): Promise<void> {
+    await this.notificationService.recordAndNotifyUser({
+      recipientId: userId,
+      type: "SAVE_FAILED",
+      typeLabel: "장소를 저장하지 못했어요.",
+      targetName: "인스타그램 게시물 링크만 저장할 수 있어요",
+    });
   }
 
   /**
