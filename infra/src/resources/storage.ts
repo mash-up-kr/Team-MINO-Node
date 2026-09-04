@@ -22,6 +22,12 @@ function createPlaceImagesBucket(appEnv: "local" | "prod") {
       name: `team-mino-place-images-${appEnv}`,
       location: region,
       uniformBucketLevelAccess: true,
+      /*
+       * 아래 allUsers 바인딩을 받으려면 공개 차단이 꺼져 있어야 한다. 이 필드는
+       * Optional+Computed라 설정에서 지우면 diff가 안 생기고 이전 값(enforced)이
+       * 그대로 남는다. 그러면 바인딩이 거부되므로 끄는 값을 명시한다.
+       */
+      publicAccessPrevention: "inherited",
     },
     { dependsOn: enabledServices },
   );
@@ -41,14 +47,18 @@ function createPlaceImagesBucket(appEnv: "local" | "prod") {
 
   /*
    * 클라이언트가 <img src>로 바로 띄우도록 공개 읽기를 연다. 서명 URL은 만료되므로
-   * places.images에 담을 수 없다. 원본은 인스타에 이미 공개된 이미지이고 객체 경로도
-   * 공개된 shortcode 기반이라, 이 버킷으로 새로 노출되는 정보는 없다.
+   * places.images에 담을 수 없다.
+   *
+   * objectViewer가 아니라 legacyObjectReader인 이유: objectViewer에는 objects.list가
+   * 딸려 와서 버킷 주소만으로 전체 객체 목록이 익명으로 열린다. 개별 이미지는 이미
+   * 인스타에 공개돼 있지만, "우리 사용자들이 저장한 글 전체 목록"은 인스타 어디에도
+   * 없는 정보다. legacyObjectReader는 objects.get만 줘서 경로를 아는 객체만 열린다.
    */
   new gcp.storage.BucketIAMMember(
     `team-mino-place-images-${appEnv}-public-reader`,
     {
       bucket: bucket.name,
-      role: "roles/storage.objectViewer",
+      role: "roles/storage.legacyObjectReader",
       member: "allUsers",
     },
   );
