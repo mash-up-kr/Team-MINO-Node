@@ -1,5 +1,5 @@
 import { Injectable, Logger, type NestMiddleware } from "@nestjs/common";
-import { RequestContext } from "../context/request-context";
+import { REQUEST_ID_HEADER, RequestContext } from "../context/request-context";
 
 type LoggableRequest = {
   method: string;
@@ -15,14 +15,12 @@ type LoggableResponse = {
 };
 type NextFn = () => Promise<void> | void;
 
-export const REQUEST_ID_HEADER = "x-request-id" as const;
-
 @Injectable()
 export class LoggingMiddleware implements NestMiddleware {
   private readonly logger = new Logger(LoggingMiddleware.name);
 
   async use(req: LoggableRequest, res: LoggableResponse, next: NextFn) {
-    const { requestId, traceId } = RequestContext.extractOrCreate(req);
+    const { requestId } = RequestContext.extractOrCreate(req);
 
     if (typeof res.header === "function") {
       res.header(REQUEST_ID_HEADER, requestId);
@@ -32,7 +30,7 @@ export class LoggingMiddleware implements NestMiddleware {
 
     const startedAt = performance.now();
 
-    await RequestContext.run({ requestId, traceId }, async () => {
+    await RequestContext.run({ requestId }, async () => {
       try {
         await next();
       } finally {

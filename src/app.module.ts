@@ -43,7 +43,6 @@ import { UserModule } from "./modules/user/user.module";
             if (!ctx) return {};
             return {
               requestId: ctx.requestId,
-              ...(ctx.traceId ? { traceId: ctx.traceId } : {}),
               ...(ctx.userId ? { userId: ctx.userId } : {}),
             };
           },

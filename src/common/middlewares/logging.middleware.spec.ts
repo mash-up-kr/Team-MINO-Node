@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from "bun:test";
 import { Logger } from "@nestjs/common";
-import { RequestContext } from "../context/request-context";
-import { LoggingMiddleware, REQUEST_ID_HEADER } from "./logging.middleware";
+import { REQUEST_ID_HEADER, RequestContext } from "../context/request-context";
+import { LoggingMiddleware } from "./logging.middleware";
 
 function createReqRes(
   method = "GET",

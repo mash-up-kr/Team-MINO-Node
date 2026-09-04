@@ -3,13 +3,26 @@ import { readRequestHeader } from "../guards/request-header";
 
 export type RequestContextData = {
   readonly requestId: string;
-  readonly traceId?: string;
   userId?: string;
   authUid?: string;
 };
 
 export const requestContextStorage =
   new AsyncLocalStorage<RequestContextData>();
+
+export const REQUEST_ID_HEADER = "x-request-id" as const;
+
+/**
+ * HTTP 헤더 인젝션 및 비정상 문자열을 방어하기 위한 안전한 Request ID 패턴.
+ * 영숫자, 하이픈(-), 언더스코어(_) 조합 (1~128자).
+ */
+const SAFE_REQUEST_ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
+
+function sanitizeId(id: string | undefined): string | undefined {
+  if (!id) return undefined;
+  const trimmed = id.trim();
+  return SAFE_REQUEST_ID_PATTERN.test(trimmed) ? trimmed : undefined;
+}
 
 export const RequestContext = {
   /** 비동기 실행 흐름에 컨텍스트를 주입하고 콜백을 실행한다. */
@@ -25,11 +38,6 @@ export const RequestContext = {
   /** 현재 요청의 Request ID를 가져온다. */
   getRequestId(): string | undefined {
     return RequestContext.get()?.requestId;
-  },
-
-  /** 현재 요청의 Trace ID를 가져온다. */
-  getTraceId(): string | undefined {
-    return RequestContext.get()?.traceId;
   },
 
   /** 현재 요청의 User ID를 가져온다. */
@@ -59,7 +67,8 @@ export const RequestContext = {
   },
 
   /**
-   * HTTP 요청 헤더에서 Request ID / Trace ID를 추출하거나 새로 생성한다.
+   * HTTP 요청 헤더에서 Request ID를 추출하거나 새로 생성한다.
+   * 헤더 인젝션을 방어하기 위해 안전한 문자열 패턴을 검증한다.
    *
    * 우선순위:
    * 1. x-request-id / x-correlation-id
@@ -69,37 +78,34 @@ export const RequestContext = {
    */
   extractOrCreate(request: unknown): {
     requestId: string;
-    traceId?: string;
   } {
     const incomingRequestId =
-      readRequestHeader(request, "x-request-id")?.trim() ||
-      readRequestHeader(request, "x-correlation-id")?.trim();
+      sanitizeId(readRequestHeader(request, "x-request-id")) ||
+      sanitizeId(readRequestHeader(request, "x-correlation-id"));
 
     const cloudTraceHeader = readRequestHeader(
       request,
       "x-cloud-trace-context",
-    )?.trim();
-    const traceparentHeader = readRequestHeader(request, "traceparent")?.trim();
+    );
+    const traceparentHeader = readRequestHeader(request, "traceparent");
 
-    let traceId: string | undefined;
+    let upstreamTraceId: string | undefined;
 
     if (cloudTraceHeader) {
       const [tid] = cloudTraceHeader.split("/");
-      if (tid) {
-        traceId = tid.trim();
-      }
+      upstreamTraceId = sanitizeId(tid);
     } else if (traceparentHeader) {
       const parts = traceparentHeader.split("-");
       if (parts.length >= 4 && parts[1]) {
-        traceId = parts[1].trim();
+        upstreamTraceId = sanitizeId(parts[1]);
       }
     }
 
-    const requestId = incomingRequestId || traceId || crypto.randomUUID();
+    const requestId =
+      incomingRequestId || upstreamTraceId || crypto.randomUUID();
 
     return {
       requestId,
-      traceId,
     };
   },
 } as const;
