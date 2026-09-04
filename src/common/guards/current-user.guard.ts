@@ -8,6 +8,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { TokenVerifier } from "../../infrastructures/auth/token-verifier";
 import { DatabaseService } from "../../infrastructures/db/database.service";
 import { type UserAvatar, users } from "../../modules/user/user.schema";
+import { RequestContext } from "../context/request-context";
 import { AppException } from "../exceptions/app.exception";
 import { type RequestWithAuthUid, resolveAuthUid } from "./auth-uid.guard";
 
@@ -61,6 +62,8 @@ export class CurrentUserGuard implements CanActivate {
 
     request.authUid = authUid;
     request.user = user;
+    RequestContext.setUserId(user.id);
+    RequestContext.setAuthUid(authUid);
     return true;
   }
 }
