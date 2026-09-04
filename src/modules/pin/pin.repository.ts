@@ -162,6 +162,7 @@ export class PinRepository extends BaseRepository {
         roomId: pins.roomId,
         placeId: pins.placeId,
         sourceId: pins.sourceId,
+        images: pins.images,
         isMember: sql<boolean>`${exists(this.memberOfPinRoomSubquery(userId))}`,
       })
       .from(pins)
@@ -220,6 +221,7 @@ export class PinRepository extends BaseRepository {
       placeId: string;
       sourceId: string | null;
       createdBy: string;
+      images: string[] | null;
     }>,
   ): Promise<void> {
     await this.db.insert(pins).values(values);
