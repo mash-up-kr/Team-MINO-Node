@@ -232,6 +232,61 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
     ).toHaveLength(2);
   });
 
+  it("worker는 GCS에 저장된 이미지의 공개 URL을 places.images에 남긴다", async () => {
+    const images = [
+      "https://storage.googleapis.com/bucket/instagram/e2e-pin/000",
+      "https://storage.googleapis.com/bucket/instagram/e2e-pin/001",
+    ];
+    harness.placeImage.storePostImages.mockResolvedValue(
+      images.map((publicUrl, index) => ({
+        gsUri: `gs://bucket/instagram/e2e-pin/00${index}`,
+        publicUrl,
+        mediaType: "image/jpeg",
+      })),
+    );
+    await harness.postPin();
+
+    const response = await harness.runTask();
+
+    expect(response.status).toBe(204);
+    const stored = await harness.db
+      .select({ images: places.images })
+      .from(places);
+    expect(stored).toHaveLength(2);
+    for (const place of stored) {
+      expect(place.images).toEqual(images);
+    }
+  });
+
+  /*
+   * 같은 장소가 이미지 없는 다른 글로 재유입될 때 upsert가 excluded.images를 그대로
+   * 쓰면 멀쩡한 썸네일이 NULL로 덮인다. coalesce가 그걸 막는지 본다.
+   */
+  it("이미지 없는 글로 같은 장소를 다시 저장해도 기존 images는 유지된다", async () => {
+    const images = ["https://storage.googleapis.com/bucket/instagram/e2e/000"];
+    harness.placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://bucket/instagram/e2e/000",
+        publicUrl: images[0],
+        mediaType: "image/jpeg",
+      },
+    ]);
+    await harness.postPin();
+    expect((await harness.runTask()).status).toBe(204);
+
+    harness.placeImage.storePostImages.mockResolvedValue([]);
+    const response = await harness.runTask();
+
+    expect(response.status).toBe(204);
+    const stored = await harness.db
+      .select({ images: places.images })
+      .from(places);
+    expect(stored.length).toBeGreaterThan(0);
+    for (const place of stored) {
+      expect(place.images).toEqual(images);
+    }
+  });
+
   it("worker malformed task는 영구 오류로 acknowledge한다", async () => {
     const malformed = await harness.runMalformedTask();
 

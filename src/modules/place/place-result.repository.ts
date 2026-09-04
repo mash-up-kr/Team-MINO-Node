@@ -74,6 +74,7 @@ export class PlaceResultRepository {
   async save(
     task: PinExtractionTask,
     matches: PlaceMatch[],
+    images: string[] = [],
   ): Promise<PlaceSaveResult> {
     // retryable을 명시한 AppException은 그 값을 그대로 따르고, 명시하지 않았으면
     // 5xx만 재시도 가능으로 본다(AppException 기본 규칙과 동일). geocoder가 모든
@@ -127,6 +128,8 @@ export class PlaceResultRepository {
             category: candidate.category,
             categoryGroup: classifyPlaceCategory(candidate.category),
             externalUrl: candidate.mapUrl,
+            // 이미지가 0장이면 null로 넣어야 아래 coalesce가 기존 값을 지킨다.
+            images: images.length > 0 ? images : null,
           })),
         )
         .onConflictDoUpdate({
@@ -141,6 +144,8 @@ export class PlaceResultRepository {
             category: sql`excluded.category`,
             categoryGroup: sql`excluded.category_group`,
             externalUrl: sql`excluded.external_url`,
+            // 이번에 이미지가 없으면(캡션만 있는 글, 호스트 차단 등) 이미 저장된 썸네일을 지우지 않는다.
+            images: sql`coalesce(excluded.images, ${places.images})`,
             updatedAt: sql`now()`,
           },
         })

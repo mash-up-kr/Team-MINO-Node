@@ -67,3 +67,9 @@ export interface PlaceMatch {
   /** fulfilled 빈 배열과 provider 실패를 구분해 재시도 정책에 전달한다. */
   geocoding: { status: "fulfilled" } | { status: "rejected"; reason: unknown };
 }
+
+export interface PlaceExtraction {
+  readonly matches: PlaceMatch[];
+  /** 게시글 전체의 이미지 공개 URL. 장소별이 아니라 글 단위라 한 번만 싣는다. */
+  readonly images: string[];
+}
