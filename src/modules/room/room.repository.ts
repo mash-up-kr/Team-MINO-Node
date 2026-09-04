@@ -12,7 +12,6 @@ import {
 } from "drizzle-orm";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
 import { pins } from "../pin/pin.schema";
-import { places } from "../place/place.schema";
 import { users } from "../user/user.schema";
 import { rooms } from "./room.schema";
 import type {
@@ -179,10 +178,8 @@ export class RoomRepository extends BaseRepository {
   }
 
   /**
-   * 방별 최근 핀의 장소 대표 이미지(images[0]) — 방 목록 썸네일용.
+   * 방별 최근 핀의 대표 이미지(pins.images[0]) — 방 목록 썸네일용.
    * 대표 이미지가 있는 핀만 방마다 최신순 최대 limitPerRoom개로 자른다.
-   * window 함수 안의 raw sql 컬럼은 비정규화로 렌더링돼 조인(places)과
-   * 모호해지므로, 정규화 식별자를 직접 쓴다.
    */
   async listRecentPinImages(
     roomIds: string[],
@@ -191,18 +188,17 @@ export class RoomRepository extends BaseRepository {
     const ranked = this.db
       .select({
         roomId: pins.roomId,
-        imageUrl: sql<string>`${places.images} ->> 0`.as("image_url"),
+        imageUrl: sql<string>`${pins.images} ->> 0`.as("image_url"),
         rank: sql<number>`row_number() over (partition by "pins"."room_id" order by "pins"."created_at" desc, "pins"."id" desc)`.as(
           "rank",
         ),
       })
       .from(pins)
-      .innerJoin(places, eq(pins.placeId, places.id))
       .where(
         and(
           inArray(pins.roomId, roomIds),
           isNull(pins.deletedAt),
-          sql`${places.images} ->> 0 is not null`,
+          sql`${pins.images} ->> 0 is not null`,
         ),
       )
       .as("ranked");

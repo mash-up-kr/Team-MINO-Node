@@ -233,7 +233,7 @@ export class PlaceResultRepository {
         pinId: pins.id,
         placeId: pins.placeId,
         placeName: places.name,
-        thumbnailUrl: sql<string | null>`${places.images} ->> 0`,
+        thumbnailUrl: sql<string | null>`${pins.images} ->> 0`,
       })
       .from(pins)
       .innerJoin(places, eq(pins.placeId, places.id))

@@ -54,7 +54,7 @@ export type PinResponse = {
   id: string;
   roomId: string;
   place: PlaceResponse;
-  /** places.images가 pins로 이동 예정(DB 변경)이라 응답에서 먼저 핀 소속으로 내린다 */
+  /** 이 핀이 만들어진 게시물의 이미지(pins.images). 장소가 아니라 핀 소속이다. */
   images: string[];
   createdBy: PinAuthorResponse | null;
   createdAt: Date;
@@ -82,7 +82,6 @@ export type PlaceRow = {
   category: string | null;
   phone: string | null;
   externalUrl: string | null;
-  images: string[] | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -116,6 +115,7 @@ export type PinJoinRow = {
   id: string;
   roomId: string;
   createdAt: Date;
+  images: string[] | null;
   place: PlaceRow;
   author: AuthorJoinRow;
 };
@@ -153,7 +153,7 @@ export function toPinResponse(row: PinJoinRow): PinResponse {
     id: row.id,
     roomId: row.roomId,
     place: toPlaceResponse(row.place),
-    images: row.place.images ?? [],
+    images: row.images ?? [],
     createdBy: author,
     createdAt: row.createdAt,
   };
