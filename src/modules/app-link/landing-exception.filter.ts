@@ -6,6 +6,7 @@ import {
   HttpStatus,
 } from "@nestjs/common";
 import { SentryErrorReporter } from "../../infrastructures/sentry/sentry-reporter";
+import { AppLinkService } from "./app-link.service";
 import { renderLandingError } from "./landing.template";
 
 /** BunHonoAdapter가 컨텍스트에 심어 두는 Express 형태의 응답 헬퍼. */
@@ -30,7 +31,10 @@ interface HonoHtmlResponse {
  */
 @Catch()
 export class LandingExceptionFilter implements ExceptionFilter {
-  constructor(private readonly reporter: SentryErrorReporter) {}
+  constructor(
+    private readonly reporter: SentryErrorReporter,
+    private readonly appLinkService: AppLinkService,
+  ) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<HonoHtmlResponse>();
@@ -46,7 +50,9 @@ export class LandingExceptionFilter implements ExceptionFilter {
     response.status(status);
     response.header("Content-Type", "text/html; charset=utf-8");
     response.header("Cache-Control", "no-store");
-    response.res = response.body(renderLandingError(status));
+    response.res = response.body(
+      renderLandingError(status, this.appLinkService.storeLinks()),
+    );
   }
 
   private report(exception: unknown, status: number): void {

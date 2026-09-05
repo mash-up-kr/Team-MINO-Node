@@ -1,0 +1,33 @@
+{
+  "hosting": {
+    "site": "team-mino-prod",
+    "public": "public",
+    "ignore": ["**"],
+    "appAssociation": "NONE",
+    "headers": [
+      {
+        "source": "**",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store" }]
+      },
+      {
+        "source": "/.well-known/**",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+      },
+      {
+        "source": "/@(img|fonts)/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=86400" }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "team-mino-prod-api",
+          "region": "asia-northeast3"
+        }
+      }
+    ]
+  }
+}

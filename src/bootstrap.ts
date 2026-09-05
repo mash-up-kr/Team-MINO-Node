@@ -7,6 +7,10 @@ import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 import type { Env } from "./config/env.schema";
+import {
+  STATIC_ASSETS_CACHE_CONTROL,
+  STATIC_ASSETS_ROOT,
+} from "./config/static-assets";
 import { SentryErrorReporter } from "./infrastructures/sentry/sentry-reporter";
 
 export async function bootstrap(): Promise<void> {
@@ -21,6 +25,12 @@ export async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new HttpExceptionFilter(errorReporter));
   app.useGlobalInterceptors(new ResponseInterceptor(app.get(Reflector)));
   app.enableShutdownHooks();
+  // 어댑터 미들웨어가 모든 응답에 no-store를 걸어 두므로 여기서 되돌린다.
+  adapter.useStaticAssets(STATIC_ASSETS_ROOT, {
+    onFound: (_path, ctx) => {
+      ctx.header("Cache-Control", STATIC_ASSETS_CACHE_CONTROL);
+    },
+  });
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle("Team MINO API")
