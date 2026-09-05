@@ -54,6 +54,16 @@ const version = new gcp.firebase.HostingVersion(
           glob: "/.well-known/**",
           headers: { "Cache-Control": "public, max-age=3600" },
         },
+        /*
+         * 랜딩의 폰트·일러스트도 마찬가지다. Cloud Run이 서빙하지만(Hosting은
+         * firebase.json의 ignore로 아무 파일도 올리지 않는다) 전역 no-store가
+         * 걸리면 CDN이 매번 원본까지 되묻는다. 값은 src/config/static-assets.ts와
+         * 같아야 한다.
+         */
+        {
+          glob: "/@(img|fonts)/**",
+          headers: { "Cache-Control": "public, max-age=86400" },
+        },
       ],
       rewrites: [{ glob: "**", run: { serviceId: service.name, region } }],
     },

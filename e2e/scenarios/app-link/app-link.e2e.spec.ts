@@ -188,3 +188,29 @@ describe("GET /r/:code", () => {
     expect(missing).toContain('name="robots" content="noindex"');
   });
 });
+
+/*
+ * 랜딩 HTML이 가리키는 폰트·일러스트. Firebase Hosting이 아니라 이 서버가
+ * 직접 서빙하므로(config/static-assets.ts) 라우팅이 살아 있는지 확인한다.
+ */
+describe("랜딩 정적 파일", () => {
+  it("HTML이 참조하는 에셋을 그대로 내려준다", async () => {
+    const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
+    const assets = [
+      ...html.matchAll(/(?:src|url\()"?(\/(?:img|fonts)\/[^"')]+)/g),
+    ].map((match) => match[1] as string);
+
+    expect(assets.length).toBeGreaterThan(0);
+    for (const asset of assets) {
+      const response = await fetch(`${baseUrl}${asset}`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toContain("max-age=86400");
+    }
+  });
+
+  it("없는 파일은 404다", async () => {
+    const response = await fetch(`${baseUrl}/img/nope.png`);
+
+    expect(response.status).toBe(404);
+  });
+});

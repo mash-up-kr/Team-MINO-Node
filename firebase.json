@@ -2,6 +2,7 @@
   "hosting": {
     "site": "team-mino-prod",
     "public": "public",
+    "ignore": ["**"],
     "appAssociation": "NONE",
     "headers": [
       {
@@ -11,6 +12,12 @@
       {
         "source": "/.well-known/**",
         "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+      },
+      {
+        "source": "/@(img|fonts)/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=86400" }
+        ]
       }
     ],
     "rewrites": [
