@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
 import { pins } from "../pin/pin.schema";
 import { pinComments } from "../pin/pin-comment.schema";
@@ -12,6 +12,13 @@ import {
   notifications,
 } from "./notification.schema";
 import type { NotificationItemResponse } from "./notification.type";
+
+export type NearbyPlace = {
+  placeId: string;
+  pinId: string;
+  placeName: string;
+  thumbnailUrl: string | null;
+};
 
 export type TopCommentedPlace = {
   userId: string;
@@ -113,6 +120,35 @@ export class NotificationRepository extends BaseRepository {
       })
       .from(ranked)
       .where(eq(ranked.rank, 1));
+  }
+
+  async findAccessiblePlaces(
+    userId: string,
+    placeIds: string[],
+  ): Promise<NearbyPlace[]> {
+    // 같은 장소가 내 방 여러 곳에 있어도 한 건이다. 가장 최근 저장한 핀으로 연다.
+    return this.db
+      .selectDistinctOn([places.id], {
+        placeId: places.id,
+        pinId: pins.id,
+        placeName: places.name,
+        thumbnailUrl: sql<string | null>`${places.images} ->> 0`,
+      })
+      .from(pins)
+      .innerJoin(
+        places,
+        and(eq(places.id, pins.placeId), isNull(places.deletedAt)),
+      )
+      .innerJoin(
+        roomMembers,
+        and(
+          eq(roomMembers.roomId, pins.roomId),
+          eq(roomMembers.userId, userId),
+          isNull(roomMembers.deletedAt),
+        ),
+      )
+      .where(and(inArray(pins.placeId, placeIds), isNull(pins.deletedAt)))
+      .orderBy(places.id, desc(pins.createdAt), desc(pins.id));
   }
 
   async findPushToken(userId: string): Promise<string | null> {

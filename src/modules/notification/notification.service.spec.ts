@@ -149,3 +149,75 @@ describe("NotificationService.remindTopCommentedPlaces", () => {
     expect(sendToTokens).not.toHaveBeenCalled();
   });
 });
+
+describe("NotificationService.recordNearbyTriggers", () => {
+  const place = (id: string) => ({
+    placeId: id,
+    pinId: `${id}-pin`,
+    placeName: `장소 ${id}`,
+    thumbnailUrl: null,
+  });
+
+  const makeNearby = (accessible: ReturnType<typeof place>[]) =>
+    makeService({
+      findAccessiblePlaces: mock(() => Promise.resolve(accessible)),
+      findPushToken: mock(() => Promise.resolve("token-1")),
+    });
+
+  it("한 곳이면 그 장소 이름으로 푸시한다", async () => {
+    const { service, record, sendToTokens } = makeNearby([place("p1")]);
+
+    expect(await service.recordNearbyTriggers("u1", ["p1"])).toBe(1);
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(sendToTokens).toHaveBeenCalledWith(["token-1"], {
+      title: "장소 p1",
+      body: "근처에 저장한 장소가 있어요",
+      data: { type: "NEARBY_PLACE", placeId: "p1", pinId: "p1-pin" },
+    });
+  });
+
+  it("여러 곳이면 알림함엔 개별로, 푸시는 대표 한 건만 보낸다 (FR-019)", async () => {
+    const { service, record, sendToTokens } = makeNearby([
+      place("p1"),
+      place("p2"),
+      place("p3"),
+    ]);
+
+    expect(await service.recordNearbyTriggers("u1", ["p1", "p2", "p3"])).toBe(
+      3,
+    );
+    expect(record).toHaveBeenCalledTimes(3);
+    expect(sendToTokens).toHaveBeenCalledTimes(1);
+    expect(sendToTokens).toHaveBeenCalledWith(["token-1"], {
+      title: "근처에 저장한 곳 3개가 있어요",
+      body: "반경 3km",
+      data: { type: "NEARBY_PLACE_SUMMARY" },
+    });
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "NEARBY_PLACE",
+        payload: { placeId: "p1", pinId: "p1-pin" },
+      }),
+    );
+  });
+
+  it("이미 알린 장소뿐이면 푸시하지 않는다", async () => {
+    const { service, sendToTokens } = makeService({
+      record: mock(() => Promise.resolve(null)),
+      findAccessiblePlaces: mock(() => Promise.resolve([place("p1")])),
+      findPushToken: mock(() => Promise.resolve("token-1")),
+    });
+
+    expect(await service.recordNearbyTriggers("u1", ["p1"])).toBe(0);
+    expect(sendToTokens).not.toHaveBeenCalled();
+  });
+
+  it("접근할 수 없는 장소가 섞이면 403을 던진다", async () => {
+    const { service, record } = makeNearby([place("p1")]);
+
+    await expect(
+      service.recordNearbyTriggers("u1", ["p1", "p2"]),
+    ).rejects.toMatchObject({ errorCode: "PLACE_NOT_ACCESSIBLE" });
+    expect(record).not.toHaveBeenCalled();
+  });
+});
