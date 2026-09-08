@@ -10,7 +10,7 @@ import { placeSources } from "../source/place-source.schema";
 import { sources } from "../source/source.schema";
 import { users } from "../user/user.schema";
 import { places } from "./place.schema";
-import type { DuplicatedPlace, PlaceCandidate, PlaceMatch } from "./place.type";
+import type { DuplicatedPlace, PlaceMatch } from "./place.type";
 import { classifyPlaceCategory } from "./place.util";
 
 type TransactionClient = Parameters<
@@ -206,9 +206,15 @@ export class PlaceResultRepository {
             }),
           ),
         )
-        .onConflictDoNothing({
+        .onConflictDoUpdate({
           target: [pins.roomId, pins.placeId],
-          where: isNull(pins.deletedAt),
+          targetWhere: isNull(pins.deletedAt),
+          set: {
+            // 재배달·재저장 멱등 처리. 이미 있는 사진은 지키고(남의 게시물
+            // 사진이 내 핀을 못 덮는다), 이미지 수집 실패로 비어 있던 핀만
+            // 다시 저장될 때 채운다.
+            images: sql`coalesce(${pins.images}, excluded.images)`,
+          },
         });
     });
 

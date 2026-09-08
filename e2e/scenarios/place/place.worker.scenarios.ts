@@ -303,6 +303,42 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
     }
   });
 
+  it("이미지 없이 생긴 핀은 재배달에서 채워지고, 채워진 사진은 덮이지 않는다", async () => {
+    // 1차 배달: 이미지 수집 실패(빈 배열) → 핀은 생기되 사진 없음
+    await harness.postPin();
+    expect((await harness.runTask()).status).toBe(204);
+    let saved = await harness.db.select({ images: pins.images }).from(pins);
+    for (const pin of saved) expect(pin.images).toBeNull();
+
+    // 2차 배달: 수집 성공 → 비어 있던 핀만 채워진다
+    const firstImages = [
+      "https://storage.googleapis.com/bucket/instagram/e2e-pin/000",
+    ];
+    harness.placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://bucket/instagram/e2e-pin/000",
+        publicUrl: firstImages[0],
+        mediaType: "image/jpeg",
+      },
+    ]);
+    expect((await harness.runTask()).status).toBe(204);
+    saved = await harness.db.select({ images: pins.images }).from(pins);
+    for (const pin of saved) expect(pin.images).toEqual(firstImages);
+
+    // 3차 배달: 다른 사진이 와도 이미 있는 사진은 지킨다
+    harness.placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://bucket/instagram/e2e-pin/999",
+        publicUrl:
+          "https://storage.googleapis.com/bucket/instagram/e2e-pin/999",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    expect((await harness.runTask()).status).toBe(204);
+    saved = await harness.db.select({ images: pins.images }).from(pins);
+    for (const pin of saved) expect(pin.images).toEqual(firstImages);
+  });
+
   it("worker malformed task는 영구 오류로 acknowledge한다", async () => {
     const malformed = await harness.runMalformedTask();
 
