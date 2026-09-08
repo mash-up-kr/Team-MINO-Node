@@ -57,7 +57,12 @@ export class NotificationRepository extends BaseRepository {
         fcmToken: users.fcmToken,
         placeId: places.id,
         placeName: places.name,
-        thumbnailUrl: sql<string | null>`${places.images} ->> 0`.as(
+        // 그 장소 핀들의 대표 이미지 중 최빈값. mode()가 NULL을 무시하므로
+        // 알림이 가리키는 핀(pinId)에 사진이 없으면 같은 장소 다른 핀의
+        // 사진이 뽑힐 수 있다 — 빈 썸네일보다 그 장소의 사진을 우선한다.
+        thumbnailUrl: sql<
+          string | null
+        >`mode() within group (order by ${pins.images} ->> 0)`.as(
           "thumbnail_url",
         ),
         // 조인 행이 핀×코멘트라 최빈 핀이 곧 코멘트가 가장 많은 핀이다.

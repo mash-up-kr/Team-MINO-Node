@@ -1,6 +1,5 @@
 import { isNull } from "drizzle-orm";
 import {
-  jsonb,
   numeric,
   pgTable,
   text,
@@ -40,7 +39,6 @@ export const places = pgTable(
       .default("other"),
     phone: varchar({ length: 32 }),
     externalUrl: text(),
-    images: jsonb().$type<string[]>(),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp({ withTimezone: true })
       .defaultNow()
