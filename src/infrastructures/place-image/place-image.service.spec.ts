@@ -150,6 +150,8 @@ describe("PlaceImageService", () => {
     expect(result).toEqual([
       {
         gsUri: "gs://team-mino-place-images-local/instagram/abc123/000",
+        publicUrl:
+          "https://storage.googleapis.com/team-mino-place-images-local/instagram/abc123/000",
         mediaType: "image/jpeg",
       },
     ]);
@@ -210,6 +212,8 @@ describe("PlaceImageService", () => {
     expect(result).toEqual([
       {
         gsUri: "gs://team-mino-place-images-local/instagram/abc123/000",
+        publicUrl:
+          "https://storage.googleapis.com/team-mino-place-images-local/instagram/abc123/000",
         mediaType: "image/png",
       },
     ]);

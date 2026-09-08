@@ -132,6 +132,9 @@ export class PlaceE2eHarness {
     this.instagram.fetchPost.mockReset();
     this.ai.extract.mockReset();
     this.geocoder.search.mockReset();
+    this.placeImage.storePostImages.mockReset();
+    // 기본은 이미지 없는 글. 이미지가 필요한 시나리오만 따로 지정한다.
+    this.placeImage.storePostImages.mockResolvedValue([]);
     this.instagram.fetchPost.mockResolvedValue(POST);
     this.ai.extract.mockResolvedValue({
       places: [

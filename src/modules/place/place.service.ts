@@ -11,7 +11,7 @@ import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import {
   type ExtractedPlace,
   type PlaceCandidate,
-  type PlaceMatch,
+  type PlaceExtraction,
   type PlaceQuery,
   placeExtractionSchema,
 } from "./place.type";
@@ -38,12 +38,13 @@ Respond in the same language as the source content (use Korean when the content 
   ) {}
 
   /** Instagram URL → scrape → AI extraction → geocoding fan-out → ranking. */
-  async extractFromUrl(url: string): Promise<PlaceMatch[]> {
+  async extractFromUrl(url: string): Promise<PlaceExtraction> {
     const post = await this.scraperService.fetchPost(url);
-    const queries = await this.extractQueries(post);
+    const { queries, images } = await this.extractQueries(post);
 
+    // 장소를 못 뽑아도 이미지는 이미 올라갔으므로 그대로 함께 돌려준다.
     if (queries.length === 0) {
-      return [];
+      return { matches: [], images };
     }
 
     const settled = await Promise.allSettled(
@@ -68,21 +69,50 @@ Respond in the same language as the source content (use Korean when the content 
       );
     }
 
-    return queries.map((query, index) => {
+    const matches = queries.map((query, index) => {
       const result = settled[index];
+      // 스키마상 필수지만 검증을 안 거친 입력(테스트 mock, 구버전 응답)도 죽지 않게
+      // 빈 배열로 받아 전체 폴백으로 강등한다.
+      const placeImages = this.selectImages(query.image_indices ?? [], images);
       if (result.status === "fulfilled") {
         return {
           extracted: this.toExtractedPlace(query),
+          images: placeImages,
           matches: this.rankCandidates(result.value),
           geocoding: { status: "fulfilled" as const },
         };
       }
       return {
         extracted: this.toExtractedPlace(query),
+        images: placeImages,
         matches: [],
         geocoding: { status: "rejected" as const, reason: result.reason },
       };
     });
+
+    return { matches, images };
+  }
+
+  /**
+   * 모델이 고른 이미지 인덱스를 실제 URL로 바꾼다.
+   *
+   * 인덱스는 모델에게 넘긴 이미지 배열(= 업로드 성공분) 기준이다. 원본 게시글에서
+   * 거부·실패로 빠진 이미지가 있어도 같은 배열을 그대로 쓰므로 어긋나지 않는다.
+   *
+   * 모델 출력은 신뢰하지 않는다 — 범위 밖·소수·중복 인덱스를 걸러내고, 남는 게
+   * 없으면 게시글 전체로 폴백한다. 잘못된 한 장을 보여주기보다 덜 정확해도
+   * 썸네일이 비지 않는 쪽을 택한다.
+   */
+  private selectImages(indices: number[], images: string[]): string[] {
+    const selected = [...new Set(indices)]
+      .filter(
+        (index) =>
+          Number.isInteger(index) && index >= 0 && index < images.length,
+      )
+      .sort((a, b) => a - b)
+      .map((index) => images[index] as string);
+
+    return selected.length > 0 ? selected : images;
   }
 
   private toExtractedPlace(query: PlaceQuery): ExtractedPlace {
@@ -94,7 +124,13 @@ Respond in the same language as the source content (use Korean when the content 
     };
   }
 
-  private async extractQueries(post: ScrapedPost): Promise<PlaceQuery[]> {
+  /**
+   * AI가 뽑은 장소와 함께, 이 게시글에서 저장된 이미지의 공개 URL을 돌려준다.
+   * Vertex에는 gs://로 넘기지만 DB·클라이언트에는 https:// 쪽이 필요하다.
+   */
+  private async extractQueries(
+    post: ScrapedPost,
+  ): Promise<{ queries: PlaceQuery[]; images: string[] }> {
     // 인스타 이미지는 Vertex가 URL로 못 읽으므로(robots 차단), GCS에 올려 gs://로 넘긴다.
     const images = await this.placeImageService.storePostImages(
       post.shortcode,
@@ -105,7 +141,7 @@ Respond in the same language as the source content (use Korean when the content 
       placeExtractionSchema,
       content,
     );
-    return places;
+    return { queries: places, images: images.map((image) => image.publicUrl) };
   }
 
   private buildContent(

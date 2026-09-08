@@ -21,6 +21,7 @@ describe("PlaceService", () => {
     area_name: "성수동",
     area_type: "landmark",
     relation: "카페 방문 후기",
+    image_indices: [],
   };
 
   function makePost(overrides: Partial<ScrapedPost> = {}): ScrapedPost {
@@ -77,15 +78,15 @@ describe("PlaceService", () => {
       areaName: QUERY.area_name,
       areaType: QUERY.area_type,
     });
-    expect(result).toHaveLength(1);
-    expect(result[0].extracted).toEqual({
+    expect(result.matches).toHaveLength(1);
+    expect(result.matches[0].extracted).toEqual({
       placeName: "어니언 성수",
       areaName: "성수동",
       areaType: "landmark",
       relation: "카페 방문 후기",
     });
-    expect(result[0].matches[0]?.placeName).toBe("어니언 성수");
-    expect(result[0].matches).toHaveLength(1);
+    expect(result.matches[0].matches[0]?.placeName).toBe("어니언 성수");
+    expect(result.matches[0].matches).toHaveLength(1);
   });
 
   it("여러 장소가 추출되면 각각 지오코딩한 뒤 결과를 합쳐 랭킹한다", async () => {
@@ -117,11 +118,11 @@ describe("PlaceService", () => {
 
     // then
     expect(geocoder.searchAll).toHaveBeenCalledTimes(2);
-    expect(result).toHaveLength(2);
-    expect(result[0].extracted.placeName).toBe("어니언 성수");
-    expect(result[0].matches[0]?.placeName).toBe("어니언 성수");
-    expect(result[1].extracted.placeName).toBe("대림창고");
-    expect(result[1].matches[0]?.placeName).toBe("대림창고");
+    expect(result.matches).toHaveLength(2);
+    expect(result.matches[0].extracted.placeName).toBe("어니언 성수");
+    expect(result.matches[0].matches[0]?.placeName).toBe("어니언 성수");
+    expect(result.matches[1].extracted.placeName).toBe("대림창고");
+    expect(result.matches[1].matches[0]?.placeName).toBe("대림창고");
   });
 
   it("장소 3개는 3개 그룹으로 나오고 각 그룹은 자기 후보만 담는다", async () => {
@@ -132,6 +133,7 @@ describe("PlaceService", () => {
       area_name: "성수동",
       area_type: "landmark",
       relation: "코스",
+      image_indices: [],
     }));
     instagram.fetchPost.mockResolvedValue(makePost());
     ai.extract.mockResolvedValue({ places });
@@ -146,11 +148,11 @@ describe("PlaceService", () => {
     const result = await service.extractFromUrl(URL);
 
     // then
-    expect(result).toHaveLength(3);
+    expect(result.matches).toHaveLength(3);
     for (const [index, tag] of ["A", "B", "C"].entries()) {
-      expect(result[index].extracted.placeName).toBe(tag);
+      expect(result.matches[index].extracted.placeName).toBe(tag);
       expect(
-        result[index].matches.every((c) => c.placeName.startsWith(tag)),
+        result.matches[index].matches.every((c) => c.placeName.startsWith(tag)),
       ).toBe(true);
     }
   });
@@ -179,12 +181,12 @@ describe("PlaceService", () => {
 
     // then
     expect(geocoder.searchAll).toHaveBeenCalledTimes(2);
-    expect(result).toHaveLength(2);
-    expect(result[0].matches[0]?.placeName).toBe("어니언 성수");
-    expect(result[0].matches).toHaveLength(1);
-    expect(result[1].extracted.placeName).toBe("실패 장소");
-    expect(result[1].matches[0]).toBeUndefined();
-    expect(result[1].matches).toHaveLength(0);
+    expect(result.matches).toHaveLength(2);
+    expect(result.matches[0].matches[0]?.placeName).toBe("어니언 성수");
+    expect(result.matches[0].matches).toHaveLength(1);
+    expect(result.matches[1].extracted.placeName).toBe("실패 장소");
+    expect(result.matches[1].matches[0]).toBeUndefined();
+    expect(result.matches[1].matches).toHaveLength(0);
   });
 
   it("모든 쿼리의 지오코딩이 실패하면 GEOCODER_ALL_FAILED(502)를 던진다", async () => {
@@ -204,6 +206,76 @@ describe("PlaceService", () => {
     });
   });
 
+  it("모델이 고른 인덱스만 그 장소의 이미지로 담는다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://b/0",
+        publicUrl: "https://img/0",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://b/1",
+        publicUrl: "https://img/1",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://b/2",
+        publicUrl: "https://img/2",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    ai.extract.mockResolvedValue({
+      places: [
+        { ...QUERY, image_indices: [2, 0] },
+        { ...QUERY, place_name: "대림창고", image_indices: [1] },
+      ],
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then — 인덱스순 정렬, 장소별 부분집합
+    expect(matches[0].images).toEqual(["https://img/0", "https://img/2"]);
+    expect(matches[1].images).toEqual(["https://img/1"]);
+  });
+
+  it("인덱스가 전부 무효(범위 밖·중복·누락)면 게시물 전체 이미지로 폴백한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://b/0",
+        publicUrl: "https://img/0",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://b/1",
+        publicUrl: "https://img/1",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    ai.extract.mockResolvedValue({
+      places: [
+        { ...QUERY, image_indices: [9, -1, 1.5] },
+        // 검증을 안 거친 입력(테스트 mock 등)은 필드 자체가 없을 수 있다
+        { ...QUERY, place_name: "대림창고", image_indices: undefined },
+      ],
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then
+    expect(matches[0].images).toEqual(["https://img/0", "https://img/1"]);
+    expect(matches[1].images).toEqual(["https://img/0", "https://img/1"]);
+  });
+
   it("프롬프트 + 캡션 + 태그 위치 + 저장된 이미지(gs://)로 멀티모달 content를 구성한다", async () => {
     // given
     const { service, instagram, ai, geocoder, placeImage } = createService();
@@ -220,7 +292,11 @@ describe("PlaceService", () => {
       }),
     );
     placeImage.storePostImages.mockResolvedValue([
-      { gsUri: "gs://bucket/abc123/0", mediaType: "image/jpeg" },
+      {
+        gsUri: "gs://bucket/abc123/0",
+        publicUrl: "https://storage.googleapis.com/bucket/abc123/0",
+        mediaType: "image/jpeg",
+      },
     ]);
     ai.extract.mockResolvedValue({ places: [QUERY] });
     geocoder.searchAll.mockResolvedValue([makeCandidate()]);
@@ -244,6 +320,59 @@ describe("PlaceService", () => {
     expect(images[0].mediaType).toBe("image/jpeg");
   });
 
+  it("저장된 이미지의 publicUrl 목록을 결과에 함께 반환한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://bucket/instagram/abc123/000",
+        publicUrl: "https://storage.googleapis.com/bucket/instagram/abc123/000",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://bucket/instagram/abc123/001",
+        publicUrl: "https://storage.googleapis.com/bucket/instagram/abc123/001",
+        mediaType: "image/png",
+      },
+    ]);
+    ai.extract.mockResolvedValue({ places: [QUERY] });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const result = await service.extractFromUrl(URL);
+
+    // then
+    expect(result.images).toEqual([
+      "https://storage.googleapis.com/bucket/instagram/abc123/000",
+      "https://storage.googleapis.com/bucket/instagram/abc123/001",
+    ]);
+  });
+
+  it("장소를 못 뽑아도 이미 올린 이미지는 함께 반환한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://bucket/instagram/abc123/000",
+        publicUrl: "https://storage.googleapis.com/bucket/instagram/abc123/000",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    ai.extract.mockResolvedValue({ places: [] });
+
+    // when
+    const result = await service.extractFromUrl(URL);
+
+    // then
+    expect(result.matches).toEqual([]);
+    expect(result.images).toEqual([
+      "https://storage.googleapis.com/bucket/instagram/abc123/000",
+    ]);
+    expect(geocoder.searchAll).not.toHaveBeenCalled();
+  });
+
   it("지오코딩 결과가 없으면 해당 장소를 빈 후보로 반환한다(에러 아님)", async () => {
     // given
     const { service, instagram, ai, geocoder } = createService();
@@ -255,15 +384,15 @@ describe("PlaceService", () => {
     const result = await service.extractFromUrl(URL);
 
     // then
-    expect(result).toHaveLength(1);
-    expect(result[0].extracted).toEqual({
+    expect(result.matches).toHaveLength(1);
+    expect(result.matches[0].extracted).toEqual({
       placeName: "어니언 성수",
       areaName: "성수동",
       areaType: "landmark",
       relation: "카페 방문 후기",
     });
-    expect(result[0].matches[0]).toBeUndefined();
-    expect(result[0].matches).toHaveLength(0);
+    expect(result.matches[0].matches[0]).toBeUndefined();
+    expect(result.matches[0].matches).toHaveLength(0);
   });
 
   it("추출된 장소가 없으면 빈 배열을 반환하고 지오코딩을 호출하지 않는다", async () => {
@@ -276,7 +405,7 @@ describe("PlaceService", () => {
     const result = await service.extractFromUrl(URL);
 
     // then
-    expect(result).toEqual([]);
+    expect(result.matches).toEqual([]);
     expect(geocoder.searchAll).not.toHaveBeenCalled();
   });
 
@@ -315,8 +444,8 @@ describe("PlaceService", () => {
     const result = await service.extractFromUrl(URL);
 
     // then
-    expect(result[0].matches[0]?.placeName).toBe("정보 많은 곳");
-    expect(result[0].matches[0].placeName).toBe("정보 많은 곳");
+    expect(result.matches[0].matches[0]?.placeName).toBe("정보 많은 곳");
+    expect(result.matches[0].matches[0].placeName).toBe("정보 많은 곳");
   });
 
   it("정보 완전도가 같으면 더 가까운 후보를 먼저 정렬한다", async () => {
@@ -341,7 +470,7 @@ describe("PlaceService", () => {
     const result = await service.extractFromUrl(URL);
 
     // then
-    expect(result[0].matches[0]?.placeName).toBe("가까운 후보");
+    expect(result.matches[0].matches[0]?.placeName).toBe("가까운 후보");
   });
 
   it("PlaceModule이 PlaceService를 해석한다", async () => {
