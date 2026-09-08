@@ -1,5 +1,6 @@
 bin/
 dist/
+.firebase/
 node_modules/
 .agents/
 .claude/*

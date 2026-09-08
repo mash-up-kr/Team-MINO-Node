@@ -22,6 +22,8 @@ WORKDIR /app
 COPY --link --from=builder /app/dist/server /app/server
 COPY --link --from=builder /app/dist/main.js.map /app/main.js.map
 COPY --link --from=builder /app/node_modules/swagger-ui-dist /app/node_modules/swagger-ui-dist
+# 초대 랜딩의 폰트·일러스트. 작업 디렉터리 기준으로 서빙한다(config/static-assets.ts).
+COPY --link public /app/public
 
 ENV NODE_ENV=production \
     PORT=3000

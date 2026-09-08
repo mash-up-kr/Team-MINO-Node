@@ -7,6 +7,7 @@ import type {
   AppleAppSiteAssociation,
   LandingView,
 } from "./app-link.type";
+import type { StoreLinks } from "./landing.template";
 
 @Injectable()
 export class AppLinkService {
@@ -85,6 +86,19 @@ export class AppLinkService {
     };
   }
 
+  /**
+   * 코드를 쓸 수 없을 때의 스토어 주소. 오류 화면의 버튼이 쓴다.
+   *
+   * referrer가 빠진다. 형식이 틀린 코드를 그대로 실어 보내면 앱이 설치 직후
+   * 없는 방을 열려고 하므로, 차라리 코드 없이 보내고 앱이 평소 화면을 띄우게 한다.
+   */
+  storeLinks(): StoreLinks {
+    return {
+      appStoreUrl: this.appStoreUrl(),
+      playStoreUrl: this.playStoreUrl(),
+    };
+  }
+
   /** 초대 링크 원본. OG의 og:url과 "링크 다시 누르기" 안내가 가리키는 주소다. */
   inviteUrl(code: string): string {
     return `${this.config.webOrigin}${INVITE_PATH_PREFIX}${code}`;
@@ -138,13 +152,14 @@ export class AppLinkService {
    * Play Store 주소. referrer로 초대 코드를 실어 보낸다.
    * 앱은 최초 실행 때 Play Install Referrer API로 이 값을 읽어 코드를 복원한다.
    */
-  private playStoreUrl(code: string): string | undefined {
+  private playStoreUrl(code?: string): string | undefined {
     const packageName = this.config.androidPackageName;
     if (!packageName) return undefined;
 
-    const referrer = encodeURIComponent(`code=${code}`);
+    const url = `https://play.google.com/store/apps/details?id=${packageName}`;
+    if (!code) return url;
 
-    return `https://play.google.com/store/apps/details?id=${packageName}&referrer=${referrer}`;
+    return `${url}&referrer=${encodeURIComponent(`code=${code}`)}`;
   }
 
   /**

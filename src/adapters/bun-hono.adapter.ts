@@ -33,7 +33,10 @@ export class BunHonoAdapter extends HonoAdapter {
   override useStaticAssets(root: string, options?: ServeStaticOptions): void {
     const prefix = (options as { prefix?: string } | undefined)?.prefix ?? "";
     const rewriteRequestPath = (path: string) => path.slice(prefix.length);
-    this.instance.get(`${prefix}/*`, serveStatic({ root, rewriteRequestPath }));
+    this.instance.get(
+      `${prefix}/*`,
+      serveStatic({ root, rewriteRequestPath, onFound: options?.onFound }),
+    );
   }
 
   override listen(

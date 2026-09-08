@@ -103,12 +103,17 @@ describe("GET /r/:code", () => {
     expect(await response.text()).toStartWith("<!doctype html>");
   });
 
-  it("초대자와 방 정보를 OG 태그에 담는다", async () => {
+  /*
+   * 화면에는 초대자만 보이고 방 이름은 넣지 않는다(디자인 확정). 대신 공유 카드의
+   * og:description이 방 설명이나 장소·멤버 수를 실어 맥락을 남긴다.
+   */
+  it("초대자를 제목에, 방 맥락을 공유 카드 설명에 담는다", async () => {
     const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
 
-    expect(html).toContain('property="og:title"');
-    expect(html).toContain("이영");
-    expect(html).toContain("우리끼리");
+    expect(html).toContain(
+      'property="og:title" content="이영님이 공동방에 초대했어요"',
+    );
+    expect(html).toContain('property="og:description" content="테스트 방"');
   });
 
   it("두 플랫폼의 앱 실행 링크를 함께 심는다", async () => {
@@ -137,11 +142,20 @@ describe("GET /r/:code", () => {
     expect(html).toContain('content="summary_large_image"');
   });
 
-  it("잘못된 형식의 코드는 400 + HTML이다", async () => {
+  /*
+   * 형식이 틀린 코드와 없는 코드는 도달 경로가 다르지만(400은 파이프, 200은 렌더러)
+   * 보는 사람에게는 같은 상황이라 같은 화면을 준다.
+   */
+  it("잘못된 형식의 코드는 400 + 오류 화면이다", async () => {
     const response = await fetch(`${baseUrl}/r/toolongcode`);
 
     expect(response.status).toBe(400);
     expect(response.headers.get("content-type")).toContain("text/html");
+    const html = await response.text();
+    expect(html).toContain("사용할 수 없어요");
+    expect(html).toContain("코드가 만료됐거나 유효하지 않아요.");
+    expect(html).toContain('name="robots" content="noindex"');
+    expect(html).not.toContain("errorCode");
   });
 
   /*
@@ -155,9 +169,10 @@ describe("GET /r/:code", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     const html = await response.text();
-    expect(html).toContain("초대 링크를 확인할 수 없어요");
+    expect(html).toContain("사용할 수 없어요");
     expect(html).toContain("gguk://r/ZZ99ZZ");
     expect(html).toContain("intent://");
+    expect(html).toContain(">꾹으로 이동하기</button>");
     expect(html).not.toContain("errorCode");
   });
 
@@ -171,5 +186,31 @@ describe("GET /r/:code", () => {
 
     expect(valid).toContain('name="robots" content="noindex"');
     expect(missing).toContain('name="robots" content="noindex"');
+  });
+});
+
+/*
+ * 랜딩 HTML이 가리키는 폰트·일러스트. Firebase Hosting이 아니라 이 서버가
+ * 직접 서빙하므로(config/static-assets.ts) 라우팅이 살아 있는지 확인한다.
+ */
+describe("랜딩 정적 파일", () => {
+  it("HTML이 참조하는 에셋을 그대로 내려준다", async () => {
+    const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
+    const assets = [
+      ...html.matchAll(/(?:src|url\()"?(\/(?:img|fonts)\/[^"')]+)/g),
+    ].map((match) => match[1] as string);
+
+    expect(assets.length).toBeGreaterThan(0);
+    for (const asset of assets) {
+      const response = await fetch(`${baseUrl}${asset}`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toContain("max-age=86400");
+    }
+  });
+
+  it("없는 파일은 404다", async () => {
+    const response = await fetch(`${baseUrl}/img/nope.png`);
+
+    expect(response.status).toBe(404);
   });
 });
