@@ -828,9 +828,9 @@ describe("장소(핀) 삭제", () => {
     // 삭제는 반드시 성공(200)해야 함
     expect(deleteRes.status).toBe(200);
 
-    // 코멘트 요청은 직렬화 잠금에 의해 200(삭제 전 처리) 또는 404(삭제 후 처리) 중 하나여야 함
+    // 코멘트 요청은 직렬화 잠금에 의해 201(삭제 전 처리) 또는 404(삭제 후 처리) 중 하나여야 함
     for (const cRes of commentResponses) {
-      expect([200, 404]).toContain(cRes.status);
+      expect([201, 404]).toContain(cRes.status);
     }
 
     // 핵심 무결성 검증: 핀이 삭제되었으므로 해당 핀에 속한 '활성 상태(deleted_at is null)'인 코멘트는 반드시 0개!
