@@ -1,21 +1,15 @@
 import type { LandingView } from "./app-link.type";
 
-/**
- * 정적 파일 경로. Cloud Run이 public/을 그대로 서빙한다(config/static-assets.ts).
- * 오류 화면과 없는 코드 화면이 같은 일러스트를 쓰므로 한 곳에서 정한다.
- */
+/** 정적 파일 경로. Cloud Run이 public/을 서빙한다(config/static-assets.ts). */
 const ASSETS = {
   avatar: "/img/avatar.png",
   invitation: "/img/invitation.png",
   character: "/img/character.png",
+  // SVG도 있지만 쓰지 않는다. apple-touch-icon이 PNG만 받아 어차피 PNG가 필요하다.
+  favicon: "/img/favicon.png",
 } as const;
 
-/**
- * 시안의 오류 화면 문구.
- *
- * 형식이 틀린 코드(400)와 형식은 맞지만 없는 코드(200)는 도달 경로가 다르지만
- * 보는 사람에게는 "링크가 안 된다"는 같은 상황이라 같은 화면을 쓴다.
- */
+/** 형식이 틀린 코드(400)와 없는 코드(200)는 같은 상황으로 보이므로 화면을 공유한다. */
 const INVALID_LINK_TITLE = "이 초대 링크는\n사용할 수 없어요.";
 const INVALID_LINK_DESCRIPTION =
   "코드가 만료됐거나 유효하지 않아요.\n친구에게 새 링크를 요청해보세요.";
@@ -25,10 +19,6 @@ const SERVER_ERROR_STATUS = 500;
 
 /**
  * 디자인 시안(Figma 랜딩페이지_초대장 / _오류)에서 옮긴 값.
- *
- * 시안 프레임은 375x812이고 버튼이 335x48(radius 12)이라 좌우 여백이 20px이다.
- * 폰트는 SUITE(SIL OFL)로, public/fonts를 같은 오리진에서 서빙한다(config/static-assets.ts).
- * swap을 두어 폰트가 늦게 와도 본문이 먼저 보이게 한다.
  *
  * 다크 모드는 쓰지 않는다. 일러스트가 검은 선 그림이라 반전되면 보이지 않는다.
  */
@@ -55,13 +45,8 @@ const BASE_STYLE = `
     -webkit-text-size-adjust: 100%;
   }
   /*
-   * 시안 프레임(375x812)을 그대로 한 덩어리로 두고 화면 가운데에 놓는다.
-   *
-   * 폰 화면에서는 프레임이 뷰포트와 같아 지금까지와 똑같이 보이고, 데스크톱처럼
-   * 큰 화면에서만 아래 버튼이 창 맨 밑까지 밀려나지 않는다.
-   *
-   * 높이는 min()이라 짧은 화면에서는 뷰포트를 따라간다. min-height라서 내용이
-   * 그보다 길면 프레임이 늘어나고 페이지가 스크롤된다 — 잘리지 않는다.
+   * 시안 프레임(375x812)을 한 덩어리로 두고 가운데 놓는다. height가 아니라
+   * min-height여야 내용이 길 때 잘리지 않고 페이지가 스크롤된다.
    */
   .frame {
     width: 100%;
@@ -72,11 +57,7 @@ const BASE_STYLE = `
     flex-direction: column;
     align-items: center;
   }
-  /*
-   * 위 여백과 요소 사이 간격은 시안에서 잰 값이고 두 화면이 다르다. 초대장은
-   * 제목 위에 아바타가 하나 더 있어 시작이 2px 낮고, 오류 화면은 문구가 짧아
-   * 일러스트 위아래가 더 넓다. 같은 골격을 쓰되 이 두 값만 갈아 끼운다.
-   */
+  /* 여백은 시안에서 잰 값이고 두 화면이 다르다. 골격은 공유하고 이 둘만 바꾼다. */
   main { --content-top: 128px; --content-gap: 46px;
     width: 100%; max-width: 335px; flex: 1; padding-top: var(--content-top);
     display: flex; flex-direction: column; align-items: center; }
@@ -86,9 +67,8 @@ const BASE_STYLE = `
     border: 1px solid rgba(112, 115, 124, 0.08); }
   h1 { margin: 0; font-weight: 700; font-size: 24px; line-height: 32px; letter-spacing: -0.55px; }
   /*
-   * 시안이 잡아 둔 건 일러스트의 높이다(초대장 243, 오류 252). 내보낸 PNG는
-   * 선 굵기만큼 가로가 더 넓어서, 너비를 맞추면 세로가 줄고 아래 문구가 따라
-   * 올라간다. 높이를 고정하고 너비를 비율에 맡긴다.
+   * 너비가 아니라 높이를 고정한다. 내보낸 PNG가 선 굵기만큼 가로로 넓어서,
+   * 너비를 시안 값에 맞추면 세로가 줄고 아래 문구가 따라 올라간다.
    */
   .art { margin: var(--content-gap) 0 0; height: 243px; width: auto; max-width: 100%; }
   .art.narrow { height: 252px; }
@@ -106,9 +86,25 @@ const BASE_STYLE = `
   .button.primary { background: #000; color: #fff; }
   .button.secondary { border: 1px solid rgba(112, 115, 124, 0.16); color: #000; }
   .button[disabled] { opacity: 0.6; }
+
+  /* display를 지정하면 안 된다. hidden 속성의 display: none을 덮어써 안 숨겨진다. */
+  .overlay { position: fixed; inset: 0; background: rgba(23, 23, 25, 0.52); z-index: 1; }
+  /* 시안이 정중앙보다 3px 위라 반지름 14에 3을 더한다. */
+  .spinner {
+    position: absolute; top: 50%; left: 50%; margin: -17px 0 0 -14px;
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid #e1e2e4; border-right-color: transparent;
+    animation: spin 0.8s linear infinite;
+  }
+  /* 스피너 아래 16px: 중앙에서 -3 + 반지름 14 + 간격 16. */
+  .loading-text {
+    position: absolute; top: calc(50% + 27px); left: 0; right: 0; margin: 0;
+    font-weight: 700; font-size: 20px; line-height: 28px; letter-spacing: -0.24px;
+    color: #fff;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 `;
 
-/** 방 이름·닉네임은 사용자 입력이라 그대로 넣으면 스크립트가 실행된다. */
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -118,7 +114,7 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
-/** 시안의 줄바꿈을 그대로 살린다. 텍스트는 이스케이프하고 <br>만 남긴다. */
+/** 시안의 줄바꿈을 <br>로 살린다. */
 function multiline(value: string): string {
   return value.split("\n").map(escapeHtml).join("<br>");
 }
@@ -126,11 +122,8 @@ function multiline(value: string): string {
 /**
  * 두 페이지가 공유하는 골격.
  *
- * 랜딩과 오류 페이지는 진입 경로가 달라 함수를 나누지만(하나는 핸들러가, 다른 하나는
- * 예외 필터가 부른다), 보이는 뼈대는 같다. 스타일·메타를 한 곳에서만 고치도록 뽑는다.
- *
- * `head`와 `body`는 이미 만들어진 HTML이라 이스케이프하지 않는다. 호출부가 사용자
- * 입력을 넣을 때 escapeHtml을 거치는 책임을 진다.
+ * `head`와 `body`는 이스케이프하지 않는다. 사용자 입력을 넣는 호출부가 escapeHtml을
+ * 거치는 책임을 진다.
  */
 function renderPage(page: {
   title: string;
@@ -144,6 +137,8 @@ function renderPage(page: {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${escapeHtml(page.title)}</title>
+<link rel="icon" href="${ASSETS.favicon}" sizes="180x180">
+<link rel="apple-touch-icon" href="${ASSETS.favicon}">
 ${page.head ?? ""}
 <style>${BASE_STYLE}</style>
 </head>
@@ -159,13 +154,12 @@ ${page.script ?? ""}
 /**
  * 초대 랜딩 페이지.
  *
- * 이 페이지에 도달했다는 건 "앱이 안 열렸다"는 뜻이지 "앱이 없다"는 뜻이 아니다.
- * 카카오톡·인스타그램 인앱 브라우저는 유니버설 링크/App Links를 발동시키지 않아서,
- * 앱이 설치된 사용자도 대부분 여기로 온다. 그래서 버튼 하나가 앱 열기와 설치를 겸한다.
+ * 여기 도달했다는 건 "앱이 안 열렸다"는 뜻이지 "앱이 없다"는 뜻이 아니다. 카카오톡·
+ * 인스타그램 인앱 브라우저는 App Links를 발동시키지 않아 설치자도 대부분 여기로 온다.
+ * 그래서 버튼 하나가 앱 열기와 설치를 겸한다.
  *
- * 코드의 유효 여부와 무관하게 noindex를 붙인다. 초대 코드는 그 자체가 방의 접근
- * 권한이라(PRD 4장), 색인되면 링크를 받지 않은 사람도 검색으로 방에 들어올 수 있다.
- * 공유 카드는 OG 태그를 읽는 것이라 이 지시어의 대상이 아니다.
+ * 코드 유효 여부와 무관하게 noindex다. 초대 코드 자체가 방의 접근 권한이라(PRD 4장)
+ * 색인되면 링크를 받지 않은 사람도 검색으로 들어올 수 있다.
  */
 export function renderLanding(view: LandingView, inviteUrl: string): string {
   const invitation = view.invitation;
@@ -195,120 +189,130 @@ ${invitation ? `  <img class="avatar" src="${ASSETS.avatar}" alt="" width="40" h
     data-app="${escapeHtml(view.iosAppUrl)}"
     data-android="${escapeHtml(view.androidAppUrl ?? "")}"
     data-store="${escapeHtml(view.appStoreUrl ?? view.playStoreUrl ?? inviteUrl)}">${invitation ? "참가하기" : "꾹으로 이동하기"}</button>
+</div>
+<div class="overlay" id="loading" hidden>
+  <div class="spinner"></div>
+  <p class="loading-text">잠시만 기다려주세요</p>
 </div>`,
     script: openAppScript(),
   });
 }
 
-/** 공유 카드 설명. 화면 문구와 달리 방 정보를 담아 카드에서 맥락이 보이게 한다. */
+/** 공유 카드 설명. 화면에 없는 방 제목을 여기서만 보여 어느 방인지 알린다. */
 function ogDescription(view: LandingView): string {
   const invitation = view.invitation;
   if (!invitation) return "코드가 만료됐거나 유효하지 않아요.";
 
-  return (
-    invitation.roomDescription ??
-    `장소 ${invitation.pinCount}개 · 멤버 ${invitation.memberCount}명`
-  );
+  return invitation.roomName;
 }
 
 /**
- * 공유 카드 이미지 및 미리보기 메타.
- *
- * 카카오톡·iMessage·페이스북·슬랙은 Open Graph를 읽고, X만 twitter:card를
- * 추가로 본다. X도 이미지·제목은 og:*로 폴백하므로 이미지는 한 장이면 된다.
- * (인스타그램은 피드·스토리에 링크 미리보기가 없고 DM만 OG를 읽는다.)
- *
- * width/height는 크롤러가 이미지를 내려받기 전에 자리를 잡게 해주는 힌트라,
- * 실제 파일과 어긋나면 카드가 잘못 그려진다. 아래 값은 디자인 요청 규격과
- * 같아야 한다 — 다른 크기를 받으면 이 상수도 함께 고친다.
+ * 크롤러가 이미지를 받기 전에 자리를 잡는 힌트라, 실제 파일과 어긋나면 카드가
+ * 잘못 그려진다. public/img/og.png를 교체하면 이 상수도 함께 확인한다.
  */
 const OG_IMAGE_WIDTH = 1200;
 const OG_IMAGE_HEIGHT = 630;
 
 function previewMetaTags(view: LandingView, title: string): string {
-  const tags = [
+  return [
     '<meta property="og:site_name" content="꾹">',
     '<meta property="og:locale" content="ko_KR">',
-  ];
-
-  if (!view.ogImageUrl) {
-    // 이미지가 없으면 이미지 없는 텍스트 카드가 뜬다.
-    tags.push('<meta name="twitter:card" content="summary">');
-    return tags.join("\n");
-  }
-
-  tags.push(
     `<meta property="og:image" content="${escapeHtml(view.ogImageUrl)}">`,
     `<meta property="og:image:width" content="${OG_IMAGE_WIDTH}">`,
     `<meta property="og:image:height" content="${OG_IMAGE_HEIGHT}">`,
     `<meta property="og:image:alt" content="${escapeHtml(title)}">`,
     '<meta name="twitter:card" content="summary_large_image">',
-  );
-
-  return tags.join("\n");
+  ].join("\n");
 }
 
-/** iOS에서 앱 전환이 감지되지 않으면 스토어로 보내기까지 기다리는 시간. */
-const IOS_FALLBACK_MS = 2200;
+/**
+ * iOS에서 앱 전환이 감지되지 않으면 스토어로 보내기까지 기다리는 시간.
+ *
+ * 줄이지 말 것. 실측(iOS 18.7)에서 앱 전환에 2.9초가 걸린 적이 있고, 그보다 먼저
+ * 스토어로 보내면 앱을 열고 돌아온 사용자가 App Store를 만난다.
+ */
+const IOS_FALLBACK_MS = 3000;
+
+/**
+ * 이동을 지시한 뒤 화면을 되돌리기까지 기다리는 시간. 이동이 성공하면 페이지와 함께
+ * 사라진다. 인앱 브라우저가 intent://를 무시하는 것처럼 아무 일도 안 일어날 때,
+ * 딤에 갇히지 않게 하는 유일한 장치다.
+ */
+const NAVIGATION_RECOVERY_MS = 3000;
 
 /**
  * 버튼 하나로 앱 열기와 설치를 겸한다.
  *
- * Android는 intent:// 하나가 둘 다 처리한다 — 앱이 있으면 열리고, 없으면
- * browser_fallback_url이 referrer를 실은 스토어로 보낸다.
+ * Android는 intent:// 하나가 둘 다 처리한다. iOS에는 그런 폴백이 없어, 스킴을 쏜 뒤
+ * 앱 전환이 감지되지 않으면 시간으로 판단해 스토어로 보낸다.
  *
- * iOS에는 그런 폴백이 없다. 커스텀 스킴은 앱이 없으면 조용히 무시되고(설치 여부를
- * 웹에 알려주지 않는다), 그래서 시간으로 추정할 수밖에 없다. 스킴을 쏜 뒤 앱 전환이
- * 감지되지 않으면 스토어로 보낸다. 전환 감지는 한 이벤트만 믿지 않는다 — 인앱
- * 브라우저에서 visibilitychange가 발화하지 않는 경우가 있어 pagehide·blur도 함께 본다.
+ * 전환 감지에 blur를 쓰면 안 된다. iOS 18.7 실측에서, 앱이 없을 때 Safari가 띄우는
+ * "주소가 유효하지 않기 때문에..." 알림창도 blur를 발생시킨다. 그걸 앱 전환으로 읽으면
+ * 정작 앱이 없는 사용자의 스토어 폴백이 취소된다. 두 경우를 가르는 신호는
+ * visibilitychange뿐이다.
  *
- * 자동 실행은 하지 않는다. iOS Safari가 사용자 제스처 없는 커스텀 스킴 이동을 막고,
- * 자동으로 스토어에 보내면 미설치자가 초대자·방 정보를 보지 못한다.
+ * 클릭 없이 자동 실행하지 않는다. iOS Safari가 제스처 없는 스킴 이동을 막고,
+ * 바로 스토어로 보내면 미설치자가 초대자·방 정보를 보지 못한다.
  */
 function openAppScript(): string {
   return `<script>
 (function () {
   var cta = document.getElementById("cta");
   if (!cta) return;
+  var overlay = document.getElementById("loading");
   var ua = navigator.userAgent || "";
   var isAndroid = /Android/i.test(ua);
   var isIOS = /iPhone|iPad|iPod/i.test(ua) ||
     (/Macintosh/.test(ua) && "ontouchend" in document);
   var busy = false;
 
-  function reset() { busy = false; cta.disabled = false; }
+  function reset() {
+    busy = false;
+    cta.disabled = false;
+    if (overlay) overlay.hidden = true;
+  }
+
+  // 돌아왔는데 딤이 남으면 아무것도 누를 수 없다. iOS는 페이지가 살아 있는 채로
+  // 앱만 위에 뜨므로 pageshow만으로는 부족하다.
   window.addEventListener("pageshow", reset);
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) reset();
+  });
+
+  function leave(url) {
+    setTimeout(reset, ${NAVIGATION_RECOVERY_MS});
+    location.href = url;
+  }
 
   cta.addEventListener("click", function () {
     if (busy) return;
     busy = true;
     cta.disabled = true;
+    if (overlay) overlay.hidden = false;
 
     if (isAndroid && cta.dataset.android) {
-      location.href = cta.dataset.android;
+      leave(cta.dataset.android);
       return;
     }
     if (!isIOS) {
-      location.href = cta.dataset.store;
+      leave(cta.dataset.store);
       return;
     }
 
     var timer = setTimeout(function () {
       cleanup();
-      location.href = cta.dataset.store;
+      leave(cta.dataset.store);
     }, ${IOS_FALLBACK_MS});
 
     function cleanup() {
       document.removeEventListener("visibilitychange", onHide);
       window.removeEventListener("pagehide", cancel);
-      window.removeEventListener("blur", cancel);
     }
     function cancel() { clearTimeout(timer); cleanup(); reset(); }
     function onHide() { if (document.hidden) cancel(); }
 
     document.addEventListener("visibilitychange", onHide);
     window.addEventListener("pagehide", cancel);
-    window.addEventListener("blur", cancel);
     location.href = cta.dataset.app;
   });
 })();
@@ -327,16 +331,10 @@ export type StoreLinks = {
 };
 
 /**
- * 랜딩을 그리지 못했을 때의 페이지.
+ * 랜딩을 그리지 못했을 때의 페이지. 형식 검사 실패(400)와 예기치 못한 오류(500)만
+ * 온다 — 형식은 맞는데 없는 코드는 renderLanding이 200으로 그린다.
  *
- * 여기로 오는 경우는 둘뿐이다 — 코드가 형식 검사를 통과하지 못했거나(400),
- * 예기치 못한 오류가 났거나(500). 형식은 맞는데 없거나 만료된 코드는
- * renderLanding이 200으로 그리므로 이쪽으로 오지 않는다.
- *
- * 앱으로 보내는 버튼은 없다. 형식이 틀린 코드로는 앱에 넘길 값 자체가 만들어지지
- * 않아서, 시안의 버튼은 스토어로만 보낸다.
- *
- * `.well-known`은 OS가 읽는 파일이라 이 페이지를 쓰지 않는다(그쪽은 JSON 그대로).
+ * 앱으로 보내는 버튼이 없다. 형식이 틀린 코드로는 앱에 넘길 값을 만들 수 없다.
  */
 export function renderLandingError(status: number, stores: StoreLinks): string {
   const serverFault = status >= SERVER_ERROR_STATUS;
@@ -360,13 +358,7 @@ ${storeActions(stores)}`,
   });
 }
 
-/**
- * 스토어로 보내는 버튼.
- *
- * 아직 받지 못한 스토어 값이 있을 수 있다(둘 다 없으면 버튼을 그리지 않는다).
- * 하나만 있으면 플랫폼과 무관하게 그쪽으로 보낸다 — 잘못된 스토어라도 앱을
- * 찾을 방법이 그것뿐이고, 빈 버튼보다는 낫다.
- */
+/** 스토어 값을 아직 못 받았을 수 있다. 하나뿐이면 플랫폼과 무관하게 그쪽으로 보낸다. */
 function storeActions(stores: StoreLinks): string {
   const href = stores.appStoreUrl ?? stores.playStoreUrl;
   if (!href) return "";

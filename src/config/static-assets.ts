@@ -17,3 +17,11 @@ export const STATIC_ASSETS_ROOT = "public";
  * 같은 값이어야 CDN이 원본까지 되묻지 않는다.
  */
 export const STATIC_ASSETS_CACHE_CONTROL = "public, max-age=86400";
+
+/**
+ * 공유 카드 이미지 경로. 크롤러는 절대 URL만 읽으므로 오리진을 붙여 쓴다
+ * (app-link.config.ts).
+ *
+ * 규격 1200x630 — landing.template.ts의 OG_IMAGE_WIDTH/HEIGHT와 같아야 한다.
+ */
+export const OG_IMAGE_PATH = "/img/og.png";

@@ -104,16 +104,17 @@ describe("GET /r/:code", () => {
   });
 
   /*
-   * 화면에는 초대자만 보이고 방 이름은 넣지 않는다(디자인 확정). 대신 공유 카드의
-   * og:description이 방 설명이나 장소·멤버 수를 실어 맥락을 남긴다.
+   * 화면에는 초대자만 보이고 방 이름은 넣지 않는다(디자인 확정). 방 제목은 공유
+   * 카드에서만 드러난다. 픽스처의 이름("우리끼리")과 설명("테스트 방")이 다르므로
+   * 이 단언은 설명이 아니라 제목을 쓴다는 것까지 가른다.
    */
-  it("초대자를 제목에, 방 맥락을 공유 카드 설명에 담는다", async () => {
+  it("초대자를 제목에, 방 제목을 공유 카드 설명에 담는다", async () => {
     const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
 
     expect(html).toContain(
       'property="og:title" content="이영님이 공동방에 초대했어요"',
     );
-    expect(html).toContain('property="og:description" content="테스트 방"');
+    expect(html).toContain('property="og:description" content="우리끼리"');
   });
 
   it("두 플랫폼의 앱 실행 링크를 함께 심는다", async () => {
@@ -163,6 +164,17 @@ describe("GET /r/:code", () => {
    * 화면이 낫고, 앱은 어차피 이 경우를 처리해야 한다 — 설치자가 링크를 직접
    * 누르면 OS가 코드 검증 없이 앱을 열기 때문이다.
    */
+  /*
+   * 앱 전환을 기다리는 동안 덮는 화면. hidden으로 시작해야 첫 화면에 딤이 걸리지
+   * 않는다. 실제로 걷히는 것까지는 브라우저가 있어야 확인할 수 있다.
+   */
+  it("로딩 화면을 숨긴 채로 내려준다", async () => {
+    const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
+
+    expect(html).toContain('<div class="overlay" id="loading" hidden>');
+    expect(html).toContain("잠시만 기다려주세요");
+  });
+
   it("없는 코드도 버튼이 있는 페이지를 준다", async () => {
     const response = await fetch(`${baseUrl}/r/ZZ99ZZ`);
 
@@ -197,7 +209,7 @@ describe("랜딩 정적 파일", () => {
   it("HTML이 참조하는 에셋을 그대로 내려준다", async () => {
     const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
     const assets = [
-      ...html.matchAll(/(?:src|url\()"?(\/(?:img|fonts)\/[^"')]+)/g),
+      ...html.matchAll(/(?:src|href|url\()"?(\/(?:img|fonts)\/[^"')]+)/g),
     ].map((match) => match[1] as string);
 
     expect(assets.length).toBeGreaterThan(0);
@@ -206,6 +218,31 @@ describe("랜딩 정적 파일", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("cache-control")).toContain("max-age=86400");
     }
+  });
+
+  /*
+   * og:image는 절대 URL이라 위 스크레이핑에 걸리지 않는다. 메타의 규격과 실제 PNG가
+   * 어긋나면 카드가 잘못된 비율로 그려지므로 파일에서 직접 읽어 맞춘다.
+   */
+  it("공유 카드 이미지는 선언한 규격과 실제 파일이 같다", async () => {
+    const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
+    const url = html.match(/og:image" content="([^"]+)"/)?.[1];
+    const declared = {
+      width: Number(html.match(/og:image:width" content="(\d+)"/)?.[1]),
+      height: Number(html.match(/og:image:height" content="(\d+)"/)?.[1]),
+    };
+    if (!url) throw new Error("og:image 메타가 없다");
+
+    expect(new URL(url).protocol).toBe("https:");
+
+    const response = await fetch(`${baseUrl}${new URL(url).pathname}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("max-age=86400");
+
+    // PNG IHDR: 시그니처 8바이트 + 길이·타입 8바이트 뒤가 가로·세로다.
+    const png = new DataView(await response.arrayBuffer());
+    expect(png.getUint32(16)).toBe(declared.width);
+    expect(png.getUint32(20)).toBe(declared.height);
   });
 
   it("없는 파일은 404다", async () => {

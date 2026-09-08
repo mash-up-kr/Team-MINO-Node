@@ -48,10 +48,7 @@ export type LandingView = {
   invitation:
     | {
         roomName: string;
-        roomDescription: string | null;
         inviterNickname: string;
-        pinCount: number;
-        memberCount: number;
       }
     | undefined;
   /** iOS 커스텀 스킴. 인앱 브라우저에서 앱을 여는 용도. */
@@ -61,9 +58,8 @@ export type LandingView = {
   appStoreUrl: string | undefined;
   playStoreUrl: string | undefined;
   /**
-   * 카카오톡·인스타 공유 카드 이미지. 없으면 이미지 없는 텍스트 카드가 뜬다.
-   * 디자인에서 받은 배너를 OG_IMAGE_URL로 넣는다. 방 색상별로 나누고 싶으면
-   * room.color를 키로 매핑을 추가하면 되지만, 우선 한 장으로 시작한다.
+   * 카카오톡·인스타 공유 카드 이미지. 방 색상별로 나누고 싶으면 room.color를 키로
+   * 매핑을 추가하면 되지만, 우선 한 장으로 시작한다.
    */
-  ogImageUrl: string | undefined;
+  ogImageUrl: string;
 };
