@@ -163,6 +163,17 @@ describe("GET /r/:code", () => {
    * 화면이 낫고, 앱은 어차피 이 경우를 처리해야 한다 — 설치자가 링크를 직접
    * 누르면 OS가 코드 검증 없이 앱을 열기 때문이다.
    */
+  /*
+   * 앱 전환을 기다리는 동안 덮는 화면. hidden으로 시작해야 첫 화면에 딤이 걸리지
+   * 않는다. 실제로 걷히는 것까지는 브라우저가 있어야 확인할 수 있다.
+   */
+  it("로딩 화면을 숨긴 채로 내려준다", async () => {
+    const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
+
+    expect(html).toContain('<div class="overlay" id="loading" hidden>');
+    expect(html).toContain("잠시만 기다려주세요");
+  });
+
   it("없는 코드도 버튼이 있는 페이지를 준다", async () => {
     const response = await fetch(`${baseUrl}/r/ZZ99ZZ`);
 
@@ -197,7 +208,7 @@ describe("랜딩 정적 파일", () => {
   it("HTML이 참조하는 에셋을 그대로 내려준다", async () => {
     const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
     const assets = [
-      ...html.matchAll(/(?:src|url\()"?(\/(?:img|fonts)\/[^"')]+)/g),
+      ...html.matchAll(/(?:src|href|url\()"?(\/(?:img|fonts)\/[^"')]+)/g),
     ].map((match) => match[1] as string);
 
     expect(assets.length).toBeGreaterThan(0);
