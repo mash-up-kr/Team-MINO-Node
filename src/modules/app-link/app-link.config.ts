@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Env } from "../../config/env.schema";
+import { OG_IMAGE_PATH } from "../../config/static-assets";
 
 /**
  * 초대 링크(유니버설 링크 / App Links)에 필요한 앱 식별자 모음.
@@ -89,11 +90,13 @@ export class AppLinkConfig {
   }
 
   /**
-   * 공유 카드 이미지 URL. 디자인에서 받은 배너를 그대로 넣는다.
-   * 카카오톡이 OG를 캐싱하므로 배포 전에 채워 두는 편이 낫다.
+   * 공유 카드 이미지 URL.
+   *
+   * 배너를 public/img에 두고 우리가 서빙하므로 env로 받지 않는다. 파일을 바꾸면
+   * URL이 따라오고, 배포할 때 시크릿을 함께 고칠 일도 없다.
    */
-  get ogImageUrl(): string | undefined {
-    return this.configService.get("OG_IMAGE_URL", { infer: true });
+  get ogImageUrl(): string {
+    return `${this.webOrigin}${OG_IMAGE_PATH}`;
   }
 
   /** App Store 숫자 ID. 스토어 링크 조립에 쓴다. */

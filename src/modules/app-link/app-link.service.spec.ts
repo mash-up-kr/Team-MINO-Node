@@ -21,7 +21,7 @@ function createService(
     ],
     iosScheme: "gguk",
     appStoreId: "6806306129",
-    ogImageUrl: "https://gguk.org/og/invite.png",
+    ogImageUrl: "https://gguk.org/img/og.png",
     hasApple: true,
     ...overrides,
   } as AppLinkConfig;

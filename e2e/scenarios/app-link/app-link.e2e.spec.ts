@@ -219,6 +219,31 @@ describe("랜딩 정적 파일", () => {
     }
   });
 
+  /*
+   * og:image는 절대 URL이라 위 스크레이핑에 걸리지 않는다. 메타의 규격과 실제 PNG가
+   * 어긋나면 카드가 잘못된 비율로 그려지므로 파일에서 직접 읽어 맞춘다.
+   */
+  it("공유 카드 이미지는 선언한 규격과 실제 파일이 같다", async () => {
+    const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
+    const url = html.match(/og:image" content="([^"]+)"/)?.[1];
+    const declared = {
+      width: Number(html.match(/og:image:width" content="(\d+)"/)?.[1]),
+      height: Number(html.match(/og:image:height" content="(\d+)"/)?.[1]),
+    };
+    if (!url) throw new Error("og:image 메타가 없다");
+
+    expect(new URL(url).protocol).toBe("https:");
+
+    const response = await fetch(`${baseUrl}${new URL(url).pathname}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("max-age=86400");
+
+    // PNG IHDR: 시그니처 8바이트 + 길이·타입 8바이트 뒤가 가로·세로다.
+    const png = new DataView(await response.arrayBuffer());
+    expect(png.getUint32(16)).toBe(declared.width);
+    expect(png.getUint32(20)).toBe(declared.height);
+  });
+
   it("없는 파일은 404다", async () => {
     const response = await fetch(`${baseUrl}/img/nope.png`);
 

@@ -143,18 +143,6 @@ const envSchema = v.pipe(
     ANDROID_DEBUG_SHA256_FINGERPRINTS: v.optional(
       v.pipe(v.string(), v.minLength(1)),
     ),
-    /*
-     * [디자인 요청] 공유 카드 이미지 URL. 절대 URL이어야 크롤러가 읽는다.
-     *
-     * 규격 1200x630 (landing.template.ts의 OG_IMAGE_WIDTH/HEIGHT와 같아야 한다).
-     * 카카오톡·iMessage·X·슬랙이 모두 이 한 장을 쓴다. PNG 또는 JPG.
-     *
-     * 카카오톡이 OG를 캐싱하므로, 링크를 뿌린 뒤에 넣으면 이미 공유된 카드는
-     * 바뀌지 않는다. 첫 배포 전에 채워야 한다.
-     */
-    OG_IMAGE_URL: v.optional(
-      v.pipe(v.string(), v.url(), v.startsWith("https://")),
-    ),
   }),
   /*
    * 운영(production)에서는 Cloud Tasks가 호출할 APP_BASE_URL이 반드시 https여야 한다.

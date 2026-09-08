@@ -211,31 +211,21 @@ function ogDescription(view: LandingView): string {
 
 /**
  * 크롤러가 이미지를 받기 전에 자리를 잡는 힌트라, 실제 파일과 어긋나면 카드가
- * 잘못 그려진다. 다른 크기의 이미지를 받으면 이 상수도 함께 고친다.
+ * 잘못 그려진다. public/img/og.png를 교체하면 이 상수도 함께 확인한다.
  */
 const OG_IMAGE_WIDTH = 1200;
 const OG_IMAGE_HEIGHT = 630;
 
 function previewMetaTags(view: LandingView, title: string): string {
-  const tags = [
+  return [
     '<meta property="og:site_name" content="꾹">',
     '<meta property="og:locale" content="ko_KR">',
-  ];
-
-  if (!view.ogImageUrl) {
-    tags.push('<meta name="twitter:card" content="summary">');
-    return tags.join("\n");
-  }
-
-  tags.push(
     `<meta property="og:image" content="${escapeHtml(view.ogImageUrl)}">`,
     `<meta property="og:image:width" content="${OG_IMAGE_WIDTH}">`,
     `<meta property="og:image:height" content="${OG_IMAGE_HEIGHT}">`,
     `<meta property="og:image:alt" content="${escapeHtml(title)}">`,
     '<meta name="twitter:card" content="summary_large_image">',
-  );
-
-  return tags.join("\n");
+  ].join("\n");
 }
 
 /**
