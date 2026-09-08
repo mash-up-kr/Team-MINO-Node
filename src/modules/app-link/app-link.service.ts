@@ -68,10 +68,7 @@ export class AppLinkService {
         .preview(code)
         .then((preview) => ({
           roomName: preview.room.name,
-          roomDescription: preview.room.description,
           inviterNickname: preview.inviter.nickname,
-          pinCount: preview.room.pinCount,
-          memberCount: preview.room.memberCount,
         }))
         .catch((error: unknown) => {
           if (isClientError(error)) return undefined;

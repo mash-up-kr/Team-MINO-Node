@@ -198,15 +198,12 @@ ${invitation ? `  <img class="avatar" src="${ASSETS.avatar}" alt="" width="40" h
   });
 }
 
-/** 공유 카드 설명. 화면 문구와 달리 방 정보를 담아 카드에서 맥락이 보이게 한다. */
+/** 공유 카드 설명. 화면에 없는 방 제목을 여기서만 보여 어느 방인지 알린다. */
 function ogDescription(view: LandingView): string {
   const invitation = view.invitation;
   if (!invitation) return "코드가 만료됐거나 유효하지 않아요.";
 
-  return (
-    invitation.roomDescription ??
-    `장소 ${invitation.pinCount}개 · 멤버 ${invitation.memberCount}명`
-  );
+  return invitation.roomName;
 }
 
 /**

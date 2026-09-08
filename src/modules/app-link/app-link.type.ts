@@ -48,10 +48,7 @@ export type LandingView = {
   invitation:
     | {
         roomName: string;
-        roomDescription: string | null;
         inviterNickname: string;
-        pinCount: number;
-        memberCount: number;
       }
     | undefined;
   /** iOS 커스텀 스킴. 인앱 브라우저에서 앱을 여는 용도. */

@@ -104,16 +104,17 @@ describe("GET /r/:code", () => {
   });
 
   /*
-   * 화면에는 초대자만 보이고 방 이름은 넣지 않는다(디자인 확정). 대신 공유 카드의
-   * og:description이 방 설명이나 장소·멤버 수를 실어 맥락을 남긴다.
+   * 화면에는 초대자만 보이고 방 이름은 넣지 않는다(디자인 확정). 방 제목은 공유
+   * 카드에서만 드러난다. 픽스처의 이름("우리끼리")과 설명("테스트 방")이 다르므로
+   * 이 단언은 설명이 아니라 제목을 쓴다는 것까지 가른다.
    */
-  it("초대자를 제목에, 방 맥락을 공유 카드 설명에 담는다", async () => {
+  it("초대자를 제목에, 방 제목을 공유 카드 설명에 담는다", async () => {
     const html = await (await fetch(`${baseUrl}/r/${CODE}`)).text();
 
     expect(html).toContain(
       'property="og:title" content="이영님이 공동방에 초대했어요"',
     );
-    expect(html).toContain('property="og:description" content="테스트 방"');
+    expect(html).toContain('property="og:description" content="우리끼리"');
   });
 
   it("두 플랫폼의 앱 실행 링크를 함께 심는다", async () => {
