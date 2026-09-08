@@ -1,6 +1,5 @@
 import { isNull } from "drizzle-orm";
 import {
-  jsonb,
   numeric,
   pgTable,
   text,
