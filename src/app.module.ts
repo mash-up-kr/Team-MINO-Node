@@ -21,6 +21,7 @@ import { InvitationModule } from "./modules/invitation/invitation.module";
 import { NotificationModule } from "./modules/notification/notification.module";
 import { PinModule } from "./modules/pin/pin.module";
 import { PlaceModule } from "./modules/place/place.module";
+import { ReportModule } from "./modules/report/report.module";
 import { RoomModule } from "./modules/room/room.module";
 import { UserModule } from "./modules/user/user.module";
 
@@ -51,6 +52,7 @@ import { UserModule } from "./modules/user/user.module";
     InvitationModule,
     PinModule,
     RoomModule,
+    ReportModule,
     UserModule,
     CardModule,
     NotificationModule,
