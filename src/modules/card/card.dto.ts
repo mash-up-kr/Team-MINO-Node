@@ -62,6 +62,16 @@ const placeSchema: SchemaObject = {
 
 const cardSchema: SchemaObject = {
   type: "object",
+  required: [
+    "id",
+    "roomId",
+    "place",
+    "images",
+    "createdBy",
+    "commentCount",
+    "createdAt",
+    "labelGroup",
+  ],
   properties: {
     id: { type: "string", format: "uuid" },
     roomId: { type: "string", format: "uuid" },

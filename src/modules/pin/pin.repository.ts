@@ -89,7 +89,12 @@ export class PinRepository extends BaseRepository {
       case "distance":
         return [asc(distanceToPlace(sort.lat, sort.lng)), asc(pins.id)];
       case "commented":
-        return [desc(activeCommentCount()), desc(pins.createdAt), asc(pins.id)];
+        // SELECT에 계산한 comment_count alias를 재사용해 활성 댓글 집계를 한 번만 계산한다.
+        return [
+          desc(sql.identifier("comment_count")),
+          desc(pins.createdAt),
+          asc(pins.id),
+        ];
       case "latest":
         return [desc(pins.createdAt), asc(pins.id)];
       default: {

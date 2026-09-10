@@ -97,7 +97,7 @@ export class CardRepository extends BaseRepository {
         images: pins.images,
         place: CARD_PLACE_COLUMNS,
         author: CARD_AUTHOR_COLUMNS,
-        manyComments: activeCommentCount().mapWith(Number).as("many_comments"),
+        commentCount: activeCommentCount().mapWith(Number).as("comment_count"),
         /*
          * 같은 장소가 저장된 방 수. (room_id, place_id) 활성 유니크라 핀 수 = 방 수다.
          * pins를 자기 자신과 대조해야 해서 서브쿼리 안에서 별칭을 직접 붙인다.

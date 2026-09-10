@@ -151,6 +151,15 @@ const placeSchema: SchemaObject = {
 
 const pinSchema: SchemaObject = {
   type: "object",
+  required: [
+    "id",
+    "roomId",
+    "place",
+    "images",
+    "createdBy",
+    "commentCount",
+    "createdAt",
+  ],
   properties: {
     id: { type: "string", format: "uuid" },
     roomId: { type: "string", format: "uuid" },

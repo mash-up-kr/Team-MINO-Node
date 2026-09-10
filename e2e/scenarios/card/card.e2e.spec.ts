@@ -241,19 +241,21 @@ describe("GET /api/v1/rooms/:roomId/cards", () => {
       )
       .returning({ id: pinComments.id });
 
-    const { status, body } = await cards(`/api/v1/rooms/${roomId}/cards`);
-    expect(status).toBe(200);
-    const commentCount = body.data.cards.find(
-      (card: { id: string }) => card.id === manyCommentsPinId,
-    )?.commentCount;
-    expect(commentCount).toBe(2);
-
-    await db.delete(pinComments).where(
-      inArray(
-        pinComments.id,
-        deletedComments.map((comment) => comment.id),
-      ),
-    );
+    try {
+      const { status, body } = await cards(`/api/v1/rooms/${roomId}/cards`);
+      expect(status).toBe(200);
+      const commentCount = body.data.cards.find(
+        (card: { id: string }) => card.id === manyCommentsPinId,
+      )?.commentCount;
+      expect(commentCount).toBe(2);
+    } finally {
+      await db.delete(pinComments).where(
+        inArray(
+          pinComments.id,
+          deletedComments.map((comment) => comment.id),
+        ),
+      );
+    }
   });
 
   it("가장 묵힌 4장은 가볼 만한 곳이 가져간다", async () => {

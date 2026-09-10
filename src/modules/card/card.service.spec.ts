@@ -7,7 +7,7 @@ let seq = 0;
 type Overrides = Partial<
   Pick<
     CandidateRow,
-    "manyComments" | "manySaves" | "manyViews" | "staleness" | "createdAt"
+    "commentCount" | "manySaves" | "manyViews" | "staleness" | "createdAt"
   >
 > & { id?: string };
 
@@ -37,7 +37,7 @@ function candidate(overrides: Overrides = {}): CandidateRow {
     },
     images: null,
     author: null,
-    manyComments: overrides.manyComments ?? 0,
+    commentCount: overrides.commentCount ?? 0,
     manySaves: overrides.manySaves ?? 0,
     manyViews: overrides.manyViews ?? 0,
   };
@@ -60,7 +60,7 @@ describe("assignLabels", () => {
         staleness: new Date(2026, 0, index + 1),
         // 전부 지표를 갖게 해서 우선순위가 아니라 순서로 갈리는지 본다.
         manySaves: 5,
-        manyComments: 5,
+        commentCount: 5,
         manyViews: 5,
       }),
     );
@@ -79,10 +79,10 @@ describe("assignLabels", () => {
     );
     const rows = [
       ...filler,
-      candidate({ id: "all", manySaves: 9, manyComments: 9, manyViews: 9 }),
+      candidate({ id: "all", manySaves: 9, commentCount: 9, manyViews: 9 }),
       candidate({ id: "saves", manySaves: 3 }),
-      candidate({ id: "comments", manyComments: 3 }),
-      candidate({ id: "comments2", manyComments: 2 }),
+      candidate({ id: "comments", commentCount: 3 }),
+      candidate({ id: "comments2", commentCount: 2 }),
       candidate({ id: "views", manyViews: 3 }),
       candidate({ id: "views2", manyViews: 2 }),
     ];
@@ -124,7 +124,7 @@ describe("assignLabels", () => {
 
   it("응답이 후보 순서를 그대로 유지한다", () => {
     const rows = [
-      candidate({ id: "first", manyComments: 9 }),
+      candidate({ id: "first", commentCount: 9 }),
       candidate({ id: "second" }),
       candidate({ id: "third", manySaves: 9 }),
     ];
@@ -150,17 +150,17 @@ describe("assignLabels", () => {
       ...filler,
       candidate({
         id: "newer",
-        manyComments: 3,
+        commentCount: 3,
         staleness: new Date(2026, 5, 1),
       }),
       candidate({
         id: "older",
-        manyComments: 3,
+        commentCount: 3,
         staleness: new Date(2026, 2, 1),
       }),
       candidate({
         id: "newest",
-        manyComments: 3,
+        commentCount: 3,
         staleness: new Date(2026, 8, 1),
       }),
     ];
@@ -177,7 +177,7 @@ describe("assignLabels", () => {
       candidate({
         id: `p${index}`,
         manySaves: index % 3 === 0 ? 2 : 0,
-        manyComments: index % 3 === 1 ? 1 : 0,
+        commentCount: index % 3 === 1 ? 1 : 0,
         manyViews: index % 3 === 2 ? 1 : 0,
       }),
     );
