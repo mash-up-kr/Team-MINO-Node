@@ -174,6 +174,11 @@ const pinSchema: SchemaObject = {
         },
       },
     },
+    commentCount: {
+      type: "integer",
+      minimum: 0,
+      description: "삭제되지 않은 코멘트 수",
+    },
     createdAt: { type: "string", format: "date-time" },
   },
 };

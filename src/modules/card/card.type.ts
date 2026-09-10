@@ -64,6 +64,7 @@ export type CardResponse = {
   /** 이 핀이 만들어진 게시물의 이미지(pins.images). 장소가 아니라 핀 소속이다. */
   images: string[];
   createdBy: CardAuthorResponse | null;
+  commentCount: number;
   createdAt: Date;
   labelGroup: LabelGroup;
 };
@@ -119,6 +120,7 @@ export function toCardResponse(
     place: { ...place, mapUrl: externalUrl },
     images: row.images ?? [],
     createdBy: author,
+    commentCount: row.manyComments,
     createdAt: row.createdAt,
     labelGroup,
   };

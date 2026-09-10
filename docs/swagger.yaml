@@ -1404,6 +1404,7 @@ components:
 
     Pin:
       type: object
+      required: [id, roomId, place, images, createdBy, commentCount, createdAt]
       properties:
         id:
           type: string
@@ -1421,6 +1422,10 @@ components:
             format: uri
         createdBy:
           $ref: "#/components/schemas/PinAuthor"
+        commentCount:
+          type: integer
+          minimum: 0
+          description: 삭제되지 않은 코멘트 수
         createdAt:
           type: string
           format: date-time
@@ -1488,7 +1493,7 @@ components:
       description: |
         홈 카드. 핀을 중첩하지 않고 핀 필드를 그대로 펼친 뒤 장소분류 라벨을 더한다.
         `place`에는 핀 응답과 달리 `createdAt`/`updatedAt`이 없다
-      required: [id, roomId, place, images, createdBy, createdAt, labelGroup]
+      required: [id, roomId, place, images, createdBy, commentCount, createdAt, labelGroup]
       properties:
         id:
           type: string
@@ -1506,6 +1511,10 @@ components:
             format: uri
         createdBy:
           $ref: "#/components/schemas/PinAuthor"
+        commentCount:
+          type: integer
+          minimum: 0
+          description: 삭제되지 않은 코멘트 수
         createdAt:
           type: string
           format: date-time

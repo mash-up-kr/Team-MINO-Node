@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
+import { inArray } from "drizzle-orm";
 import { AppModule } from "../../../src/app.module";
 import { DatabaseService } from "../../../src/infrastructures/db/database.service";
 import { pins } from "../../../src/modules/pin/pin.schema";
@@ -205,16 +206,54 @@ describe("GET /api/v1/rooms/:roomId/cards", () => {
 
   it("지표를 가진 핀에 해당 라벨을 붙인다", async () => {
     const { body } = await cards(`/api/v1/rooms/${roomId}/cards`);
-    const byId = new Map<string, string>(
-      body.data.cards.map((card: { id: string; labelGroup: string }) => [
-        card.id,
-        card.labelGroup,
-      ]),
+    const byId = new Map<string, { labelGroup: string; commentCount: number }>(
+      body.data.cards.map(
+        (card: { id: string; labelGroup: string; commentCount: number }) => [
+          card.id,
+          { labelGroup: card.labelGroup, commentCount: card.commentCount },
+        ],
+      ),
     );
 
-    expect(byId.get(pinIds[5])).toBe("manyComments");
-    expect(byId.get(pinIds[6])).toBe("manyViews");
-    expect(byId.get(pinIds[7])).toBe("manySaves");
+    expect(byId.get(pinIds[5])).toEqual({
+      labelGroup: "manyComments",
+      commentCount: 2,
+    });
+    expect(byId.get(pinIds[6])?.labelGroup).toBe("manyViews");
+    expect(byId.get(pinIds[7])?.labelGroup).toBe("manySaves");
+  });
+
+  it("soft-deleted 코멘트는 카드의 commentCount에서 제외된다", async () => {
+    const manyCommentsPinId = pinIds[5];
+    if (!manyCommentsPinId) {
+      throw new Error("댓글이 있는 카드 핀이 시드되지 않았습니다.");
+    }
+
+    const deletedComments = await db
+      .insert(pinComments)
+      .values(
+        [1, 2, 3].map((index) => ({
+          pinId: manyCommentsPinId,
+          createdBy: memberId,
+          content: `삭제된 코멘트 ${index}`,
+          deletedAt: new Date(),
+        })),
+      )
+      .returning({ id: pinComments.id });
+
+    const { status, body } = await cards(`/api/v1/rooms/${roomId}/cards`);
+    expect(status).toBe(200);
+    const commentCount = body.data.cards.find(
+      (card: { id: string }) => card.id === manyCommentsPinId,
+    )?.commentCount;
+    expect(commentCount).toBe(2);
+
+    await db.delete(pinComments).where(
+      inArray(
+        pinComments.id,
+        deletedComments.map((comment) => comment.id),
+      ),
+    );
   });
 
   it("가장 묵힌 4장은 가볼 만한 곳이 가져간다", async () => {

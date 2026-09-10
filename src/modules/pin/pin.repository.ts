@@ -53,6 +53,7 @@ export class PinRepository extends BaseRepository {
         images: pins.images,
         place: places,
         author: PIN_AUTHOR_COLUMNS,
+        commentCount: activeCommentCount().mapWith(Number).as("comment_count"),
       })
       .from(pins)
       .innerJoin(
@@ -112,6 +113,7 @@ export class PinRepository extends BaseRepository {
         images: pins.images,
         place: places,
         author: PIN_AUTHOR_COLUMNS,
+        commentCount: activeCommentCount().mapWith(Number).as("comment_count"),
         sourceUrl: sources.originalUrl,
         isMember: sql<boolean>`${exists(this.memberOfPinRoomSubquery(userId))}`,
       })
