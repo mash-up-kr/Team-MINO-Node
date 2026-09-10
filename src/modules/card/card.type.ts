@@ -64,6 +64,7 @@ export type CardResponse = {
   /** 이 핀이 만들어진 게시물의 이미지(pins.images). 장소가 아니라 핀 소속이다. */
   images: string[];
   createdBy: CardAuthorResponse | null;
+  commentCount: number;
   createdAt: Date;
   labelGroup: LabelGroup;
 };
@@ -80,7 +81,7 @@ export type CandidateAuthorRow = {
   avatar: UserAvatar | null;
 } | null;
 
-/** 라벨 배정 전의 후보 한 건. 지표 3종과 묵힘을 함께 싣는다. */
+/** 라벨 배정 전의 후보 한 건. 표시 댓글 수와 라벨 지표 2종, 묵힘을 함께 싣는다. */
 export type CandidateRow = {
   id: string;
   roomId: string;
@@ -93,7 +94,11 @@ export type CandidateRow = {
   images: string[] | null;
   place: CandidatePlaceRow;
   author: CandidateAuthorRow;
-  manyComments: number;
+  /**
+   * 표시용 활성 댓글 수. 현재 `manyComments` 라벨도 이 값의 임계값을 사용한다.
+   * 라벨 기준이 기간·작성자 등으로 달라지면 별도 지표를 추가한다.
+   */
+  commentCount: number;
   manySaves: number;
   manyViews: number;
 };
@@ -119,6 +124,7 @@ export function toCardResponse(
     place: { ...place, mapUrl: externalUrl },
     images: row.images ?? [],
     createdBy: author,
+    commentCount: row.commentCount,
     createdAt: row.createdAt,
     labelGroup,
   };

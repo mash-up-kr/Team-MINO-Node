@@ -16,6 +16,21 @@ function compareByStaleness(a: CandidateRow, b: CandidateRow): number {
   return diff !== 0 ? diff : a.id.localeCompare(b.id);
 }
 
+/** 라벨별 판정 지표. 댓글 라벨은 표시용 활성 댓글 수를 그대로 기준으로 쓴다. */
+function metricValue(
+  row: CandidateRow,
+  label: Exclude<LabelGroup, "worthVisiting">,
+) {
+  switch (label) {
+    case "manyComments":
+      return row.commentCount;
+    case "manySaves":
+      return row.manySaves;
+    case "manyViews":
+      return row.manyViews;
+  }
+}
+
 /**
  * 후보에 라벨을 붙인다. 배정 순서는 다음과 같고, 앞 라벨이 가져간 장소는 제외된다.
  *
@@ -47,8 +62,12 @@ export function assignLabels(candidates: CandidateRow[]): CardResponse[] {
   for (const { label, quota, min } of METRIC_LABELS) {
     take(
       [...remaining]
-        .filter((row) => row[label] >= min)
-        .sort((a, b) => b[label] - a[label] || compareByStaleness(a, b))
+        .filter((row) => metricValue(row, label) >= min)
+        .sort(
+          (a, b) =>
+            metricValue(b, label) - metricValue(a, label) ||
+            compareByStaleness(a, b),
+        )
         .slice(0, quota),
       label,
     );

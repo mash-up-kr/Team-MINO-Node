@@ -62,6 +62,16 @@ const placeSchema: SchemaObject = {
 
 const cardSchema: SchemaObject = {
   type: "object",
+  required: [
+    "id",
+    "roomId",
+    "place",
+    "images",
+    "createdBy",
+    "commentCount",
+    "createdAt",
+    "labelGroup",
+  ],
   properties: {
     id: { type: "string", format: "uuid" },
     roomId: { type: "string", format: "uuid" },
@@ -79,6 +89,11 @@ const cardSchema: SchemaObject = {
           properties: { color: { type: "string" } },
         },
       },
+    },
+    commentCount: {
+      type: "integer",
+      minimum: 0,
+      description: "삭제되지 않은 코멘트 수",
     },
     createdAt: { type: "string", format: "date-time" },
     labelGroup: { type: "string", enum: [...LABEL_GROUPS] },

@@ -57,6 +57,7 @@ export type PinResponse = {
   /** 이 핀이 만들어진 게시물의 이미지(pins.images). 장소가 아니라 핀 소속이다. */
   images: string[];
   createdBy: PinAuthorResponse | null;
+  commentCount: number;
   createdAt: Date;
 };
 
@@ -120,6 +121,7 @@ export type PinJoinRow = {
   images: string[] | null;
   place: PlaceRow;
   author: AuthorJoinRow;
+  commentCount: number;
 };
 
 export function toPlaceResponse(row: PlaceRow): PlaceResponse {
@@ -157,6 +159,7 @@ export function toPinResponse(row: PinJoinRow): PinResponse {
     place: toPlaceResponse(row.place),
     images: row.images ?? [],
     createdBy: author,
+    commentCount: row.commentCount,
     createdAt: row.createdAt,
   };
 }

@@ -235,6 +235,7 @@ describe("핀 목록 조회", () => {
     expect(pin.images).toHaveLength(1);
     expect(pin.createdBy.userId).toBe(memberId);
     expect(pin.createdBy.nickname).toBe("핀러버");
+    expect(pin.commentCount).toBe(2);
   });
 
   it("기본 정렬(sort=all 및 sort=latest)은 최신 저장순으로 반환한다", async () => {
@@ -304,10 +305,14 @@ describe("핀 목록 조회", () => {
     );
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
-      data: Array<{ id: string }>;
+      data: Array<{ id: string; commentCount: number }>;
     };
     // Pin 0(코멘트 2개) > Pin 2(최신, 0개) > Pin 1(0개)
     expect(body.data[0]?.id).toBe(firstPinId);
+    expect(body.data[0]?.commentCount).toBe(2);
+    expect(body.data.find((pin) => pin.id === secondPinId)?.commentCount).toBe(
+      0,
+    );
   });
 
   it("category=cafe는 카페 장소만 필터링한다", async () => {
@@ -457,19 +462,33 @@ describe("핀 목록 조회", () => {
       )
       .returning();
 
-    const res = await api(
-      `/api/v1/pins?roomId=${roomAId}&sort=commented`,
-      memberAuthUid,
-    );
-    const body = (await res.json()) as { data: Array<{ id: string }> };
-    expect(body.data[0]?.id).toBe(firstPinId);
+    try {
+      const res = await api(
+        `/api/v1/pins?roomId=${roomAId}&sort=commented`,
+        memberAuthUid,
+      );
+      const body = (await res.json()) as {
+        data: Array<{ id: string; commentCount: number }>;
+      };
+      expect(body.data[0]?.id).toBe(firstPinId);
+      expect(
+        body.data.find((pin) => pin.id === secondPinId)?.commentCount,
+      ).toBe(0);
 
-    await db.delete(pinComments).where(
-      inArray(
-        pinComments.id,
-        delComments.map((c) => c.id),
-      ),
-    );
+      const detailRes = await api(`/api/v1/pins/${secondPinId}`, memberAuthUid);
+      expect(detailRes.status).toBe(200);
+      const detailBody = (await detailRes.json()) as {
+        data: { commentCount: number };
+      };
+      expect(detailBody.data.commentCount).toBe(0);
+    } finally {
+      await db.delete(pinComments).where(
+        inArray(
+          pinComments.id,
+          delComments.map((c) => c.id),
+        ),
+      );
+    }
   });
 
   it("방 멤버가 아니면 403", async () => {
@@ -493,6 +512,7 @@ describe("핀 상세 조회", () => {
     expect(data.sourceUrl).toBe(sourceUrl);
     expect(data.place.provider).toBe("kakao");
     expect(data.place.address).toBe("서울 성동구 상원4길 10");
+    expect(data.commentCount).toBe(2);
   });
 
   it("없는 핀은 404", async () => {

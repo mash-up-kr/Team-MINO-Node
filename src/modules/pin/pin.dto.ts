@@ -151,6 +151,15 @@ const placeSchema: SchemaObject = {
 
 const pinSchema: SchemaObject = {
   type: "object",
+  required: [
+    "id",
+    "roomId",
+    "place",
+    "images",
+    "createdBy",
+    "commentCount",
+    "createdAt",
+  ],
   properties: {
     id: { type: "string", format: "uuid" },
     roomId: { type: "string", format: "uuid" },
@@ -174,6 +183,11 @@ const pinSchema: SchemaObject = {
         },
       },
     },
+    commentCount: {
+      type: "integer",
+      minimum: 0,
+      description: "삭제되지 않은 코멘트 수",
+    },
     createdAt: { type: "string", format: "date-time" },
   },
 };
@@ -194,6 +208,7 @@ export const pinDetailResponseApiSchema: SchemaObject = {
   properties: {
     data: {
       type: "object",
+      required: pinSchema.required,
       properties: {
         ...pinSchema.properties,
         sourceUrl: {
