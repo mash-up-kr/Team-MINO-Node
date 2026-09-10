@@ -208,6 +208,7 @@ export const pinDetailResponseApiSchema: SchemaObject = {
   properties: {
     data: {
       type: "object",
+      required: pinSchema.required,
       properties: {
         ...pinSchema.properties,
         sourceUrl: {

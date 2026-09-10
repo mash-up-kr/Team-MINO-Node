@@ -462,31 +462,33 @@ describe("핀 목록 조회", () => {
       )
       .returning();
 
-    const res = await api(
-      `/api/v1/pins?roomId=${roomAId}&sort=commented`,
-      memberAuthUid,
-    );
-    const body = (await res.json()) as {
-      data: Array<{ id: string; commentCount: number }>;
-    };
-    expect(body.data[0]?.id).toBe(firstPinId);
-    expect(body.data.find((pin) => pin.id === secondPinId)?.commentCount).toBe(
-      0,
-    );
+    try {
+      const res = await api(
+        `/api/v1/pins?roomId=${roomAId}&sort=commented`,
+        memberAuthUid,
+      );
+      const body = (await res.json()) as {
+        data: Array<{ id: string; commentCount: number }>;
+      };
+      expect(body.data[0]?.id).toBe(firstPinId);
+      expect(
+        body.data.find((pin) => pin.id === secondPinId)?.commentCount,
+      ).toBe(0);
 
-    const detailRes = await api(`/api/v1/pins/${secondPinId}`, memberAuthUid);
-    expect(detailRes.status).toBe(200);
-    const detailBody = (await detailRes.json()) as {
-      data: { commentCount: number };
-    };
-    expect(detailBody.data.commentCount).toBe(0);
-
-    await db.delete(pinComments).where(
-      inArray(
-        pinComments.id,
-        delComments.map((c) => c.id),
-      ),
-    );
+      const detailRes = await api(`/api/v1/pins/${secondPinId}`, memberAuthUid);
+      expect(detailRes.status).toBe(200);
+      const detailBody = (await detailRes.json()) as {
+        data: { commentCount: number };
+      };
+      expect(detailBody.data.commentCount).toBe(0);
+    } finally {
+      await db.delete(pinComments).where(
+        inArray(
+          pinComments.id,
+          delComments.map((c) => c.id),
+        ),
+      );
+    }
   });
 
   it("방 멤버가 아니면 403", async () => {
