@@ -1,6 +1,10 @@
 import { CloudTasksClient } from "@google-cloud/tasks";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import {
+  REQUEST_ID_HEADER,
+  RequestContext,
+} from "../../common/context/request-context";
 import type { PinExtractionTask } from "../../common/tasks/pin-extraction-task.dto";
 import type { Env } from "../../config/env.schema";
 
@@ -54,6 +58,8 @@ export class TasksService {
   async enqueuePinExtraction(payload: PinExtractionTask): Promise<void> {
     if (this.isLocalMode) return;
 
+    const requestId = RequestContext.getRequestId();
+
     await this.client.createTask({
       parent: this.queueParent,
       task: {
@@ -61,7 +67,10 @@ export class TasksService {
         httpRequest: {
           httpMethod: "POST",
           url: `${this.targetBaseUrl}/api-internal/v1/tasks/pins`,
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(requestId ? { [REQUEST_ID_HEADER]: requestId } : {}),
+          },
           body: Buffer.from(JSON.stringify(payload)),
           oidcToken: this.oidcToken,
         },

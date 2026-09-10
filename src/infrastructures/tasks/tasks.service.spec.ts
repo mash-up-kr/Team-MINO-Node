@@ -1,5 +1,9 @@
 import { describe, expect, it, jest } from "bun:test";
 import type { ConfigService } from "@nestjs/config";
+import {
+  REQUEST_ID_HEADER,
+  RequestContext,
+} from "../../common/context/request-context";
 import type { Env } from "../../config/env.schema";
 import { TasksService } from "./tasks.service";
 
@@ -113,6 +117,41 @@ describe("TasksService.enqueuePinExtraction", () => {
       service.enqueuePinExtraction(payload),
     ).resolves.toBeUndefined();
     expect(client.createTask).not.toHaveBeenCalled();
+  });
+
+  it("RequestContext에 requestId가 있으면 task headers에 x-request-id를 전파한다", async () => {
+    const service = new TasksService(createConfigService());
+    let captured: CreateTaskArg | undefined;
+    stubClient(service, async (arg) => {
+      captured = arg;
+      return [{}];
+    });
+
+    await RequestContext.run({ requestId: "test-req-id-1234" }, async () => {
+      await service.enqueuePinExtraction(payload);
+    });
+
+    expect(captured?.task.httpRequest.headers?.[REQUEST_ID_HEADER]).toBe(
+      "test-req-id-1234",
+    );
+  });
+
+  it("RequestContext가 비어있으면 x-request-id 헤더를 추가하지 않는다", async () => {
+    const service = new TasksService(createConfigService());
+    let captured: CreateTaskArg | undefined;
+    stubClient(service, async (arg) => {
+      captured = arg;
+      return [{}];
+    });
+
+    await service.enqueuePinExtraction(payload);
+
+    expect(
+      captured?.task.httpRequest.headers?.[REQUEST_ID_HEADER],
+    ).toBeUndefined();
+    expect(captured?.task.httpRequest.headers?.["Content-Type"]).toBe(
+      "application/json",
+    );
   });
 
   it("createTask 실패를 그대로 전파한다", async () => {
