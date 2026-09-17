@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { AppException } from "../../common/exceptions/app.exception";
 import { AiService } from "../../infrastructures/ai/ai.service";
 import type { ContentPart } from "../../infrastructures/ai/ai.type";
@@ -23,6 +23,8 @@ const PROVIDER_PRIORITY: Record<GeoCandidate["provider"], number> = {
 
 @Injectable()
 export class PlaceService {
+  private readonly logger = new Logger(PlaceService.name);
+
   private static readonly EXTRACTION_PROMPT =
     `You are a place extraction assistant for Instagram posts.
 Analyze the caption and images to identify every distinct real-world place featured in the post, and fill in the structured fields for each according to their descriptions.
@@ -39,14 +41,18 @@ Respond in the same language as the source content (use Korean when the content 
 
   /** Instagram URL → scrape → AI extraction → geocoding fan-out → ranking. */
   async extractFromUrl(url: string): Promise<PlaceExtraction> {
+    const started = Date.now();
     const post = await this.scraperService.fetchPost(url);
-    const { queries, images } = await this.extractQueries(post);
+    const scrapeMs = Date.now() - started;
+    const { queries, images, imageMs, aiMs } = await this.extractQueries(post);
 
     // 장소를 못 뽑아도 이미지는 이미 올라갔으므로 그대로 함께 돌려준다.
     if (queries.length === 0) {
+      this.logStageTimings({ scrapeMs, imageMs, aiMs, geocodeMs: 0 }, 0);
       return { matches: [], images };
     }
 
+    const geocodeStarted = Date.now();
     const settled = await Promise.allSettled(
       queries.map((query) =>
         this.geocoderService.searchAll({
@@ -56,6 +62,7 @@ Respond in the same language as the source content (use Korean when the content 
         }),
       ),
     );
+    const geocodeMs = Date.now() - geocodeStarted;
 
     // 전부 reject된 경우만 인프라 오류로 취급(부분 실패·결과 없음은 정상 데이터).
     const anyFulfilled = settled.some(
@@ -90,7 +97,32 @@ Respond in the same language as the source content (use Korean when the content 
       };
     });
 
+    this.logStageTimings(
+      { scrapeMs, imageMs, aiMs, geocodeMs },
+      queries.length,
+    );
     return { matches, images };
+  }
+
+  /*
+   * 태스크 한 건이 Cloud Run 자리를 몇 초 잡는지가 유저 요청 지연으로 이어지므로
+   * 어느 단계가 먹는지 남긴다. 단계별 측정이 없으면 느려졌을 때 손댈 곳을 못 찾는다.
+   */
+  private logStageTimings(
+    timings: {
+      scrapeMs: number;
+      imageMs: number;
+      aiMs: number;
+      geocodeMs: number;
+    },
+    queryCount: number,
+  ): void {
+    const totalMs =
+      timings.scrapeMs + timings.imageMs + timings.aiMs + timings.geocodeMs;
+    this.logger.log(
+      { ...timings, totalMs, queryCount },
+      "장소 추출 단계별 소요 시간",
+    );
   }
 
   /**
@@ -128,20 +160,30 @@ Respond in the same language as the source content (use Korean when the content 
    * AI가 뽑은 장소와 함께, 이 게시글에서 저장된 이미지의 공개 URL을 돌려준다.
    * Vertex에는 gs://로 넘기지만 DB·클라이언트에는 https:// 쪽이 필요하다.
    */
-  private async extractQueries(
-    post: ScrapedPost,
-  ): Promise<{ queries: PlaceQuery[]; images: string[] }> {
+  private async extractQueries(post: ScrapedPost): Promise<{
+    queries: PlaceQuery[];
+    images: string[];
+    imageMs: number;
+    aiMs: number;
+  }> {
     // 인스타 이미지는 Vertex가 URL로 못 읽으므로(robots 차단), GCS에 올려 gs://로 넘긴다.
+    const started = Date.now();
     const images = await this.placeImageService.storePostImages(
       post.shortcode,
       post.imageUrls,
     );
+    const uploaded = Date.now();
     const content = this.buildContent(post, images);
     const { places } = await this.aiService.extract(
       placeExtractionSchema,
       content,
     );
-    return { queries: places, images: images.map((image) => image.publicUrl) };
+    return {
+      queries: places,
+      images: images.map((image) => image.publicUrl),
+      imageMs: uploaded - started,
+      aiMs: Date.now() - uploaded,
+    };
   }
 
   private buildContent(
