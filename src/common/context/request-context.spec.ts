@@ -27,6 +27,39 @@ describe("RequestContext", () => {
     expect(RequestContext.get()).toBeUndefined();
   });
 
+  describe("logFields", () => {
+    it("컨텍스트가 없으면 빈 객체를 준다", () => {
+      expect(RequestContext.logFields()).toEqual({});
+    });
+
+    it("유저 식별 전에는 requestId만 남긴다", () => {
+      RequestContext.run({ requestId: "req-1" }, () => {
+        expect(RequestContext.logFields()).toEqual({ requestId: "req-1" });
+      });
+    });
+
+    it("등록 전 요청은 authUid를 대신 남긴다", () => {
+      RequestContext.run({ requestId: "req-2" }, () => {
+        RequestContext.setAuthUid("auth-abc");
+        expect(RequestContext.logFields()).toEqual({
+          requestId: "req-2",
+          authUid: "auth-abc",
+        });
+      });
+    });
+
+    it("userId가 있으면 authUid는 남기지 않는다", () => {
+      RequestContext.run({ requestId: "req-3" }, () => {
+        RequestContext.setAuthUid("auth-abc");
+        RequestContext.setUserId("user-xyz");
+        expect(RequestContext.logFields()).toEqual({
+          requestId: "req-3",
+          userId: "user-xyz",
+        });
+      });
+    });
+  });
+
   describe("extractOrCreate", () => {
     it("x-request-id 헤더가 있으면 이를 requestId로 사용한다", () => {
       const request = {

@@ -38,14 +38,7 @@ import { UserModule } from "./modules/user/user.module";
               ? { target: "pino-pretty", options: { singleLine: true } }
               : undefined,
           redact: ["req.headers.authorization"],
-          mixin: () => {
-            const ctx = RequestContext.get();
-            if (!ctx) return {};
-            return {
-              requestId: ctx.requestId,
-              ...(ctx.userId ? { userId: ctx.userId } : {}),
-            };
-          },
+          mixin: () => RequestContext.logFields(),
         },
         exclude: [{ method: RequestMethod.ALL, path: "*" }],
       }),

@@ -58,6 +58,25 @@ export const RequestContext = {
     }
   },
 
+  /**
+   * 로그에 실을 식별자를 고른다.
+   *
+   * 유저 등록(POST /api/v1/users)은 users 행이 생기기 전이라 userId가 없고,
+   * 그 구간에서는 authUid가 유일한 식별자다. 그래서 userId가 없을 때만 대신
+   * 남긴다. 둘 다 남기면 등록 이후 요청마다 같은 사람을 두 번 적게 된다.
+   */
+  logFields(): Record<string, string> {
+    const ctx = RequestContext.get();
+    if (!ctx) return {};
+    if (ctx.userId) {
+      return { requestId: ctx.requestId, userId: ctx.userId };
+    }
+    if (ctx.authUid) {
+      return { requestId: ctx.requestId, authUid: ctx.authUid };
+    }
+    return { requestId: ctx.requestId };
+  },
+
   /** 인증 후 Firebase Auth UID를 현재 컨텍스트에 설정한다. */
   setAuthUid(authUid: string): void {
     const store = RequestContext.get();
