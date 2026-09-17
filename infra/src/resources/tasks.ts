@@ -54,10 +54,14 @@ export const placeExtractionQueue = new gcp.cloudtasks.Queue(
   {
     name: `${prefix}-place-extraction`,
     location: region,
-    // Gemini(Vertex AI) 호출 속도 제한. 실제 쿼터 확인 후 조정 필요.
+    /*
+     * maxConcurrentDispatches는 Cloud Run 동시 처리 수에 맞춘다. 현재 1이다
+     * (cloud-run.ts: maxInstanceCount 1, cpu "0.25" -> 동시 요청 1 강제).
+     * 크게 두면 남는 태스크가 유저 요청을 밀어내므로, 용량을 늘릴 때 같이 올린다.
+     */
     rateLimits: {
       maxDispatchesPerSecond: 2,
-      maxConcurrentDispatches: 5,
+      maxConcurrentDispatches: 1,
     },
     retryConfig: {
       maxAttempts: cloudTasksMaxAttempts,
