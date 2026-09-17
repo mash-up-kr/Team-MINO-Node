@@ -3,6 +3,7 @@ import {
   type ExecutionContext,
   HttpStatus,
   Injectable,
+  Logger,
 } from "@nestjs/common";
 import { TokenVerifier } from "../../infrastructures/auth/token-verifier";
 import { AppException } from "../exceptions/app.exception";
@@ -10,6 +11,8 @@ import { readRequestHeader } from "./request-header";
 
 export const AUTHORIZATION_HEADER = "authorization";
 const BEARER_PREFIX = "Bearer ";
+
+const logger = new Logger("AuthUidGuard");
 
 /** 토큰으로 확인한 인증 주체. 아직 우리 users 행과 연결되지 않았을 수 있다. */
 export type RequestWithAuthUid = {
@@ -32,6 +35,7 @@ export async function resolveAuthUid(
     : undefined;
 
   if (!token) {
+    logAuthFailure(header ? "NOT_BEARER" : "HEADER_MISSING");
     throw new AppException(
       "UNAUTHORIZED",
       "인증 정보가 없습니다.",
@@ -39,8 +43,24 @@ export async function resolveAuthUid(
     );
   }
 
-  const { uid } = await tokenVerifier.verify(token);
-  return uid;
+  try {
+    const { uid } = await tokenVerifier.verify(token);
+    return uid;
+  } catch (error) {
+    logAuthFailure(
+      error instanceof AppException ? error.errorCode : "VERIFY_FAILED",
+    );
+    throw error;
+  }
+}
+
+/*
+ * 401 응답만으로는 클라이언트가 토큰을 못 얻은 것인지(헤더 자체가 없음) 가진
+ * 토큰이 거절된 것인지 구분되지 않아, 원인을 클라이언트 쪽에서 재현해야만 했다.
+ * 분류만 남기고 토큰 값은 남기지 않는다.
+ */
+function logAuthFailure(reason: string): void {
+  logger.warn({ reason }, "인증 실패");
 }
 
 /**
