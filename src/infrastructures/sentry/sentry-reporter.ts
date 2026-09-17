@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import * as Sentry from "@sentry/bun";
+import { RequestContext } from "../../common/context/request-context";
 import type {
   ErrorReportContext,
   ErrorReporter,
@@ -12,6 +13,14 @@ export class SentryErrorReporter implements ErrorReporter {
       scope.setTag("error.code", context.errorCode);
       if (context.httpStatusCode !== undefined) {
         scope.setTag("http.status_code", context.httpStatusCode);
+      }
+      const requestId = RequestContext.getRequestId();
+      if (requestId) {
+        scope.setTag("request_id", requestId);
+      }
+      const userId = RequestContext.getUserId();
+      if (userId) {
+        scope.setUser({ id: userId });
       }
       if (context.extra) {
         scope.setExtras(context.extra);
