@@ -48,7 +48,11 @@ Respond in the same language as the source content (use Korean when the content 
 
     // 장소를 못 뽑아도 이미지는 이미 올라갔으므로 그대로 함께 돌려준다.
     if (queries.length === 0) {
-      this.logStageTimings({ scrapeMs, imageMs, aiMs, geocodeMs: 0 }, 0);
+      this.logStageTimings(
+        { scrapeMs, imageMs, aiMs, geocodeMs: 0 },
+        0,
+        started,
+      );
       return { matches: [], images };
     }
 
@@ -100,6 +104,7 @@ Respond in the same language as the source content (use Korean when the content 
     this.logStageTimings(
       { scrapeMs, imageMs, aiMs, geocodeMs },
       queries.length,
+      started,
     );
     return { matches, images };
   }
@@ -116,9 +121,10 @@ Respond in the same language as the source content (use Korean when the content 
       geocodeMs: number;
     },
     queryCount: number,
+    started: number,
   ): void {
-    const totalMs =
-      timings.scrapeMs + timings.imageMs + timings.aiMs + timings.geocodeMs;
+    // 단계 합산이면 랭킹 등 어느 단계에도 안 잡힌 구간이 빠지므로 실제 경과로 잰다.
+    const totalMs = Date.now() - started;
     this.logger.log(
       { ...timings, totalMs, queryCount },
       "장소 추출 단계별 소요 시간",
