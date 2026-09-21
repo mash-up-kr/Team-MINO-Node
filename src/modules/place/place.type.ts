@@ -32,7 +32,7 @@ export const placeQuerySchema = v.object({
   image_indices: v.pipe(
     v.array(v.number()),
     v.description(
-      "0-based indices of the provided images that show THIS place, in the order the images were given. Assign each image to at most one place. Return an empty array when no image clearly shows this place.",
+      'Indices of the provided images that show THIS place, taken from the "[image N]" label that precedes each image. Assign each image to at most one place. Return an empty array when no image clearly shows this place.',
     ),
   ),
 });
