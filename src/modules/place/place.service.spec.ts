@@ -320,6 +320,50 @@ describe("PlaceService", () => {
     expect(images[0].mediaType).toBe("image/jpeg");
   });
 
+  it("이미지마다 바로 앞에 [image N] 라벨을 붙여 모델이 인덱스를 세지 않게 한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(
+      makePost({
+        imageUrls: [
+          "https://scontent.cdninstagram.com/a.jpg",
+          "https://scontent.cdninstagram.com/b.jpg",
+        ],
+      }),
+    );
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://bucket/abc123/0",
+        publicUrl: "https://storage.googleapis.com/bucket/abc123/0",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://bucket/abc123/1",
+        publicUrl: "https://storage.googleapis.com/bucket/abc123/1",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    ai.extract.mockResolvedValue({ places: [QUERY] });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    await service.extractFromUrl(URL);
+
+    // then
+    const [, content] = ai.extract.mock.calls[0] as [
+      unknown,
+      Array<{ type: string; text?: string; url?: string }>,
+    ];
+    // 라벨은 짝이 되는 이미지 "바로 앞"에 와야 인덱스가 어긋나지 않는다.
+    const labelled = content.flatMap((part, index) =>
+      part.type === "image" ? [[content[index - 1]?.text, part.url]] : [],
+    );
+    expect(labelled).toEqual([
+      ["[image 0]", "gs://bucket/abc123/0"],
+      ["[image 1]", "gs://bucket/abc123/1"],
+    ]);
+  });
+
   it("저장된 이미지의 publicUrl 목록을 결과에 함께 반환한다", async () => {
     // given
     const { service, instagram, ai, geocoder, placeImage } = createService();

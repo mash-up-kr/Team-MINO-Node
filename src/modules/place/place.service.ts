@@ -30,6 +30,7 @@ export class PlaceService {
 Analyze the caption and images to identify every distinct real-world place featured in the post, and fill in the structured fields for each according to their descriptions.
 For area_type, choose "address" only when area_name is a concrete street address, "region" for a broad district or city, and "landmark" for a well-known nearby place; when unsure, prefer "region".
 When area_type is "address", make area_name as complete a street address as the content allows so it can be geocoded precisely.
+Each image is preceded by an "[image N]" label. When referring to images, use that N verbatim; never renumber the images yourself.
 Respond in the same language as the source content (use Korean when the content is Korean).`;
 
   constructor(
@@ -209,13 +210,20 @@ Respond in the same language as the source content (use Korean when the content 
         text: `Tagged location: ${post.location.name}`,
       });
     }
-    for (const image of images) {
+    images.forEach((image, index) => {
+      /*
+       * 이미지마다 인덱스를 붙여 넘긴다. 번호가 없으면 모델이 직접 세야 하는데,
+       * 캡션이 "➊➋➌"처럼 1부터 번호를 매긴 글에서는 1-based로 세어
+       * image_indices가 통째로 한 칸 밀린다(장소마다 다음 사진이 붙는다).
+       * 세지 않고 읽게 하면 이 흔들림이 사라진다.
+       */
+      parts.push({ type: "text", text: `[image ${index}]` });
       parts.push({
         type: "image",
         url: image.gsUri,
         mediaType: image.mediaType,
       });
-    }
+    });
 
     return parts;
   }
