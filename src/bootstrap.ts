@@ -33,8 +33,8 @@ export async function bootstrap(): Promise<void> {
   });
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle("Team MINO API")
-    .setDescription("Team MINO backend API documentation")
+    .setTitle("꾹(GGUK) API")
+    .setDescription("꾹(GGUK) backend API documentation")
     .setVersion("1.0.0")
     .addBearerAuth({
       type: "http",

@@ -49,7 +49,7 @@ jobs:
                 "title": "📋 오픈 PR 현황",
                 "description": $prs,
                 "color": 5814783,
-                "footer": { "text": "Team MINO • 오픈 PR \($count)개" }
+                "footer": { "text": "꾹(GGUK) • 오픈 PR \($count)개" }
               }]
             }'
           )
