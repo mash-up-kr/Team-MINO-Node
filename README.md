@@ -1,6 +1,6 @@
-# Team MINO Node
+# 꾹(GGUK) Node
 
-NestJS 기반 Team MINO 백엔드 API 서버입니다.
+NestJS 기반 꾹(GGUK) 백엔드 API 서버입니다.
 
 ## Requirements
 
