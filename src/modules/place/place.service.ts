@@ -5,15 +5,20 @@ import type { ContentPart } from "../../infrastructures/ai/ai.type";
 import { GeocoderService } from "../../infrastructures/geocoder/geocoder.service";
 import type { GeoCandidate } from "../../infrastructures/geocoder/geocoder.type";
 import { PlaceImageService } from "../../infrastructures/place-image/place-image.service";
-import type { StoredImage } from "../../infrastructures/place-image/place-image.type";
+import type {
+  StoredImage,
+  StoredVideo,
+} from "../../infrastructures/place-image/place-image.type";
 import { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import {
   type ExtractedPlace,
   type PlaceCandidate,
   type PlaceExtraction,
+  type PlaceKind,
   type PlaceQuery,
   placeExtractionSchema,
+  reelExtractionSchema,
 } from "./place.type";
 
 const PROVIDER_PRIORITY: Record<GeoCandidate["provider"], number> = {
@@ -32,6 +37,30 @@ For area_type, choose "address" only when area_name is a concrete street address
 When area_type is "address", make area_name as complete a street address as the content allows so it can be geocoded precisely.
 Each image is preceded by an "[image N]" label. When referring to images, use that N verbatim; never renumber the images yourself.
 Respond in the same language as the source content (use Korean when the content is Korean).`;
+
+  /*
+   * 영상(릴스) 전용 프롬프트. 사진 프롬프트와 달리 무엇을 볼지 지정하지 않는다.
+   *
+   * "자막·내레이션을 옮겨 적어라"처럼 단서를 못 박으면 모델이 간판·로고·지도 화면·
+   * 키오스크 같은 다른 단서를 버려 회수가 떨어졌고(용산 코스 릴스 11곳 → 4곳),
+   * "방문 가능한 곳만"으로 제한해도 실제 매장이 같이 빠졌다(11곳 → 6곳). 그래서
+   * 넓게 찾게 두고 종류(kind)만 붙여 받아 서버가 거른다.
+   */
+  private static readonly REEL_EXTRACTION_PROMPT =
+    `Explore this Instagram Reel thoroughly — the video, its audio, the thumbnail, and the caption — and identify every distinct real-world place featured (shops, cafes, restaurants, venues, attractions). For each, say exactly what you identified it from, and label what kind of place it is.
+For area_type, choose "address" only when area_name is a concrete street address, "region" for a broad district or city, and "landmark" for a well-known nearby place; when unsure, prefer "region".
+When area_type is "address", make area_name as complete a street address as the content allows so it can be geocoded precisely.
+Respond in the same language as the source content (use Korean when the content is Korean).`;
+
+  // 1분 안팎 영상이 5~25초 걸렸다(사진은 2~6초). 기본 30초로는 잘린다.
+  private static readonly REEL_AI_TIMEOUT_MS = 120_000;
+
+  // 저장할 장소가 아니다. 역 출구는 길 안내로 나오고, 방송사·집은 갈 수 있는 곳이 아니다.
+  private static readonly EXCLUDED_KINDS: ReadonlySet<PlaceKind> = new Set([
+    "transit",
+    "media_or_brand",
+    "private_or_not_a_place",
+  ]);
 
   constructor(
     private readonly scraperService: ScraperService,
@@ -173,34 +202,80 @@ Respond in the same language as the source content (use Korean when the content 
     imageMs: number;
     aiMs: number;
   }> {
-    // 인스타 이미지는 Vertex가 URL로 못 읽으므로(robots 차단), GCS에 올려 gs://로 넘긴다.
+    // 인스타 미디어는 Vertex가 URL로 못 읽으므로(robots 차단), GCS에 올려 gs://로 넘긴다.
     const started = Date.now();
     const images = await this.placeImageService.storePostImages(
       post.shortcode,
       post.imageUrls,
     );
+    // 영상 게시글은 썸네일 1장으로는 소개 장소를 못 본다. 영상을 올려 함께 넘긴다.
+    const video =
+      post.typename === "video" && post.videoUrl
+        ? await this.placeImageService.storePostVideo(
+            post.shortcode,
+            post.videoUrl,
+          )
+        : null;
     const uploaded = Date.now();
-    const content = this.buildContent(post, images);
-    const { places } = await this.aiService.extract(
-      placeExtractionSchema,
-      content,
-    );
+
+    // 영상을 못 올렸으면 사진 경로로 내려간다 — 캡션·썸네일만으로도 추출은 된다.
+    const queries = video
+      ? await this.extractFromReel(post, images, video)
+      : (
+          await this.aiService.extract(
+            placeExtractionSchema,
+            this.buildContent(post, images),
+          )
+        ).places;
+
     return {
-      queries: places,
+      queries,
       images: images.map((image) => image.publicUrl),
       imageMs: uploaded - started,
       aiMs: Date.now() - uploaded,
     };
   }
 
-  private buildContent(
+  /**
+   * 릴스: 영상까지 넘겨 넓게 찾고, 저장할 수 없는 종류만 걸러 사진 경로와 같은 모양으로 맞춘다.
+   */
+  private async extractFromReel(
     post: ScrapedPost,
     images: StoredImage[],
-  ): ContentPart[] {
+    video: StoredVideo,
+  ): Promise<PlaceQuery[]> {
     const parts: ContentPart[] = [
-      { type: "text", text: PlaceService.EXTRACTION_PROMPT },
+      { type: "text", text: PlaceService.REEL_EXTRACTION_PROMPT },
+      ...this.buildContext(post),
     ];
+    for (const image of images) {
+      parts.push({
+        type: "image",
+        url: image.gsUri,
+        mediaType: image.mediaType,
+      });
+    }
+    parts.push({ type: "video", url: video.gsUri, mediaType: video.mediaType });
 
+    const { places } = await this.aiService.extract(
+      reelExtractionSchema,
+      parts,
+      { timeoutMs: PlaceService.REEL_AI_TIMEOUT_MS },
+    );
+    return (
+      places
+        .filter((place) => !PlaceService.EXCLUDED_KINDS.has(place.kind))
+        // 썸네일 1장이라 고를 사진이 없다. 빈 인덱스면 전체(=썸네일) 폴백을 탄다.
+        .map(({ kind: _kind, evidence: _evidence, ...query }) => ({
+          ...query,
+          image_indices: [],
+        }))
+    );
+  }
+
+  /** 프롬프트 뒤에 붙는 게시글 텍스트 맥락(캡션·태그 위치). 사진·영상 경로가 공유한다. */
+  private buildContext(post: ScrapedPost): ContentPart[] {
+    const parts: ContentPart[] = [];
     if (post.caption) {
       parts.push({ type: "text", text: `Caption:\n${post.caption}` });
     }
@@ -210,6 +285,17 @@ Respond in the same language as the source content (use Korean when the content 
         text: `Tagged location: ${post.location.name}`,
       });
     }
+    return parts;
+  }
+
+  private buildContent(
+    post: ScrapedPost,
+    images: StoredImage[],
+  ): ContentPart[] {
+    const parts: ContentPart[] = [
+      { type: "text", text: PlaceService.EXTRACTION_PROMPT },
+      ...this.buildContext(post),
+    ];
     images.forEach((image, index) => {
       /*
        * 이미지마다 인덱스를 붙여 넘긴다. 번호가 없으면 모델이 직접 세야 하는데,

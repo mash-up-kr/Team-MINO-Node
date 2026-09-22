@@ -11,6 +11,8 @@ export const EmbedShortcodeMediaSchema = v.object({
   __typename: v.string(),
   shortcode: v.string(),
   display_url: v.pipe(v.string(), v.minLength(1)),
+  // 영상 게시글에만 온다.
+  video_url: v.nullish(v.string()),
   owner: v.object({
     id: v.string(),
     username: v.string(),

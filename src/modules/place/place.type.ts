@@ -49,6 +49,49 @@ export const placeExtractionSchema = v.object({
 
 export type PlaceExtractionResult = v.InferOutput<typeof placeExtractionSchema>;
 
+/**
+ * 영상(릴스) 추출에서 장소의 종류.
+ *
+ * 릴스는 "무엇이든 찾아라"고 넓게 시켜야 회수가 난다(단서를 지정하거나 "방문 가능한
+ * 곳만"으로 제한하면 실제 매장까지 같이 빠졌다). 대신 종류를 스스로 붙이게 해서,
+ * 방송사·집·역 출구처럼 저장할 수 없는 것을 서버가 거른다.
+ */
+export const PLACE_KINDS = [
+  "venue",
+  "landmark",
+  "transit",
+  "media_or_brand",
+  "private_or_not_a_place",
+] as const;
+export type PlaceKind = (typeof PLACE_KINDS)[number];
+
+export const reelPlaceSchema = v.object({
+  // 영상은 썸네일 1장이라 사진을 고를 게 없다.
+  ...v.omit(placeQuerySchema, ["image_indices"]).entries,
+  kind: v.pipe(
+    v.picklist(PLACE_KINDS),
+    v.description(
+      "venue: a shop, cafe, restaurant, bar, attraction, or any business a viewer can visit. landmark: a well-known public place such as a bridge, park, or plaza. transit: a station, exit, or stop given as directions. media_or_brand: a TV channel, program, or brand with no specific location. private_or_not_a_place: a home, kitchen, or anything that is not a real-world place.",
+    ),
+  ),
+  // 저장하지 않는다. 답을 근거에 묶어 두는 용도이고, 검증할 때 어느 단서를 썼는지 보인다.
+  evidence: v.pipe(
+    v.string(),
+    v.description(
+      "The exact cue this place was identified from: quote the on-screen text, signage, speech, map, or caption fragment.",
+    ),
+  ),
+});
+
+export type ReelPlaceQuery = v.InferOutput<typeof reelPlaceSchema>;
+
+export const reelExtractionSchema = v.object({
+  places: v.pipe(
+    v.array(reelPlaceSchema),
+    v.description("Every distinct real-world place featured in the reel."),
+  ),
+});
+
 export interface PlaceCandidate extends GeoCandidate {}
 
 export interface ExtractedPlace {

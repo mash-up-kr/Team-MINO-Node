@@ -220,4 +220,67 @@ describe("PlaceImageService", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();
   });
+  describe("storePostVideo", () => {
+    it("허용 호스트의 mp4는 업로드하고 gs:// URI를 반환한다", async () => {
+      exists.mockResolvedValue([false]);
+      save.mockResolvedValue(undefined);
+      mockFetch(200, "video/mp4");
+
+      const result = await makeService().storePostVideo(
+        "abc123",
+        `${CDN}/reel.mp4`,
+      );
+
+      expect(result).toEqual({
+        gsUri: "gs://team-mino-place-images-local/instagram/abc123/video",
+        mediaType: "video/mp4",
+      });
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+
+    it("영상이 아닌 타입은 스킵한다", async () => {
+      exists.mockResolvedValue([false]);
+      mockFetch(200, "image/jpeg");
+
+      const result = await makeService().storePostVideo(
+        "abc123",
+        `${CDN}/reel.mp4`,
+      );
+
+      expect(result).toBeNull();
+      expect(save).not.toHaveBeenCalled();
+    });
+
+    it("허용되지 않은 호스트는 다운로드 없이 스킵한다", async () => {
+      const fetchSpy = jest.fn();
+      globalThis.fetch = fetchSpy as unknown as typeof fetch;
+
+      const result = await makeService().storePostVideo(
+        "abc123",
+        "https://evil.example/reel.mp4",
+      );
+
+      expect(result).toBeNull();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("이미 존재하면 재다운로드 없이 재사용한다", async () => {
+      exists.mockResolvedValue([true]);
+      getMetadata.mockResolvedValue([{ contentType: "video/mp4" }]);
+      const fetchSpy = jest.fn();
+      globalThis.fetch = fetchSpy as unknown as typeof fetch;
+
+      const result = await makeService().storePostVideo(
+        "abc123",
+        `${CDN}/reel.mp4`,
+      );
+
+      expect(result).toEqual({
+        gsUri: "gs://team-mino-place-images-local/instagram/abc123/video",
+        mediaType: "video/mp4",
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(save).not.toHaveBeenCalled();
+    });
+  });
 });

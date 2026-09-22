@@ -3,18 +3,38 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Env } from "../../config/env.schema";
 import { SentryErrorReporter } from "../sentry/sentry-reporter";
-import type { StoredImage } from "./place-image.type";
+import type { StoredImage, StoredVideo } from "./place-image.type";
 
-const DOWNLOAD_TIMEOUT_MS = 10_000;
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+interface DownloadLimits {
+  timeoutMs: number;
+  maxBytes: number;
+  supportedTypes: ReadonlySet<string>;
+}
 
-const SUPPORTED_MEDIA_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-]);
+const IMAGE_LIMITS: DownloadLimits = {
+  timeoutMs: 10_000,
+  maxBytes: 20 * 1024 * 1024,
+  supportedTypes: new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/heic",
+    "image/heif",
+  ]),
+};
+
+/*
+ * 릴스는 25초짜리가 14MB까지 나왔고, 로그아웃 응답의 렌디션 3종은 크기가 같아 저해상도
+ * 대안이 없다. 1분 안팎까지 받아내려면 이미지보다 넉넉해야 한다.
+ */
+const VIDEO_LIMITS: DownloadLimits = {
+  timeoutMs: 30_000,
+  maxBytes: 50 * 1024 * 1024,
+  supportedTypes: new Set(["video/mp4"]),
+};
+
+// 이미지 객체는 "000"부터 숫자라 이 이름과 겹치지 않는다.
+const VIDEO_OBJECT_NAME = "video";
 
 /*
  * 이미지 URL은 인스타 GraphQL 응답에서 오므로 우리 서버가
@@ -76,6 +96,49 @@ export class PlaceImageService {
       allowed.map(({ url, index }) => this.storeOne(shortcode, index, url)),
     );
     return results.filter((image): image is StoredImage => image !== null);
+  }
+
+  /**
+   * 영상 게시글(릴스)의 원본 mp4를 올리고 gs:// URI를 돌려준다. 못 올리면 null.
+   *
+   * 이미지와 같은 이유로 GCS를 거친다 — Vertex는 인스타 CDN을 직접 읽지 못한다.
+   * 실패해도 던지지 않는다. 캡션·썸네일만으로 추출하는 기존 경로가 그대로 받는다.
+   */
+  async storePostVideo(
+    shortcode: string,
+    videoUrl: string,
+  ): Promise<StoredVideo | null> {
+    if (!this.isAllowedHost(videoUrl)) {
+      this.logger.warn(
+        { host: this.hostOf(videoUrl) },
+        "허용되지 않은 영상 호스트 — 스킵",
+      );
+      return null;
+    }
+
+    try {
+      const objectName = `${SOURCE_PREFIX}/${shortcode}/${VIDEO_OBJECT_NAME}`;
+      const file = this.storage.bucket(this.bucketName).file(objectName);
+      const gsUri = `gs://${this.bucketName}/${objectName}`;
+
+      const [exists] = await file.exists();
+      if (exists) {
+        const [metadata] = await file.getMetadata();
+        return { gsUri, mediaType: metadata.contentType ?? "video/mp4" };
+      }
+
+      const downloaded = await this.download(videoUrl, VIDEO_LIMITS);
+      if (!downloaded) return null;
+
+      await file.save(downloaded.bytes, {
+        contentType: downloaded.mediaType,
+        resumable: false,
+      });
+      return { gsUri, mediaType: downloaded.mediaType };
+    } catch (error) {
+      this.logger.warn({ err: error, videoUrl }, "영상 저장 실패 — 스킵");
+      return null;
+    }
   }
 
   /**
@@ -154,7 +217,7 @@ export class PlaceImageService {
         };
       }
 
-      const downloaded = await this.download(imageUrl);
+      const downloaded = await this.download(imageUrl, IMAGE_LIMITS);
       if (!downloaded) return null;
 
       await file.save(downloaded.bytes, {
@@ -169,20 +232,21 @@ export class PlaceImageService {
   }
 
   private async download(
-    imageUrl: string,
+    mediaUrl: string,
+    limits: DownloadLimits,
   ): Promise<{ bytes: Uint8Array; mediaType: string } | null> {
     /*
      * 리다이렉트를 따라가면 허용 호스트가 임의 주소로 넘길 수 있어(SSRF) allowlist가 무력화된다.
      * 인스타 CDN은 이미지를 직접 응답하므로 리다이렉트를 거부한다.
      */
-    const response = await fetch(imageUrl, {
-      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    const response = await fetch(mediaUrl, {
+      signal: AbortSignal.timeout(limits.timeoutMs),
       redirect: "error",
     });
     if (!response.ok) {
       this.logger.warn(
-        { imageUrl, status: response.status },
-        "이미지 다운로드 실패 — 스킵",
+        { mediaUrl, status: response.status },
+        "미디어 다운로드 실패 — 스킵",
       );
       return null;
     }
@@ -191,19 +255,19 @@ export class PlaceImageService {
       .split(";")[0]
       .trim()
       .toLowerCase();
-    if (!SUPPORTED_MEDIA_TYPES.has(mediaType)) {
+    if (!limits.supportedTypes.has(mediaType)) {
       this.logger.warn(
-        { imageUrl, mediaType },
-        "지원하지 않는 이미지 타입 — 스킵",
+        { mediaUrl, mediaType },
+        "지원하지 않는 미디어 타입 — 스킵",
       );
       return null;
     }
 
     const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > MAX_IMAGE_BYTES) {
+    if (bytes.byteLength > limits.maxBytes) {
       this.logger.warn(
-        { imageUrl, bytes: bytes.byteLength },
-        "이미지 크기 상한 초과 — 스킵",
+        { mediaUrl, bytes: bytes.byteLength },
+        "미디어 크기 상한 초과 — 스킵",
       );
       return null;
     }

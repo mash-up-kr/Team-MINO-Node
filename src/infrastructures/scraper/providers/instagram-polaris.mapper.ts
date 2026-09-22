@@ -36,6 +36,7 @@ export function toScrapedPost(
     typename,
     caption: media.caption?.text ?? null,
     imageUrls,
+    videoUrl: media.video_versions?.[0]?.url ?? null,
     owner: {
       id: String(media.user.pk),
       username: media.user.username,
