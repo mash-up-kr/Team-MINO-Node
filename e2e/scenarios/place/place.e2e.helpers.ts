@@ -143,15 +143,21 @@ export class PlaceE2eHarness {
           area_name: "성수동",
           area_type: "landmark",
           relation: "첫 코스",
-          image_indices: [0],
         },
         {
           place_name: "대림창고",
           area_name: "성수동",
           area_type: "landmark",
           relation: "둘째 코스",
-          image_indices: [1],
         },
+      ],
+      image_places: [
+        {
+          image_index: 0,
+          visible_text: "어니언 성수",
+          place_name: "어니언 성수",
+        },
+        { image_index: 1, visible_text: "대림창고", place_name: "대림창고" },
       ],
     });
     this.geocoder.search.mockImplementation(
