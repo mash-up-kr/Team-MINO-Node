@@ -273,7 +273,7 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
         mediaType: "image/jpeg",
       })),
     );
-    // 범위를 벗어난 인덱스와 빈 배열 — 둘 다 폴백 대상이다.
+    // 칸 수가 이미지 수와 어긋난 응답 — 두 장소 모두 폴백 대상이다.
     harness.ai.extract.mockResolvedValueOnce({
       places: [
         {
@@ -281,16 +281,15 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
           area_name: "성수동",
           area_type: "landmark",
           relation: "첫 코스",
-          image_indices: [7, -1],
         },
         {
           place_name: "대림창고",
           area_name: "성수동",
           area_type: "landmark",
           relation: "둘째 코스",
-          image_indices: [],
         },
       ],
+      image_places: ["어니언 성수"],
     });
     await harness.postPin();
 

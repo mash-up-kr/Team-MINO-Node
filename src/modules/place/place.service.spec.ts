@@ -11,7 +11,7 @@ import type { ScraperService } from "../../infrastructures/scraper/scraper.servi
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import { PlaceModule } from "./place.module";
 import { PlaceService } from "./place.service";
-import { type PlaceQuery, placeExtractionSchema } from "./place.type";
+import type { PlaceQuery } from "./place.type";
 
 describe("PlaceService", () => {
   const URL = "https://www.instagram.com/p/abc123/";
@@ -21,7 +21,6 @@ describe("PlaceService", () => {
     area_name: "성수동",
     area_type: "landmark",
     relation: "카페 방문 후기",
-    image_indices: [],
   };
 
   function makePost(overrides: Partial<ScrapedPost> = {}): ScrapedPost {
@@ -133,7 +132,6 @@ describe("PlaceService", () => {
       area_name: "성수동",
       area_type: "landmark",
       relation: "코스",
-      image_indices: [],
     }));
     instagram.fetchPost.mockResolvedValue(makePost());
     ai.extract.mockResolvedValue({ places });
@@ -228,22 +226,20 @@ describe("PlaceService", () => {
       },
     ]);
     ai.extract.mockResolvedValue({
-      places: [
-        { ...QUERY, image_indices: [2, 0] },
-        { ...QUERY, place_name: "대림창고", image_indices: [1] },
-      ],
+      places: [{ ...QUERY }, { ...QUERY, place_name: "대림창고" }],
+      image_places: ["어니언 성수", "대림창고", "어니언 성수"],
     });
     geocoder.searchAll.mockResolvedValue([makeCandidate()]);
 
     // when
     const { matches } = await service.extractFromUrl(URL);
 
-    // then — 인덱스순 정렬, 장소별 부분집합
+    // then — 이미지 순서대로 장소별 부분집합
     expect(matches[0].images).toEqual(["https://img/0", "https://img/2"]);
     expect(matches[1].images).toEqual(["https://img/1"]);
   });
 
-  it("인덱스가 전부 무효(범위 밖·중복·누락)면 게시물 전체 이미지로 폴백한다", async () => {
+  it("칸 수가 이미지 수와 어긋나면 짝짓지 않고 게시물 전체 이미지로 폴백한다", async () => {
     // given
     const { service, instagram, ai, geocoder, placeImage } = createService();
     instagram.fetchPost.mockResolvedValue(makePost());
@@ -260,11 +256,9 @@ describe("PlaceService", () => {
       },
     ]);
     ai.extract.mockResolvedValue({
-      places: [
-        { ...QUERY, image_indices: [9, -1, 1.5] },
-        // 검증을 안 거친 입력(테스트 mock 등)은 필드 자체가 없을 수 있다
-        { ...QUERY, place_name: "대림창고", image_indices: undefined },
-      ],
+      places: [{ ...QUERY }, { ...QUERY, place_name: "대림창고" }],
+      // 이미지는 2장인데 칸은 1개 — 어느 칸이 어느 이미지인지 알 수 없다
+      image_places: ["어니언 성수"],
     });
     geocoder.searchAll.mockResolvedValue([makeCandidate()]);
 
@@ -273,6 +267,37 @@ describe("PlaceService", () => {
 
     // then
     expect(matches[0].images).toEqual(["https://img/0", "https://img/1"]);
+    expect(matches[1].images).toEqual(["https://img/0", "https://img/1"]);
+  });
+
+  it("어느 칸에도 안 잡힌 장소는 게시물 전체 이미지로 폴백한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://b/0",
+        publicUrl: "https://img/0",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://b/1",
+        publicUrl: "https://img/1",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    ai.extract.mockResolvedValue({
+      places: [{ ...QUERY }, { ...QUERY, place_name: "대림창고" }],
+      // 0번은 표지(빈 문자열), 대림창고는 어느 컷에도 안 나온다
+      image_places: ["", "어니언 성수"],
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then
+    expect(matches[0].images).toEqual(["https://img/1"]);
     expect(matches[1].images).toEqual(["https://img/0", "https://img/1"]);
   });
 
@@ -305,13 +330,12 @@ describe("PlaceService", () => {
     await service.extractFromUrl(URL);
 
     // then
-    const [schema, content] = ai.extract.mock.calls[0] as [
+    const [, content] = ai.extract.mock.calls[0] as [
       unknown,
       Array<{ type: string; text?: string; url?: string; mediaType?: string }>,
     ];
     const texts = content.flatMap((p) => (p.type === "text" ? [p.text] : []));
     const images = content.filter((p) => p.type === "image");
-    expect(schema).toBe(placeExtractionSchema);
     expect(texts[0]).toContain("place extraction assistant");
     expect(texts.some((t) => t?.includes("성수동 카페"))).toBe(true);
     expect(texts.some((t) => t?.includes("어니언 성수"))).toBe(true);

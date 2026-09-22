@@ -29,25 +29,34 @@ export const placeQuerySchema = v.object({
       "A short phrase describing how the place relates to the post content.",
     ),
   ),
-  image_indices: v.pipe(
-    v.array(v.number()),
-    v.description(
-      'Indices of the provided images that show THIS place, taken from the "[image N]" label that precedes each image. Assign each image to at most one place. Return an empty array when no image clearly shows this place.',
-    ),
-  ),
 });
 
 export type PlaceQuery = v.InferOutput<typeof placeQuerySchema>;
 
-/** Wrapped in an object so structured output uses the provider-friendly object mode. */
-export const placeExtractionSchema = v.object({
-  places: v.pipe(
-    v.array(placeQuerySchema),
-    v.description("Every distinct real-world place featured in the post."),
-  ),
-});
+/**
+ * Wrapped in an object so structured output uses the provider-friendly object mode.
+ *
+ * 장소가 인덱스를 고르게 하지 않고, 이미지 한 장당 한 칸인 배열을 순서대로 받는다.
+ * 모델이 번호를 세지 않아도 되고, 칸 수가 이미지 수와 맞는지 서버가 검증할 수 있다.
+ */
+export function createPlaceExtractionSchema(imageCount: number) {
+  return v.object({
+    places: v.pipe(
+      v.array(placeQuerySchema),
+      v.description("Every distinct real-world place featured in the post."),
+    ),
+    image_places: v.pipe(
+      v.array(v.string()),
+      v.description(
+        `Exactly one entry per provided image, in the same order the images were given (${imageCount} entries). Each entry is the place_name of the place shown in that image, copied verbatim from the places array, or an empty string when the image shows no specific place (cover, outro, promo).`,
+      ),
+    ),
+  });
+}
 
-export type PlaceExtractionResult = v.InferOutput<typeof placeExtractionSchema>;
+export type PlaceExtractionResult = v.InferOutput<
+  ReturnType<typeof createPlaceExtractionSchema>
+>;
 
 export interface PlaceCandidate extends GeoCandidate {}
 
