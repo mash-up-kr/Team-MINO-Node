@@ -33,30 +33,32 @@ export const placeQuerySchema = v.object({
 
 export type PlaceQuery = v.InferOutput<typeof placeQuerySchema>;
 
-/**
- * Wrapped in an object so structured output uses the provider-friendly object mode.
- *
- * 장소가 인덱스를 고르게 하지 않고, 이미지 한 장당 한 칸인 배열을 순서대로 받는다.
- * 모델이 번호를 세지 않아도 되고, 칸 수가 이미지 수와 맞는지 서버가 검증할 수 있다.
- */
-export function createPlaceExtractionSchema(imageCount: number) {
-  return v.object({
-    places: v.pipe(
-      v.array(placeQuerySchema),
-      v.description("Every distinct real-world place featured in the post."),
-    ),
-    image_places: v.pipe(
-      v.array(v.string()),
-      v.description(
-        `Exactly one entry per provided image, in the same order the images were given (${imageCount} entries). Each entry is the place_name of the place shown in that image, copied verbatim from the places array, or an empty string when the image shows no specific place (cover, outro, promo).`,
-      ),
-    ),
-  });
-}
+/** Wrapped in an object so structured output uses the provider-friendly object mode. */
+export const placeExtractionSchema = v.object({
+  places: v.pipe(
+    v.array(placeQuerySchema),
+    v.description("Every distinct real-world place featured in the post."),
+  ),
+});
 
-export type PlaceExtractionResult = v.InferOutput<
-  ReturnType<typeof createPlaceExtractionSchema>
->;
+export type PlaceExtractionResult = v.InferOutput<typeof placeExtractionSchema>;
+
+/**
+ * 이미지 한 장을 단독으로 보여주고 어느 장소인지 고르게 하는 2단계 스키마.
+ *
+ * 여러 장을 한 번에 넘기고 인덱스나 순서대로 된 배열을 받으면, 모델이 "몇 번째
+ * 이미지인가"를 세다가 통째로 한 칸씩 밀린 답을 내놓곤 한다(캡션이 "1. … 2. …"
+ * 처럼 번호를 매긴 글에서 특히). 한 장씩 물으면 셀 대상이 없어 밀릴 자리가 없고,
+ * 답의 근거도 그 이미지에 찍힌 상호·간판·주소 자막이 된다.
+ */
+export const imagePlaceSchema = v.object({
+  place_name: v.pipe(
+    v.string(),
+    v.description(
+      "The place this image shows, copied verbatim from the candidate list. Empty string when none of the candidates clearly matches.",
+    ),
+  ),
+});
 
 export interface PlaceCandidate extends GeoCandidate {}
 
@@ -78,8 +80,8 @@ export interface PlaceMatch {
   /** 게시글에서 추출한 장소. */
   extracted: ExtractedPlace;
   /**
-   * 이 장소에 해당하는 이미지의 공개 URL. 모델이 고른 인덱스를 검증해 추린 값이라
-   * 게시글 전체 이미지의 부분집합이다. 고르지 못했으면 전체로 폴백한다.
+   * 이 장소에 해당하는 이미지의 공개 URL. 이미지별로 따로 물어 고른 값이라
+   * 게시글 전체 이미지의 부분집합이다. 한 장도 못 고르면 전체로 폴백한다.
    */
   images: string[];
   /** 이 장소에 대한 지오코딩 후보(장소 내 랭킹순, 첫 번째가 최상위). 없으면 빈 배열. */

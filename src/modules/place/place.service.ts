@@ -9,11 +9,12 @@ import type { StoredImage } from "../../infrastructures/place-image/place-image.
 import { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import {
-  createPlaceExtractionSchema,
   type ExtractedPlace,
+  imagePlaceSchema,
   type PlaceCandidate,
   type PlaceExtraction,
   type PlaceQuery,
+  placeExtractionSchema,
 } from "./place.type";
 
 const PROVIDER_PRIORITY: Record<GeoCandidate["provider"], number> = {
@@ -30,8 +31,17 @@ export class PlaceService {
 Analyze the caption and images to identify every distinct real-world place featured in the post, and fill in the structured fields for each according to their descriptions.
 For area_type, choose "address" only when area_name is a concrete street address, "region" for a broad district or city, and "landmark" for a well-known nearby place; when unsure, prefer "region".
 When area_type is "address", make area_name as complete a street address as the content allows so it can be geocoded precisely.
-The images are given in order, each preceded by an "[image N]" label. Walk through them in order and fill image_places with one entry per image.
 Respond in the same language as the source content (use Korean when the content is Korean).`;
+
+  /*
+   * 2단계 프롬프트. 이미지 한 장과 후보 목록만 주고 고르게 한다. 여러 장을 한꺼번에
+   * 넘기지 않으므로 모델이 순서를 셀 일이 없고, 판단 근거가 그 이미지에 찍힌
+   * 상호·간판·주소 자막이 된다(큐레이션 글은 대개 사진 위에 상호를 적어 둔다).
+   */
+  private static readonly IMAGE_PLACE_PROMPT =
+    `This image is from an Instagram post about places.
+Read any text printed on the image (place name, signage, address caption) and decide which place from the list below it shows.
+Rely on what is visible in THIS image. If none of them clearly matches, answer with an empty string.`;
 
   constructor(
     private readonly scraperService: ScraperService,
@@ -45,30 +55,39 @@ Respond in the same language as the source content (use Korean when the content 
     const started = Date.now();
     const post = await this.scraperService.fetchPost(url);
     const scrapeMs = Date.now() - started;
-    const { queries, images, imagePlaces, imageMs, aiMs } =
-      await this.extractQueries(post);
+    const { queries, images, imageMs, aiMs } = await this.extractQueries(post);
+    const imageUrls = images.map((image) => image.publicUrl);
 
     // 장소를 못 뽑아도 이미지는 이미 올라갔으므로 그대로 함께 돌려준다.
     if (queries.length === 0) {
       this.logStageTimings(
-        { scrapeMs, imageMs, aiMs, geocodeMs: 0 },
+        { scrapeMs, imageMs, aiMs, assignMs: 0, geocodeMs: 0 },
         0,
         started,
       );
-      return { matches: [], images };
+      return { matches: [], images: imageUrls };
     }
 
-    const geocodeStarted = Date.now();
-    const settled = await Promise.allSettled(
-      queries.map((query) =>
-        this.geocoderService.searchAll({
-          placeName: query.place_name,
-          areaName: query.area_name,
-          areaType: query.area_type,
-        }),
+    // 지오코딩과 이미지 짝짓기는 서로를 기다릴 이유가 없다.
+    const assignStarted = Date.now();
+    const geocodeStarted = assignStarted;
+    const [settled, imagesByPlaceName] = await Promise.all([
+      Promise.allSettled(
+        queries.map((query) =>
+          this.geocoderService.searchAll({
+            placeName: query.place_name,
+            areaName: query.area_name,
+            areaType: query.area_type,
+          }),
+        ),
       ),
-    );
+      this.assignImagesToPlaces(
+        images,
+        queries.map((query) => query.place_name),
+      ),
+    ]);
     const geocodeMs = Date.now() - geocodeStarted;
+    const assignMs = Date.now() - assignStarted;
 
     // 전부 reject된 경우만 인프라 오류로 취급(부분 실패·결과 없음은 정상 데이터).
     const anyFulfilled = settled.some(
@@ -82,11 +101,10 @@ Respond in the same language as the source content (use Korean when the content 
       );
     }
 
-    const imagesByPlaceName = this.groupImagesByPlaceName(imagePlaces, images);
     const matches = queries.map((query, index) => {
       const result = settled[index];
-      // 짝이 없는 장소는 게시글 전체로 폴백한다(썸네일을 비우지 않는다).
-      const placeImages = imagesByPlaceName.get(query.place_name) ?? images;
+      // 어느 컷에서도 안 보인 장소는 게시글 전체로 폴백한다(썸네일을 비우지 않는다).
+      const placeImages = imagesByPlaceName.get(query.place_name) ?? imageUrls;
       if (result.status === "fulfilled") {
         return {
           extracted: this.toExtractedPlace(query),
@@ -104,11 +122,11 @@ Respond in the same language as the source content (use Korean when the content 
     });
 
     this.logStageTimings(
-      { scrapeMs, imageMs, aiMs, geocodeMs },
+      { scrapeMs, imageMs, aiMs, assignMs, geocodeMs },
       queries.length,
       started,
     );
-    return { matches, images };
+    return { matches, images: imageUrls };
   }
 
   /*
@@ -120,6 +138,7 @@ Respond in the same language as the source content (use Korean when the content 
       scrapeMs: number;
       imageMs: number;
       aiMs: number;
+      assignMs: number;
       geocodeMs: number;
     },
     queryCount: number,
@@ -134,39 +153,58 @@ Respond in the same language as the source content (use Korean when the content 
   }
 
   /**
-   * 이미지 한 장당 한 칸인 모델 응답을 장소 이름 → 이미지 URL 목록으로 뒤집는다.
+   * 이미지 한 장씩 따로 물어 "이 사진은 어느 장소인가"를 받고, 장소 이름으로 묶는다.
    *
-   * 모델에게 인덱스를 고르게 하면 캡션이 "1. … 2. …"처럼 번호를 매긴 글에서
-   * 통째로 한 칸 밀린 답이 돌아오곤 했다(장소마다 바로 다음 사진이 붙었다).
-   * 번호를 세게 하지 않고 이미지 순서대로 한 칸씩 받아 위치로 짝짓는다.
+   * 여러 장을 한 번에 넘기고 인덱스나 순서 배열을 받으면 모델이 몇 번째인지를 세다가
+   * 통째로 한 칸 밀린 답을 내놓는다(IMAGE_PLACE_PROMPT 참고). 한 장씩 물으면 셀
+   * 대상이 없어 밀릴 자리가 없다.
    *
-   * 칸 수가 이미지 수와 다르면 정렬이 깨진 것이므로 통째로 버린다. 어긋난 채
-   * 짝지어 엉뚱한 사진을 붙이느니 게시글 전체로 폴백하는 쪽이 낫다.
+   * 한 장의 실패는 그 장만 버린다 — 나머지 짝짓기와 저장까지 같이 무를 이유가 없다.
    */
-  private groupImagesByPlaceName(
-    imagePlaces: string[],
-    images: string[],
-  ): Map<string, string[]> {
+  private async assignImagesToPlaces(
+    images: StoredImage[],
+    placeNames: string[],
+  ): Promise<Map<string, string[]>> {
     const byPlaceName = new Map<string, string[]>();
-    if (imagePlaces.length !== images.length) {
-      // 스키마상 필수라 보통은 길이가 맞는다. 어긋나면 모델 쪽 이상 신호다.
-      if (imagePlaces.length > 0) {
-        this.logger.warn(
-          { imagePlaces: imagePlaces.length, images: images.length },
-          "이미지-장소 정렬이 어긋나 게시글 전체 이미지로 폴백합니다.",
-        );
-      }
-      return byPlaceName;
-    }
+    if (images.length === 0 || placeNames.length === 0) return byPlaceName;
 
-    imagePlaces.forEach((placeName, index) => {
-      // 표지·아웃트로처럼 장소가 없는 컷은 빈 문자열로 온다.
-      const trimmed = placeName.trim();
-      if (!trimmed) return;
-      const image = images[index] as string;
-      const collected = byPlaceName.get(trimmed);
-      if (collected) collected.push(image);
-      else byPlaceName.set(trimmed, [image]);
+    const candidates = placeNames.map((name) => `- ${name}`).join("\n");
+    const picked = await Promise.all(
+      images.map(async (image) => {
+        try {
+          const { place_name } = await this.aiService.extract(
+            imagePlaceSchema,
+            [
+              {
+                type: "text",
+                text: `${PlaceService.IMAGE_PLACE_PROMPT}\n\nCandidates:\n${candidates}`,
+              },
+              {
+                type: "image",
+                url: image.gsUri,
+                mediaType: image.mediaType,
+              },
+            ],
+          );
+          return place_name?.trim() ?? "";
+        } catch (error) {
+          this.logger.warn(
+            { err: error, image: image.publicUrl },
+            "이미지 장소 판별 실패 — 이 이미지는 건너뜁니다.",
+          );
+          return "";
+        }
+      }),
+    );
+
+    picked.forEach((placeName, index) => {
+      // 표지·아웃트로처럼 후보에 없는 컷은 빈 문자열로 온다.
+      // 후보 목록 밖의 이름도 짝지을 곳이 없으므로 같이 버린다.
+      if (!placeName || !placeNames.includes(placeName)) return;
+      const image = images[index] as StoredImage;
+      const collected = byPlaceName.get(placeName);
+      if (collected) collected.push(image.publicUrl);
+      else byPlaceName.set(placeName, [image.publicUrl]);
     });
 
     return byPlaceName;
@@ -187,8 +225,7 @@ Respond in the same language as the source content (use Korean when the content 
    */
   private async extractQueries(post: ScrapedPost): Promise<{
     queries: PlaceQuery[];
-    images: string[];
-    imagePlaces: string[];
+    images: StoredImage[];
     imageMs: number;
     aiMs: number;
   }> {
@@ -200,14 +237,13 @@ Respond in the same language as the source content (use Korean when the content 
     );
     const uploaded = Date.now();
     const content = this.buildContent(post, images);
-    const { places, image_places } = await this.aiService.extract(
-      createPlaceExtractionSchema(images.length),
+    const { places } = await this.aiService.extract(
+      placeExtractionSchema,
       content,
     );
     return {
       queries: places,
-      images: images.map((image) => image.publicUrl),
-      imagePlaces: image_places ?? [],
+      images,
       imageMs: uploaded - started,
       aiMs: Date.now() - uploaded,
     };
@@ -230,23 +266,13 @@ Respond in the same language as the source content (use Korean when the content 
         text: `Tagged location: ${post.location.name}`,
       });
     }
-    /*
-     * 장수를 못 박아 둔다. 칸 수가 이미지 수와 어긋나면 짝을 못 지어 전체 폴백으로
-     * 떨어지는데, 이 한 줄이 있고 없고로 어긋나는 빈도가 눈에 띄게 달랐다.
-     */
-    parts.push({
-      type: "text",
-      text: `You are given ${images.length} images. image_places must have exactly ${images.length} entries.`,
-    });
-    images.forEach((image, index) => {
-      // 응답(image_places)의 몇 번째 칸인지 모델이 놓치지 않도록 번호를 붙여 둔다.
-      parts.push({ type: "text", text: `[image ${index}]` });
+    for (const image of images) {
       parts.push({
         type: "image",
         url: image.gsUri,
         mediaType: image.mediaType,
       });
-    });
+    }
 
     return parts;
   }

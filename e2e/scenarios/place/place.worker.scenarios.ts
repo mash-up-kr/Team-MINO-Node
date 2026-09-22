@@ -232,7 +232,7 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
     ).toHaveLength(2);
   });
 
-  it("모델이 고른 인덱스대로 장소별 이미지를 핀에 나눠 담는다", async () => {
+  it("이미지별 판별 결과대로 장소별 이미지를 핀에 나눠 담는다", async () => {
     const images = [
       "https://storage.googleapis.com/bucket/instagram/e2e-pin/000",
       "https://storage.googleapis.com/bucket/instagram/e2e-pin/001",
@@ -248,7 +248,7 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
 
     expect((await harness.runTask()).status).toBe(204);
 
-    // 기본 추출 mock은 어니언 성수 → 0번, 대림창고 → 1번을 가리킨다.
+    // 기본 판별 mock은 0번 컷을 어니언 성수, 1번 컷을 대림창고로 본다.
     const saved = await harness.db
       .select({ name: places.name, images: pins.images })
       .from(pins)
@@ -261,7 +261,7 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
     }
   });
 
-  it("모델이 인덱스를 못 고르면 게시물 전체 이미지로 폴백한다", async () => {
+  it("어느 컷에서도 장소를 못 고르면 게시물 전체 이미지로 폴백한다", async () => {
     const images = [
       "https://storage.googleapis.com/bucket/instagram/e2e-pin/000",
       "https://storage.googleapis.com/bucket/instagram/e2e-pin/001",
@@ -273,24 +273,8 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
         mediaType: "image/jpeg",
       })),
     );
-    // 칸 수가 이미지 수와 어긋난 응답 — 두 장소 모두 폴백 대상이다.
-    harness.ai.extract.mockResolvedValueOnce({
-      places: [
-        {
-          place_name: "어니언 성수",
-          area_name: "성수동",
-          area_type: "landmark",
-          relation: "첫 코스",
-        },
-        {
-          place_name: "대림창고",
-          area_name: "성수동",
-          area_type: "landmark",
-          relation: "둘째 코스",
-        },
-      ],
-      image_places: ["어니언 성수"],
-    });
+    // 표지·아웃트로만 있는 글처럼 어느 컷도 후보와 안 맞는 경우.
+    harness.setImagePlacePicks(["", ""]);
     await harness.postPin();
 
     expect((await harness.runTask()).status).toBe(204);
