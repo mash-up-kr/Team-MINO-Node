@@ -248,7 +248,7 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
 
     expect((await harness.runTask()).status).toBe(204);
 
-    // 기본 판별 mock은 0번 컷을 어니언 성수, 1번 컷을 대림창고로 본다.
+    // 기본 추출 mock은 0번 컷을 어니언 성수, 1번 컷을 대림창고로 본다.
     const saved = await harness.db
       .select({ name: places.name, images: pins.images })
       .from(pins)
@@ -273,8 +273,27 @@ export function registerWorkerPlaceScenarios(harness: PlaceE2eHarness): void {
         mediaType: "image/jpeg",
       })),
     );
-    // 표지·아웃트로만 있는 글처럼 어느 컷도 후보와 안 맞는 경우.
-    harness.setImagePlacePicks(["", ""]);
+    // 어느 컷도 장소를 가리키지 못한 응답 — 두 장소 모두 폴백 대상이다.
+    harness.ai.extract.mockResolvedValueOnce({
+      places: [
+        {
+          place_name: "어니언 성수",
+          area_name: "성수동",
+          area_type: "landmark",
+          relation: "첫 코스",
+        },
+        {
+          place_name: "대림창고",
+          area_name: "성수동",
+          area_type: "landmark",
+          relation: "둘째 코스",
+        },
+      ],
+      image_places: [
+        { image_index: 0, visible_text: "", place_name: "" },
+        { image_index: 1, visible_text: "", place_name: "" },
+      ],
+    });
     await harness.postPin();
 
     expect((await harness.runTask()).status).toBe(204);

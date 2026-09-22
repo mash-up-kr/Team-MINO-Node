@@ -16,7 +16,6 @@ import type { ScrapedPost } from "../../../src/infrastructures/scraper/scraper.t
 import { SentryErrorReporter } from "../../../src/infrastructures/sentry/sentry-reporter";
 import { TasksService } from "../../../src/infrastructures/tasks/tasks.service";
 import { places } from "../../../src/modules/place/place.schema";
-import { imagePlaceSchema } from "../../../src/modules/place/place.type";
 import { rooms } from "../../../src/modules/room/room.schema";
 import { roomMembers } from "../../../src/modules/room/room-member.schema";
 import { sources } from "../../../src/modules/source/source.schema";
@@ -78,13 +77,6 @@ export class PlaceE2eHarness {
   private roomId = "";
   private secondRoomId = "";
   private capturedTask: PinExtractionTask | undefined;
-  /** 이미지별 장소 판별(2단계) 응답 — 이미지 순서대로 소비된다. */
-  private imagePlacePicks: string[] = [];
-
-  /** 이미지별 판별 결과를 시나리오에서 갈아끼운다(이미지 순서대로 소비). */
-  setImagePlacePicks(picks: string[]): void {
-    this.imagePlacePicks = picks;
-  }
 
   async setup(): Promise<void> {
     const started = await startApp(
@@ -144,29 +136,30 @@ export class PlaceE2eHarness {
     // 기본은 이미지 없는 글. 이미지가 필요한 시나리오만 따로 지정한다.
     this.placeImage.storePostImages.mockResolvedValue([]);
     this.instagram.fetchPost.mockResolvedValue(POST);
-    // 기본은 0번 컷이 어니언 성수, 1번 컷이 대림창고.
-    this.imagePlacePicks = ["어니언 성수", "대림창고"];
-    let picked = 0;
-    this.ai.extract.mockImplementation(async (schema: unknown) =>
-      schema === imagePlaceSchema
-        ? { place_name: this.imagePlacePicks[picked++] ?? "" }
-        : {
-            places: [
-              {
-                place_name: "어니언 성수",
-                area_name: "성수동",
-                area_type: "landmark",
-                relation: "첫 코스",
-              },
-              {
-                place_name: "대림창고",
-                area_name: "성수동",
-                area_type: "landmark",
-                relation: "둘째 코스",
-              },
-            ],
-          },
-    );
+    this.ai.extract.mockResolvedValue({
+      places: [
+        {
+          place_name: "어니언 성수",
+          area_name: "성수동",
+          area_type: "landmark",
+          relation: "첫 코스",
+        },
+        {
+          place_name: "대림창고",
+          area_name: "성수동",
+          area_type: "landmark",
+          relation: "둘째 코스",
+        },
+      ],
+      image_places: [
+        {
+          image_index: 0,
+          visible_text: "어니언 성수",
+          place_name: "어니언 성수",
+        },
+        { image_index: 1, visible_text: "대림창고", place_name: "대림창고" },
+      ],
+    });
     this.geocoder.search.mockImplementation(
       async (query: { placeName: string }) =>
         query.placeName === "어니언 성수" ? [CANDIDATES[0]] : [CANDIDATES[1]],
