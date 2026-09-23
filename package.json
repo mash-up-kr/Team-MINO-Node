@@ -68,6 +68,7 @@
   },
   "simple-git-hooks": {
     "pre-commit": "bun run check:staged",
+    "commit-msg": "bun run scripts/validate-commit-message.ts \"$1\"",
     "pre-push": "bun run typecheck && bun run --no-env-file test"
   },
   "nano-staged": {
