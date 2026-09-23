@@ -231,6 +231,98 @@ describe("NotificationRepository.findTopCommentedPlacePerUser", () => {
   });
 });
 
+describe("POST /api/v1/notifications/nearby-triggers", () => {
+  async function seedPlace(roomId: string, name: string) {
+    const db = app.get(DatabaseService).db;
+    const [place] = await db
+      .insert(places)
+      .values({
+        provider: "kakao",
+        providerPlaceId: `kakao-${randomUUID()}`,
+        name,
+        address: "서울",
+        lat: 37.5,
+        lng: 127,
+      })
+      .returning({ id: places.id });
+    if (!place) throw new Error("장소 픽스처 생성 실패");
+    await db.insert(pins).values({ roomId, placeId: place.id });
+    return place.id;
+  }
+
+  async function seedUserWithRoom() {
+    const db = app.get(DatabaseService).db;
+    const authUid = `e2e-nearby-${randomUUID()}`;
+    const [user] = await db
+      .insert(users)
+      .values({ authUid, nickname: "근처", fcmToken: `t-${randomUUID()}` })
+      .returning({ id: users.id });
+    if (!user) throw new Error("유저 픽스처 생성 실패");
+    const [room] = await db
+      .insert(rooms)
+      .values({ ownerId: user.id, type: "shared", name: "방", color: "red" })
+      .returning({ id: rooms.id });
+    if (!room) throw new Error("방 픽스처 생성 실패");
+    await db.insert(roomMembers).values({ roomId: room.id, userId: user.id });
+    return { authUid, userId: user.id, roomId: room.id };
+  }
+
+  function trigger(authUid: string, placeIds: string[]) {
+    return fetch(`${baseUrl}/api/v1/notifications/nearby-triggers`, {
+      method: "POST",
+      headers: { ...authHeaders(authUid), "Content-Type": "application/json" },
+      body: JSON.stringify({ placeIds }),
+    });
+  }
+
+  it("근처 장소를 기록하고 신규 건수를 돌려준다", async () => {
+    const owner = await seedUserWithRoom();
+    const placeId = await seedPlace(owner.roomId, "가까운 카페");
+
+    const response = await trigger(owner.authUid, [placeId]);
+
+    expect(response.status).toBe(200);
+    const { data } = await response.json();
+    expect(data.newPlaceCount).toBe(1);
+  });
+
+  it("이미 알린 장소는 다시 기록하지 않는다", async () => {
+    const owner = await seedUserWithRoom();
+    const placeId = await seedPlace(owner.roomId, "단골집");
+
+    await trigger(owner.authUid, [placeId]);
+    const second = await trigger(owner.authUid, [placeId]);
+
+    const { data } = await second.json();
+    expect(data.newPlaceCount).toBe(0);
+  });
+
+  it("접근할 수 없는 장소가 섞이면 403을 반환한다", async () => {
+    const owner = await seedUserWithRoom();
+    const stranger = await seedUserWithRoom();
+    const mine = await seedPlace(owner.roomId, "내 장소");
+    const theirs = await seedPlace(stranger.roomId, "남의 장소");
+
+    const response = await trigger(owner.authUid, [mine, theirs]);
+
+    expect(response.status).toBe(403);
+    expect((await response.json()).errorCode).toBe("PLACE_NOT_ACCESSIBLE");
+  });
+
+  it("인증 정보가 없으면 401을 반환한다", async () => {
+    const response = await fetch(
+      `${baseUrl}/api/v1/notifications/nearby-triggers`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ placeIds: [randomUUID()] }),
+      },
+    );
+
+    expect(response.status).toBe(401);
+  });
+});
+
 describe("코멘트 리마인드 재발송 쿨다운", () => {
   const KST = { timeZone: "Asia/Seoul" } as const;
   const kstDate = (date: Date) =>
