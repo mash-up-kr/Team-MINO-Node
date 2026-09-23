@@ -390,6 +390,87 @@ describe("PlaceService", () => {
     expect(matches).toHaveLength(1);
   });
 
+  it("스키마 불일치처럼 재시도 가능하다고 명시된 실패는 같은 자리에서 한 번 더 부른다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(
+      makePost({
+        typename: "video",
+        videoUrl: "https://scontent.cdninstagram.com/reel.mp4",
+      }),
+    );
+    placeImage.storePostVideo.mockResolvedValue({
+      gsUri: "gs://v/abc123/video",
+      mediaType: "video/mp4",
+    });
+    const reelPlace = {
+      place_name: "솔티캐빈",
+      area_name: "용산",
+      area_type: "region",
+      relation: "코스",
+      kind: "venue",
+      evidence: "signage",
+    };
+    let reelCalls = 0;
+    ai.extract.mockImplementation(async (schema: unknown) => {
+      if (schema !== reelExtractionSchema) return { places: [QUERY] };
+      reelCalls += 1;
+      if (reelCalls === 1) {
+        throw new AppException(
+          "AI_SCHEMA_MISMATCH",
+          "AI 응답이 스키마와 일치하지 않습니다.",
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          { retryable: true },
+        );
+      }
+      return { places: [reelPlace] };
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then — 두 번째 릴스 호출이 성공하면 사진 경로로 내려가지 않는다
+    expect(reelCalls).toBe(2);
+    expect(ai.extract).toHaveBeenCalledTimes(2);
+    expect(matches.map((m) => m.extracted.placeName)).toEqual(["솔티캐빈"]);
+  });
+
+  it("재시도 가능한 실패도 한도를 넘기면 캡션·썸네일 경로로 폴백한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(
+      makePost({
+        typename: "video",
+        videoUrl: "https://scontent.cdninstagram.com/reel.mp4",
+      }),
+    );
+    placeImage.storePostVideo.mockResolvedValue({
+      gsUri: "gs://v/abc123/video",
+      mediaType: "video/mp4",
+    });
+    ai.extract.mockImplementation(async (schema: unknown) => {
+      if (schema === reelExtractionSchema) {
+        throw new AppException(
+          "AI_SCHEMA_MISMATCH",
+          "AI 응답이 스키마와 일치하지 않습니다.",
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          { retryable: true },
+        );
+      }
+      return { places: [QUERY] };
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then — 릴스 2회(원래 + 재시도) 뒤 사진 경로 1회
+    expect(ai.extract).toHaveBeenCalledTimes(3);
+    expect(ai.extract.mock.calls[2]?.[0]).toBe(placeExtractionSchema);
+    expect(matches).toHaveLength(1);
+  });
+
   it("릴스 추출 타임아웃은 폴백하지 않고 그대로 올린다(다음 재시도에서 될 수 있다)", async () => {
     // given
     const { service, instagram, ai, placeImage } = createService();

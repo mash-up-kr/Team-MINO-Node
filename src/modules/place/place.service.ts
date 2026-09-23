@@ -56,6 +56,12 @@ Respond in the same language as the source content (use Korean when the content 
   // 1분 안팎 영상이 5~25초 걸렸다(사진은 2~6초). 기본 30초로는 잘린다.
   private static readonly REEL_AI_TIMEOUT_MS = 120_000;
 
+  /*
+   * 릴스 추출을 같은 자리에서 다시 부르는 횟수. AI_SCHEMA_MISMATCH처럼 "다시 부르면 될 수
+   * 있다"고 명시된 실패에만 쓴다. 태스크를 재배달받는 것보다 싸고, 그래도 안 되면 폴백한다.
+   */
+  private static readonly REEL_RETRY_LIMIT = 1;
+
   // 저장할 장소가 아니다. 역 출구는 길 안내로 나오고, 방송사·집은 갈 수 있는 곳이 아니다.
   private static readonly EXCLUDED_KINDS: ReadonlySet<PlaceKind> = new Set([
     "transit",
@@ -262,24 +268,38 @@ Respond in the same language as the source content (use Korean when the content 
    *
    * 영상이 거부되는 이유(코덱·길이·400)는 재시도해도 같아서, 그대로 올리면 재시도를
    * 다 쓰고 실패 알림으로 끝난다. 그 글은 지금 코드로도 캡션만으로 몇 핀은 잡던 글이라
-   * 기능이 뒤로 가는 셈이다. 타임아웃만 예외다 — 다음 시도에서 될 수 있으니 올린다.
+   * 기능이 뒤로 가는 셈이다.
+   *
+   * 예외 둘. 타임아웃은 다음 배달에서 될 수 있으니 그대로 올린다. 모델 출력이 스키마에
+   * 안 맞은 것(retryable을 명시한 실패)은 비결정적이라 여기서 한 번 더 부른다 — 바로
+   * 폴백하면 잠깐의 흔들림에 영상 결과를 통째로 버리는 셈이다.
    */
   private async extractFromReelOrFallback(
     post: ScrapedPost,
     images: StoredImage[],
     video: StoredVideo,
   ): Promise<PlaceQuery[]> {
-    try {
-      return await this.extractFromReel(post, images, video);
-    } catch (error) {
-      if (error instanceof AppException && error.errorCode === "AI_TIMEOUT") {
-        throw error;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.extractFromReel(post, images, video);
+      } catch (error) {
+        const appError = error instanceof AppException ? error : undefined;
+        if (appError?.errorCode === "AI_TIMEOUT") throw error;
+
+        if (appError?.retryable && attempt < PlaceService.REEL_RETRY_LIMIT) {
+          this.logger.warn(
+            { err: error, shortcode: post.shortcode, attempt },
+            "릴스 추출 실패 — 같은 자리에서 다시 부른다",
+          );
+          continue;
+        }
+
+        this.logger.warn(
+          { err: error, shortcode: post.shortcode, attempt },
+          "릴스 추출 실패 — 캡션·썸네일 경로로 폴백",
+        );
+        return this.extractFromImages(post, images);
       }
-      this.logger.warn(
-        { err: error, shortcode: post.shortcode },
-        "릴스 추출 실패 — 캡션·썸네일 경로로 폴백",
-      );
-      return this.extractFromImages(post, images);
     }
   }
 
