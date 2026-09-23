@@ -28,6 +28,10 @@ export const PolarisMediaSchema = v.object({
   carousel_media: v.optional(
     v.array(v.object({ image_versions2: PolarisImageVersionsSchema })),
   ),
+  // 영상 게시글의 렌디션 목록. 로그아웃 응답은 3종이 오지만 크기가 같아 [0]을 쓴다.
+  video_versions: v.optional(
+    v.array(v.object({ url: v.pipe(v.string(), v.minLength(1)) })),
+  ),
   user: v.object({
     pk: PolarisIdSchema,
     username: v.string(),

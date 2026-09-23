@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { describe, expect, it, jest } from "bun:test";
+import { HttpStatus } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { AppException } from "../../common/exceptions/app.exception";
@@ -11,7 +12,11 @@ import type { ScraperService } from "../../infrastructures/scraper/scraper.servi
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import { PlaceModule } from "./place.module";
 import { PlaceService } from "./place.service";
-import { type PlaceQuery, placeExtractionSchema } from "./place.type";
+import {
+  type PlaceQuery,
+  placeExtractionSchema,
+  reelExtractionSchema,
+} from "./place.type";
 
 describe("PlaceService", () => {
   const URL = "https://www.instagram.com/p/abc123/";
@@ -31,6 +36,7 @@ describe("PlaceService", () => {
       typename: "image",
       caption: "성수동 카페",
       imageUrls: ["https://img.example/1.jpg"],
+      videoUrl: null,
       location: null,
       ...overrides,
     };
@@ -51,7 +57,10 @@ describe("PlaceService", () => {
     const instagram = { fetchPost: jest.fn() };
     const ai = { extract: jest.fn() };
     const geocoder = { searchAll: jest.fn() };
-    const placeImage = { storePostImages: jest.fn().mockResolvedValue([]) };
+    const placeImage = {
+      storePostImages: jest.fn().mockResolvedValue([]),
+      storePostVideo: jest.fn().mockResolvedValue(null),
+    };
     const service = new PlaceService(
       instagram as unknown as ScraperService,
       ai as unknown as AiService,
@@ -274,6 +283,259 @@ describe("PlaceService", () => {
     // then
     expect(matches[0].images).toEqual(["https://img/0", "https://img/1"]);
     expect(matches[1].images).toEqual(["https://img/0", "https://img/1"]);
+  });
+
+  it("영상 게시글은 영상을 올려 릴스 프롬프트로 추출하고, 저장할 수 없는 종류를 걸러낸다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(
+      makePost({
+        typename: "video",
+        imageUrls: ["https://scontent.cdninstagram.com/thumb.jpg"],
+        videoUrl: "https://scontent.cdninstagram.com/reel.mp4",
+      }),
+    );
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://b/abc123/000",
+        publicUrl: "https://img/000",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    placeImage.storePostVideo.mockResolvedValue({
+      gsUri: "gs://b/abc123/video",
+      mediaType: "video/mp4",
+    });
+    const reelPlace = (place_name: string, kind: string) => ({
+      place_name,
+      area_name: "용산",
+      area_type: "region",
+      relation: "코스",
+      kind,
+      evidence: "on-screen text",
+    });
+    ai.extract.mockResolvedValue({
+      places: [
+        reelPlace("솔티캐빈", "venue"),
+        reelPlace("MBC", "media_or_brand"),
+        reelPlace("영등포구청역", "transit"),
+        reelPlace("원효대교", "landmark"),
+        reelPlace("집", "private_or_not_a_place"),
+      ],
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then — 영상은 올리고, 릴스 스키마·긴 타임아웃으로 호출한다
+    expect(placeImage.storePostVideo).toHaveBeenCalledWith(
+      "abc123",
+      "https://scontent.cdninstagram.com/reel.mp4",
+    );
+    const [schema, content, options] = ai.extract.mock.calls[0] as [
+      unknown,
+      Array<{ type: string; text?: string; url?: string; mediaType?: string }>,
+      { timeoutMs?: number },
+    ];
+    expect(schema).toBe(reelExtractionSchema);
+    expect(content[0]?.text).toContain("Explore this Instagram Reel");
+    expect(content.at(-1)).toEqual({
+      type: "video",
+      url: "gs://b/abc123/video",
+      mediaType: "video/mp4",
+    });
+    expect(options.timeoutMs).toBeGreaterThan(30_000);
+
+    // venue·landmark만 남고, 남은 장소는 썸네일을 받는다
+    expect(matches.map((m) => m.extracted.placeName)).toEqual([
+      "솔티캐빈",
+      "원효대교",
+    ]);
+    expect(matches[0].images).toEqual(["https://img/000"]);
+  });
+
+  it("릴스 추출이 타임아웃 외 오류로 실패하면 캡션·썸네일 경로로 폴백한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(
+      makePost({
+        typename: "video",
+        videoUrl: "https://scontent.cdninstagram.com/reel.mp4",
+      }),
+    );
+    placeImage.storePostVideo.mockResolvedValue({
+      gsUri: "gs://v/abc123/video",
+      mediaType: "video/mp4",
+    });
+    // 영상 거부처럼 재시도해도 같은 이유로 실패하는 오류
+    ai.extract.mockImplementation(async (schema: unknown) => {
+      if (schema === reelExtractionSchema) {
+        throw new AppException(
+          "AI_EXTRACTION_FAILED",
+          "AI 추출에 실패했습니다.",
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+      return { places: [QUERY] };
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then — 릴스 → 사진 순으로 두 번 부르고, 사진 경로 결과로 이어진다
+    expect(ai.extract).toHaveBeenCalledTimes(2);
+    expect(ai.extract.mock.calls[1]?.[0]).toBe(placeExtractionSchema);
+    expect(matches).toHaveLength(1);
+  });
+
+  it("스키마 불일치처럼 재시도 가능하다고 명시된 실패는 같은 자리에서 한 번 더 부른다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(
+      makePost({
+        typename: "video",
+        videoUrl: "https://scontent.cdninstagram.com/reel.mp4",
+      }),
+    );
+    placeImage.storePostVideo.mockResolvedValue({
+      gsUri: "gs://v/abc123/video",
+      mediaType: "video/mp4",
+    });
+    const reelPlace = {
+      place_name: "솔티캐빈",
+      area_name: "용산",
+      area_type: "region",
+      relation: "코스",
+      kind: "venue",
+      evidence: "signage",
+    };
+    let reelCalls = 0;
+    ai.extract.mockImplementation(async (schema: unknown) => {
+      if (schema !== reelExtractionSchema) return { places: [QUERY] };
+      reelCalls += 1;
+      if (reelCalls === 1) {
+        throw new AppException(
+          "AI_SCHEMA_MISMATCH",
+          "AI 응답이 스키마와 일치하지 않습니다.",
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          { retryable: true },
+        );
+      }
+      return { places: [reelPlace] };
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then — 두 번째 릴스 호출이 성공하면 사진 경로로 내려가지 않는다
+    expect(reelCalls).toBe(2);
+    expect(ai.extract).toHaveBeenCalledTimes(2);
+    expect(matches.map((m) => m.extracted.placeName)).toEqual(["솔티캐빈"]);
+  });
+
+  it("재시도 가능한 실패도 한도를 넘기면 캡션·썸네일 경로로 폴백한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(
+      makePost({
+        typename: "video",
+        videoUrl: "https://scontent.cdninstagram.com/reel.mp4",
+      }),
+    );
+    placeImage.storePostVideo.mockResolvedValue({
+      gsUri: "gs://v/abc123/video",
+      mediaType: "video/mp4",
+    });
+    ai.extract.mockImplementation(async (schema: unknown) => {
+      if (schema === reelExtractionSchema) {
+        throw new AppException(
+          "AI_SCHEMA_MISMATCH",
+          "AI 응답이 스키마와 일치하지 않습니다.",
+          HttpStatus.UNPROCESSABLE_ENTITY,
+          { retryable: true },
+        );
+      }
+      return { places: [QUERY] };
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then — 릴스 2회(원래 + 재시도) 뒤 사진 경로 1회
+    expect(ai.extract).toHaveBeenCalledTimes(3);
+    expect(ai.extract.mock.calls[2]?.[0]).toBe(placeExtractionSchema);
+    expect(matches).toHaveLength(1);
+  });
+
+  it("릴스 추출 타임아웃은 폴백하지 않고 그대로 올린다(다음 재시도에서 될 수 있다)", async () => {
+    // given
+    const { service, instagram, ai, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(
+      makePost({
+        typename: "video",
+        videoUrl: "https://scontent.cdninstagram.com/reel.mp4",
+      }),
+    );
+    placeImage.storePostVideo.mockResolvedValue({
+      gsUri: "gs://v/abc123/video",
+      mediaType: "video/mp4",
+    });
+    ai.extract.mockRejectedValue(
+      new AppException(
+        "AI_TIMEOUT",
+        "AI 응답 시간이 초과되었습니다.",
+        HttpStatus.GATEWAY_TIMEOUT,
+      ),
+    );
+
+    // when / then
+    await expect(service.extractFromUrl(URL)).rejects.toMatchObject({
+      errorCode: "AI_TIMEOUT",
+    });
+    expect(ai.extract).toHaveBeenCalledTimes(1);
+  });
+
+  it("영상을 못 올리면 사진 경로(기존 프롬프트)로 내려간다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(
+      makePost({
+        typename: "video",
+        videoUrl: "https://scontent.cdninstagram.com/reel.mp4",
+      }),
+    );
+    placeImage.storePostVideo.mockResolvedValue(null);
+    ai.extract.mockResolvedValue({ places: [QUERY] });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    await service.extractFromUrl(URL);
+
+    // then
+    const [schema, content] = ai.extract.mock.calls[0] as [
+      unknown,
+      Array<{ type: string }>,
+    ];
+    expect(schema).toBe(placeExtractionSchema);
+    expect(content.some((part) => part.type === "video")).toBe(false);
+  });
+
+  it("사진 게시글은 영상 저장을 시도하지 않는다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    ai.extract.mockResolvedValue({ places: [QUERY] });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    await service.extractFromUrl(URL);
+
+    // then
+    expect(placeImage.storePostVideo).not.toHaveBeenCalled();
   });
 
   it("프롬프트 + 캡션 + 태그 위치 + 저장된 이미지(gs://)로 멀티모달 content를 구성한다", async () => {

@@ -94,6 +94,7 @@ export class InstagramEmbedProvider implements InstagramProvider {
       imageUrls: children?.length
         ? children.map((edge) => edge.node.display_url)
         : [media.display_url],
+      videoUrl: media.video_url ?? null,
       owner: {
         id: media.owner.id,
         username: media.owner.username,
@@ -124,6 +125,7 @@ export class InstagramEmbedProvider implements InstagramProvider {
       typename: "image",
       caption: extractCaption(html),
       imageUrls: [decodeHtmlEntities(imageUrl)],
+      videoUrl: null,
       // 마크업에는 username 외 작성자 정보가 없다.
       owner: {
         id: "",
