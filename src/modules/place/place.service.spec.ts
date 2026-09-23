@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { describe, expect, it, jest } from "bun:test";
+import { HttpStatus } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
 import { AppException } from "../../common/exceptions/app.exception";
@@ -352,6 +353,69 @@ describe("PlaceService", () => {
       "원효대교",
     ]);
     expect(matches[0].images).toEqual(["https://img/000"]);
+  });
+
+  it("릴스 추출이 타임아웃 외 오류로 실패하면 캡션·썸네일 경로로 폴백한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(
+      makePost({
+        typename: "video",
+        videoUrl: "https://scontent.cdninstagram.com/reel.mp4",
+      }),
+    );
+    placeImage.storePostVideo.mockResolvedValue({
+      gsUri: "gs://v/abc123/video",
+      mediaType: "video/mp4",
+    });
+    // 영상 거부처럼 재시도해도 같은 이유로 실패하는 오류
+    ai.extract.mockImplementation(async (schema: unknown) => {
+      if (schema === reelExtractionSchema) {
+        throw new AppException(
+          "AI_EXTRACTION_FAILED",
+          "AI 추출에 실패했습니다.",
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+      return { places: [QUERY] };
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then — 릴스 → 사진 순으로 두 번 부르고, 사진 경로 결과로 이어진다
+    expect(ai.extract).toHaveBeenCalledTimes(2);
+    expect(ai.extract.mock.calls[1]?.[0]).toBe(placeExtractionSchema);
+    expect(matches).toHaveLength(1);
+  });
+
+  it("릴스 추출 타임아웃은 폴백하지 않고 그대로 올린다(다음 재시도에서 될 수 있다)", async () => {
+    // given
+    const { service, instagram, ai, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(
+      makePost({
+        typename: "video",
+        videoUrl: "https://scontent.cdninstagram.com/reel.mp4",
+      }),
+    );
+    placeImage.storePostVideo.mockResolvedValue({
+      gsUri: "gs://v/abc123/video",
+      mediaType: "video/mp4",
+    });
+    ai.extract.mockRejectedValue(
+      new AppException(
+        "AI_TIMEOUT",
+        "AI 응답 시간이 초과되었습니다.",
+        HttpStatus.GATEWAY_TIMEOUT,
+      ),
+    );
+
+    // when / then
+    await expect(service.extractFromUrl(URL)).rejects.toMatchObject({
+      errorCode: "AI_TIMEOUT",
+    });
+    expect(ai.extract).toHaveBeenCalledTimes(1);
   });
 
   it("영상을 못 올리면 사진 경로(기존 프롬프트)로 내려간다", async () => {

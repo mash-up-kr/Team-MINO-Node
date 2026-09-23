@@ -42,6 +42,8 @@ const envSchema = v.pipe(
      * 로컬 실행이 운영 버킷에 쌓이지 않도록 한다.
      */
     GCS_PLACE_IMAGES_BUCKET: v.optional(v.pipe(v.string(), v.minLength(1))),
+    // 릴스 영상을 올리는 비공개 버킷. 규칙은 이미지 버킷과 같다(미지정 시 APP_ENV로 유도).
+    GCS_PLACE_VIDEOS_BUCKET: v.optional(v.pipe(v.string(), v.minLength(1))),
     KAKAO_REST_API_KEY: v.pipe(v.string(), v.minLength(1)),
     SENTRY_DSN: v.optional(v.pipe(v.string(), v.url(), v.regex(/^https:\/\//))),
     SENTRY_RELEASE: v.optional(v.pipe(v.string(), v.minLength(1))),

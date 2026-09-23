@@ -71,7 +71,7 @@ export const reelPlaceSchema = v.object({
   kind: v.pipe(
     v.picklist(PLACE_KINDS),
     v.description(
-      "venue: a shop, cafe, restaurant, bar, attraction, or any business a viewer can visit. landmark: a well-known public place such as a bridge, park, or plaza. transit: a station, exit, or stop given as directions. media_or_brand: a TV channel, program, or brand with no specific location. private_or_not_a_place: a home, kitchen, or anything that is not a real-world place.",
+      "venue: a shop, cafe, restaurant, bar, attraction, or any business a viewer can visit. landmark: this place itself is a well-known public place such as a bridge, park, or plaza (unrelated to area_type, which describes the surrounding reference point). transit: a station, exit, or stop given as directions. media_or_brand: a TV channel, program, or brand with no specific location. private_or_not_a_place: a home, kitchen, or anything that is not a real-world place.",
     ),
   ),
   // 저장하지 않는다. 답을 근거에 묶어 두는 용도이고, 검증할 때 어느 단서를 썼는지 보인다.

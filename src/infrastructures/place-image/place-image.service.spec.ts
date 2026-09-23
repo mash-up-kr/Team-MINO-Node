@@ -8,6 +8,7 @@ import {
   jest,
   mock,
 } from "bun:test";
+import { Writable } from "node:stream";
 import type { ConfigService } from "@nestjs/config";
 import type { Env } from "../../config/env.schema";
 import type { SentryErrorReporter } from "../sentry/sentry-reporter";
@@ -15,7 +16,15 @@ import type { SentryErrorReporter } from "../sentry/sentry-reporter";
 const save = jest.fn();
 const exists = jest.fn();
 const getMetadata = jest.fn();
-const file = jest.fn(() => ({ exists, getMetadata, save }));
+const createWriteStream = jest.fn();
+const deleteObject = jest.fn();
+const file = jest.fn(() => ({
+  exists,
+  getMetadata,
+  save,
+  createWriteStream,
+  delete: deleteObject,
+}));
 
 mock.module("@google-cloud/storage", () => ({
   Storage: class {
@@ -66,6 +75,8 @@ describe("PlaceImageService", () => {
     save.mockReset();
     exists.mockReset();
     getMetadata.mockReset();
+    createWriteStream.mockReset();
+    deleteObject.mockReset();
     report.mockReset();
   });
 
@@ -221,21 +232,66 @@ describe("PlaceImageService", () => {
     expect(save).not.toHaveBeenCalled();
   });
   describe("storePostVideo", () => {
-    it("허용 호스트의 mp4는 업로드하고 gs:// URI를 반환한다", async () => {
+    const VIDEO_URI =
+      "gs://team-mino-place-videos-local/instagram/abc123/video";
+
+    /** 업로드 스트림을 메모리 배열로 받아 무엇이 흘러갔는지 본다. */
+    function mockWriteStream() {
+      const written: Buffer[] = [];
+      createWriteStream.mockImplementation(
+        () =>
+          new Writable({
+            write(chunk, _encoding, callback) {
+              written.push(Buffer.from(chunk));
+              callback();
+            },
+          }),
+      );
+      return written;
+    }
+
+    it("허용 호스트의 mp4는 메모리에 모으지 않고 스트리밍으로 올린다", async () => {
       exists.mockResolvedValue([false]);
-      save.mockResolvedValue(undefined);
-      mockFetch(200, "video/mp4");
+      const written = mockWriteStream();
+      const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+      mockFetch(200, "video/mp4", bytes);
 
       const result = await makeService().storePostVideo(
         "abc123",
         `${CDN}/reel.mp4`,
       );
 
-      expect(result).toEqual({
-        gsUri: "gs://team-mino-place-images-local/instagram/abc123/video",
-        mediaType: "video/mp4",
+      expect(result).toEqual({ gsUri: VIDEO_URI, mediaType: "video/mp4" });
+      expect(createWriteStream).toHaveBeenCalledWith({
+        resumable: false,
+        contentType: "video/mp4",
       });
-      expect(save).toHaveBeenCalledTimes(1);
+      expect(new Uint8Array(Buffer.concat(written))).toEqual(bytes);
+      // 이미지 경로(save)가 아니라 스트림으로 올라간다.
+      expect(save).not.toHaveBeenCalled();
+      expect(deleteObject).not.toHaveBeenCalled();
+    });
+
+    it("Content-Length가 상한을 넘으면 본문을 받지 않고 스킵한다", async () => {
+      exists.mockResolvedValue([false]);
+      globalThis.fetch = jest.fn(
+        async () =>
+          new Response(new Uint8Array([1]), {
+            status: 200,
+            headers: {
+              "content-type": "video/mp4",
+              "content-length": String(500 * 1024 * 1024),
+            },
+          }),
+      ) as unknown as typeof fetch;
+
+      const result = await makeService().storePostVideo(
+        "abc123",
+        `${CDN}/reel.mp4`,
+      );
+
+      expect(result).toBeNull();
+      expect(createWriteStream).not.toHaveBeenCalled();
     });
 
     it("영상이 아닌 타입은 스킵한다", async () => {
@@ -248,7 +304,7 @@ describe("PlaceImageService", () => {
       );
 
       expect(result).toBeNull();
-      expect(save).not.toHaveBeenCalled();
+      expect(createWriteStream).not.toHaveBeenCalled();
     });
 
     it("허용되지 않은 호스트는 다운로드 없이 스킵한다", async () => {
@@ -264,6 +320,28 @@ describe("PlaceImageService", () => {
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
+    it("업로드 스트림이 실패하면 남았을 수 있는 객체를 지우고 스킵한다", async () => {
+      exists.mockResolvedValue([false]);
+      createWriteStream.mockImplementation(
+        () =>
+          new Writable({
+            write(_chunk, _encoding, callback) {
+              callback(new Error("gcs down"));
+            },
+          }),
+      );
+      deleteObject.mockResolvedValue(undefined);
+      mockFetch(200, "video/mp4");
+
+      const result = await makeService().storePostVideo(
+        "abc123",
+        `${CDN}/reel.mp4`,
+      );
+
+      expect(result).toBeNull();
+      expect(deleteObject).toHaveBeenCalledWith({ ignoreNotFound: true });
+    });
+
     it("이미 존재하면 재다운로드 없이 재사용한다", async () => {
       exists.mockResolvedValue([true]);
       getMetadata.mockResolvedValue([{ contentType: "video/mp4" }]);
@@ -275,12 +353,9 @@ describe("PlaceImageService", () => {
         `${CDN}/reel.mp4`,
       );
 
-      expect(result).toEqual({
-        gsUri: "gs://team-mino-place-images-local/instagram/abc123/video",
-        mediaType: "video/mp4",
-      });
+      expect(result).toEqual({ gsUri: VIDEO_URI, mediaType: "video/mp4" });
       expect(fetchSpy).not.toHaveBeenCalled();
-      expect(save).not.toHaveBeenCalled();
+      expect(createWriteStream).not.toHaveBeenCalled();
     });
   });
 });

@@ -41,10 +41,11 @@ Respond in the same language as the source content (use Korean when the content 
   /*
    * 영상(릴스) 전용 프롬프트. 사진 프롬프트와 달리 무엇을 볼지 지정하지 않는다.
    *
-   * "자막·내레이션을 옮겨 적어라"처럼 단서를 못 박으면 모델이 간판·로고·지도 화면·
-   * 키오스크 같은 다른 단서를 버려 회수가 떨어졌고(용산 코스 릴스 11곳 → 4곳),
-   * "방문 가능한 곳만"으로 제한해도 실제 매장이 같이 빠졌다(11곳 → 6곳). 그래서
-   * 넓게 찾게 두고 종류(kind)만 붙여 받아 서버가 거른다.
+   * 용산 코스 릴스(실제 9개 코스) 기준 — 넓게 찾게 하면 10~11곳을 안정적으로 뽑는데,
+   * "자막·내레이션을 옮겨 적어라"처럼 단서를 못 박으면 간판·로고·지도 화면·키오스크
+   * 같은 다른 단서를 버려 4곳으로 떨어졌고, "방문 가능한 곳만"으로 제한하면 실제 매장이
+   * 같이 빠져 6~9곳 사이를 오갔다. 그래서 넓게 찾게 두고 종류(kind)만 붙여 받아 서버가
+   * 거른다.
    */
   private static readonly REEL_EXTRACTION_PROMPT =
     `Explore this Instagram Reel thoroughly — the video, its audio, the thumbnail, and the caption — and identify every distinct real-world place featured (shops, cafes, restaurants, venues, attractions). For each, say exactly what you identified it from, and label what kind of place it is.
@@ -74,12 +75,13 @@ Respond in the same language as the source content (use Korean when the content 
     const started = Date.now();
     const post = await this.scraperService.fetchPost(url);
     const scrapeMs = Date.now() - started;
-    const { queries, images, imageMs, aiMs } = await this.extractQueries(post);
+    const { queries, images, imageMs, videoMs, aiMs } =
+      await this.extractQueries(post);
 
     // 장소를 못 뽑아도 이미지는 이미 올라갔으므로 그대로 함께 돌려준다.
     if (queries.length === 0) {
       this.logStageTimings(
-        { scrapeMs, imageMs, aiMs, geocodeMs: 0 },
+        { scrapeMs, imageMs, videoMs, aiMs, geocodeMs: 0 },
         0,
         started,
       );
@@ -132,7 +134,7 @@ Respond in the same language as the source content (use Korean when the content 
     });
 
     this.logStageTimings(
-      { scrapeMs, imageMs, aiMs, geocodeMs },
+      { scrapeMs, imageMs, videoMs, aiMs, geocodeMs },
       queries.length,
       started,
     );
@@ -147,6 +149,8 @@ Respond in the same language as the source content (use Korean when the content 
     timings: {
       scrapeMs: number;
       imageMs: number;
+      // 릴스만 0보다 크다. 이미지와 병렬로 올리므로 둘 중 큰 쪽이 실제 대기 시간이다.
+      videoMs: number;
       aiMs: number;
       geocodeMs: number;
     },
@@ -200,40 +204,83 @@ Respond in the same language as the source content (use Korean when the content 
     queries: PlaceQuery[];
     images: string[];
     imageMs: number;
+    videoMs: number;
     aiMs: number;
   }> {
     // 인스타 미디어는 Vertex가 URL로 못 읽으므로(robots 차단), GCS에 올려 gs://로 넘긴다.
+    // 이미지와 영상은 서로 기다릴 이유가 없어 함께 올린다.
     const started = Date.now();
-    const images = await this.placeImageService.storePostImages(
-      post.shortcode,
-      post.imageUrls,
-    );
-    // 영상 게시글은 썸네일 1장으로는 소개 장소를 못 본다. 영상을 올려 함께 넘긴다.
-    const video =
+    let imageMs = 0;
+    let videoMs = 0;
+    const [images, video] = await Promise.all([
+      this.placeImageService
+        .storePostImages(post.shortcode, post.imageUrls)
+        .then((stored) => {
+          imageMs = Date.now() - started;
+          return stored;
+        }),
+      // 영상 게시글은 썸네일 1장으로는 소개 장소를 못 본다. 영상을 올려 함께 넘긴다.
       post.typename === "video" && post.videoUrl
-        ? await this.placeImageService.storePostVideo(
-            post.shortcode,
-            post.videoUrl,
-          )
-        : null;
+        ? this.placeImageService
+            .storePostVideo(post.shortcode, post.videoUrl)
+            .then((stored) => {
+              videoMs = Date.now() - started;
+              return stored;
+            })
+        : null,
+    ]);
     const uploaded = Date.now();
 
     // 영상을 못 올렸으면 사진 경로로 내려간다 — 캡션·썸네일만으로도 추출은 된다.
     const queries = video
-      ? await this.extractFromReel(post, images, video)
-      : (
-          await this.aiService.extract(
-            placeExtractionSchema,
-            this.buildContent(post, images),
-          )
-        ).places;
+      ? await this.extractFromReelOrFallback(post, images, video)
+      : await this.extractFromImages(post, images);
 
     return {
       queries,
       images: images.map((image) => image.publicUrl),
-      imageMs: uploaded - started,
+      imageMs,
+      videoMs,
       aiMs: Date.now() - uploaded,
     };
+  }
+
+  /** 사진 게시글 경로. 릴스가 영상으로 실패했을 때의 안전망이기도 하다. */
+  private async extractFromImages(
+    post: ScrapedPost,
+    images: StoredImage[],
+  ): Promise<PlaceQuery[]> {
+    const { places } = await this.aiService.extract(
+      placeExtractionSchema,
+      this.buildContent(post, images),
+    );
+    return places;
+  }
+
+  /**
+   * 릴스 추출이 실패하면 캡션·썸네일 경로로 내려간다.
+   *
+   * 영상이 거부되는 이유(코덱·길이·400)는 재시도해도 같아서, 그대로 올리면 재시도를
+   * 다 쓰고 실패 알림으로 끝난다. 그 글은 지금 코드로도 캡션만으로 몇 핀은 잡던 글이라
+   * 기능이 뒤로 가는 셈이다. 타임아웃만 예외다 — 다음 시도에서 될 수 있으니 올린다.
+   */
+  private async extractFromReelOrFallback(
+    post: ScrapedPost,
+    images: StoredImage[],
+    video: StoredVideo,
+  ): Promise<PlaceQuery[]> {
+    try {
+      return await this.extractFromReel(post, images, video);
+    } catch (error) {
+      if (error instanceof AppException && error.errorCode === "AI_TIMEOUT") {
+        throw error;
+      }
+      this.logger.warn(
+        { err: error, shortcode: post.shortcode },
+        "릴스 추출 실패 — 캡션·썸네일 경로로 폴백",
+      );
+      return this.extractFromImages(post, images);
+    }
   }
 
   /**
@@ -262,6 +309,24 @@ Respond in the same language as the source content (use Korean when the content 
       parts,
       { timeoutMs: PlaceService.REEL_AI_TIMEOUT_MS },
     );
+    // 걸러낸 것을 남겨 둔다. 필터가 실제 매장을 잘못 거르는지, 프롬프트를 손볼 근거가 된다.
+    const excluded = places.filter((place) =>
+      PlaceService.EXCLUDED_KINDS.has(place.kind),
+    );
+    if (excluded.length > 0) {
+      this.logger.log(
+        {
+          shortcode: post.shortcode,
+          excluded: excluded.map(({ place_name, kind, evidence }) => ({
+            place_name,
+            kind,
+            evidence,
+          })),
+        },
+        "릴스 추출에서 걸러낸 장소",
+      );
+    }
+
     return (
       places
         .filter((place) => !PlaceService.EXCLUDED_KINDS.has(place.kind))

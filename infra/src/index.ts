@@ -7,6 +7,8 @@ import { localEnvSecret, prodEnvSecret } from "@/resources/secrets";
 import {
   placeImagesLocalBucket,
   placeImagesProdBucket,
+  placeVideosLocalBucket,
+  placeVideosProdBucket,
 } from "@/resources/storage";
 import {
   placeExtractionQueue,
@@ -30,6 +32,8 @@ export const placeExtractionQueueId = placeExtractionQueue.id;
 export const taskInvokerServiceAccountEmail = taskInvokerServiceAccount.email;
 export const placeImagesLocalBucketName = placeImagesLocalBucket.name;
 export const placeImagesProdBucketName = placeImagesProdBucket.name;
+export const placeVideosLocalBucketName = placeVideosLocalBucket.name;
+export const placeVideosProdBucketName = placeVideosProdBucket.name;
 export const customDomainDnsUpdates = customDomain.requiredDnsUpdates;
 export const inviteDomainDnsUpdates = inviteDomain.requiredDnsUpdates;
 export const anonymousAuthEnabled = authConfig.signIn.apply(

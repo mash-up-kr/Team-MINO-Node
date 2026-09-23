@@ -1,4 +1,7 @@
-import { Storage } from "@google-cloud/storage";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { ReadableStream as WebReadableStream } from "node:stream/web";
+import { type File, Storage } from "@google-cloud/storage";
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Env } from "../../config/env.schema";
@@ -67,6 +70,7 @@ export class PlaceImageService {
   private readonly logger = new Logger(PlaceImageService.name);
   private readonly storage: Storage;
   private readonly bucketName: string;
+  private readonly videoBucketName: string;
 
   constructor(
     configService: ConfigService<Env>,
@@ -79,6 +83,10 @@ export class PlaceImageService {
     this.bucketName =
       configService.get("GCS_PLACE_IMAGES_BUCKET", { infer: true }) ??
       `team-mino-place-images-${appEnv}`;
+    // 영상은 공개하지 않고 7일 뒤 지워지는 별도 버킷에 둔다(infra/storage.ts).
+    this.videoBucketName =
+      configService.get("GCS_PLACE_VIDEOS_BUCKET", { infer: true }) ??
+      `team-mino-place-videos-${appEnv}`;
     this.storage = new Storage({ projectId: project });
   }
 
@@ -118,8 +126,8 @@ export class PlaceImageService {
 
     try {
       const objectName = `${SOURCE_PREFIX}/${shortcode}/${VIDEO_OBJECT_NAME}`;
-      const file = this.storage.bucket(this.bucketName).file(objectName);
-      const gsUri = `gs://${this.bucketName}/${objectName}`;
+      const file = this.storage.bucket(this.videoBucketName).file(objectName);
+      const gsUri = `gs://${this.videoBucketName}/${objectName}`;
 
       const [exists] = await file.exists();
       if (exists) {
@@ -127,16 +135,96 @@ export class PlaceImageService {
         return { gsUri, mediaType: metadata.contentType ?? "video/mp4" };
       }
 
-      const downloaded = await this.download(videoUrl, VIDEO_LIMITS);
-      if (!downloaded) return null;
-
-      await file.save(downloaded.bytes, {
-        contentType: downloaded.mediaType,
-        resumable: false,
-      });
-      return { gsUri, mediaType: downloaded.mediaType };
+      const mediaType = await this.streamToObject(videoUrl, file, VIDEO_LIMITS);
+      return mediaType ? { gsUri, mediaType } : null;
     } catch (error) {
       this.logger.warn({ err: error, videoUrl }, "영상 저장 실패 — 스킵");
+      return null;
+    }
+  }
+
+  /**
+   * 응답 본문을 메모리에 모으지 않고 GCS 객체로 바로 흘려보낸다. 저장된 MIME 타입을
+   * 돌려주고, 못 올리면 null.
+   *
+   * 이미지는 20MB 상한이라 한 번에 받아도 되지만 영상은 다르다. 다 받은 뒤 크기를 재면
+   * 상한을 넘는 영상도 일단 메모리에 전부 올라가고, 릴스 여러 건이 겹치면 256Mi에서
+   * 바로 위험해진다. Content-Length로 먼저 거르고, 흘려보내는 중에도 바이트를 세어
+   * 상한을 넘는 순간 끊는다.
+   */
+  private async streamToObject(
+    mediaUrl: string,
+    file: File,
+    limits: DownloadLimits,
+  ): Promise<string | null> {
+    const response = await fetch(mediaUrl, {
+      signal: AbortSignal.timeout(limits.timeoutMs),
+      redirect: "error",
+    });
+    if (!response.ok || !response.body) {
+      this.logger.warn(
+        { mediaUrl, status: response.status },
+        "미디어 다운로드 실패 — 스킵",
+      );
+      return null;
+    }
+
+    const mediaType = (response.headers.get("content-type") ?? "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    if (!limits.supportedTypes.has(mediaType)) {
+      this.logger.warn(
+        { mediaUrl, mediaType },
+        "지원하지 않는 미디어 타입 — 스킵",
+      );
+      return null;
+    }
+
+    // 크기를 미리 알려주면 받기 전에 거른다. 없거나 거짓이면 아래에서 세며 거른다.
+    const declared = Number(response.headers.get("content-length"));
+    if (declared > limits.maxBytes) {
+      this.logger.warn(
+        { mediaUrl, bytes: declared },
+        "미디어 크기 상한 초과 — 받지 않고 스킵",
+      );
+      return null;
+    }
+
+    let received = 0;
+    const counter = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        received += chunk.byteLength;
+        if (received > limits.maxBytes) {
+          callback(new Error(`미디어 크기 상한 초과 (${received} bytes)`));
+          return;
+        }
+        callback(null, chunk);
+      },
+    });
+    const writer = file.createWriteStream({
+      resumable: false,
+      contentType: mediaType,
+    });
+
+    try {
+      // pipeline이 배압을 맡고, 어느 단계든 실패하면 나머지(fetch 본문 포함)를 함께 끊는다.
+      await pipeline(
+        Readable.fromWeb(
+          // 런타임은 같은 스트림이지만 DOM 타입과 node:stream/web 타입이 갈려 있다.
+          response.body as unknown as WebReadableStream<Uint8Array>,
+        ),
+        counter,
+        writer,
+      );
+      return mediaType;
+    } catch (error) {
+      // 단일 요청 업로드라 끊기면 객체가 남지 않지만, 남았을 경우를 대비해 지운다.
+      await file.delete({ ignoreNotFound: true }).catch(() => undefined);
+      this.logger.warn(
+        { err: error, mediaUrl, bytes: received },
+        "미디어 스트리밍 실패 — 스킵",
+      );
       return null;
     }
   }
