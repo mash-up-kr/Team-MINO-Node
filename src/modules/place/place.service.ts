@@ -15,6 +15,7 @@ import {
   type PlaceQuery,
   placeExtractionSchema,
 } from "./place.type";
+import { isNonPlaceCandidate } from "./place.util";
 
 const PROVIDER_PRIORITY: Record<GeoCandidate["provider"], number> = {
   kakao: 0,
@@ -230,16 +231,30 @@ Respond in the same language as the source content (use Korean when the content 
 
   /** Orders by completeness → proximity → provider preference. */
   private rankCandidates(candidates: GeoCandidate[]): PlaceCandidate[] {
-    return candidates.sort((a, b) => {
-      const completenessDiff = this.completeness(b) - this.completeness(a);
-      if (completenessDiff !== 0) return completenessDiff;
+    // 지명성 후보(역·사거리·주차장)는 저장 대상이 아니므로 랭킹 전에 제외한다.
+    // 제거하지 않으면 정보가 풍부한 역 후보가 맛집을 누르고 최상위 후보가
+    // 무조건 핀이 되는 저장 파이프라인 구조상 그대로 핀으로 저장된다.
+    const dropped = candidates.filter((candidate) =>
+      isNonPlaceCandidate(candidate),
+    );
+    if (dropped.length > 0) {
+      this.logger.log(
+        { dropped: dropped.map((candidate) => candidate.placeName) },
+        "지명성 geocoder 후보 제외",
+      );
+    }
+    return candidates
+      .filter((candidate) => !isNonPlaceCandidate(candidate))
+      .sort((a, b) => {
+        const completenessDiff = this.completeness(b) - this.completeness(a);
+        if (completenessDiff !== 0) return completenessDiff;
 
-      const distanceA = a.distance ?? Number.POSITIVE_INFINITY;
-      const distanceB = b.distance ?? Number.POSITIVE_INFINITY;
-      if (distanceA !== distanceB) return distanceA - distanceB;
+        const distanceA = a.distance ?? Number.POSITIVE_INFINITY;
+        const distanceB = b.distance ?? Number.POSITIVE_INFINITY;
+        if (distanceA !== distanceB) return distanceA - distanceB;
 
-      return PROVIDER_PRIORITY[a.provider] - PROVIDER_PRIORITY[b.provider];
-    });
+        return PROVIDER_PRIORITY[a.provider] - PROVIDER_PRIORITY[b.provider];
+      });
   }
 
   /** Counts how many optional fields are present (higher = more complete). */
