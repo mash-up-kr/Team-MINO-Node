@@ -39,7 +39,7 @@ export const NON_PLACE_CATEGORY_KEYWORDS = [
  * 가게 이름이 오분류되지 않게 하기 위해서다.
  */
 export const NON_PLACE_NAME_PATTERN =
-  /(?:지하철역|전철역|기차역|역|호선|사거리|교차로|정류장|요금소|톨게이트|휴게소)$/u;
+  /(?:지하철역|전철역|기차역|역|호선|사거리|교차로|정류장|주차장|요금소|톨게이트|휴게소)$/u;
 
 export const RESTAURANT_CATEGORY_KEYWORDS = [
   "음식점",

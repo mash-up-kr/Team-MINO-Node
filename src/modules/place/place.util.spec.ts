@@ -99,6 +99,14 @@ describe("isNonPlaceCandidate", () => {
     expect(isNonPlaceCandidate({ placeName: "어니언 성수" })).toBe(false);
   });
 
+  it("카테고리가 없는 주차장 후보도 제외한다", () => {
+    // 운영에서 확인된 주차장 사례("송림식당길 노상공영주차장")의 무카테고리
+    // 변형(가상 입력) 방어. 접미만으로 판정하므로 실제 점포와 충돌하지 않는다.
+    expect(
+      isNonPlaceCandidate({ placeName: "송림식당길 노상공영주차장" }),
+    ).toBe(true);
+  });
+
   it("카테고리가 실제 장소를 가리키면 이름을 보지 않는다", () => {
     // "정류장"이라는 이름의 가게가 오분류되지 않게 하기 위한 가드다.
     expect(
