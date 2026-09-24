@@ -517,6 +517,60 @@ describe("PlaceService", () => {
     expect(result.matches[0].matches[0]?.placeName).toBe("가까운 후보");
   });
 
+  it("지명성 후보는 완전도가 높아도 랭킹에서 제외한다", async () => {
+    // given — 운영 장애 재현: 지명 쿼리에 역·사거리 후보가 돌아온 케이스
+    const { service, instagram, ai, geocoder } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    ai.extract.mockResolvedValue({ places: [QUERY] });
+    geocoder.searchAll.mockResolvedValue([
+      makeCandidate({
+        // 전화번호·URL·거리를 다 가진 정보가 풍부한 역 후보 — 기존 랭킹으론 1위
+        placeName: "역곡북부역사거리",
+        category: "교통,수송 > 도로시설 > 교차로",
+        mapUrl: "https://map.example/intersection",
+        phone: "032-000-0000",
+        distance: 100,
+      }),
+      makeCandidate({
+        placeName: "구천구백닭강정 역곡점",
+        category: "음식점 > 간식 > 닭강정",
+        distance: 200,
+      }),
+    ]);
+
+    // when
+    const result = await service.extractFromUrl(URL);
+
+    // then
+    expect(result.matches[0].matches[0]?.placeName).toBe(
+      "구천구백닭강정 역곡점",
+    );
+    expect(
+      result.matches[0].matches.some((c) => c.placeName === "역곡북부역사거리"),
+    ).toBe(false);
+  });
+
+  it("후보가 지명성뿐이면 해당 장소는 빈 후보로 반환해 저장되지 않는다", async () => {
+    // given
+    const { service, instagram, ai, geocoder } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    ai.extract.mockResolvedValue({ places: [QUERY] });
+    geocoder.searchAll.mockResolvedValue([
+      makeCandidate({
+        placeName: "대흥역 6호선",
+        category: "교통,수송 > 지하철,전철 > 수도권6호선",
+      }),
+    ]);
+
+    // when
+    const result = await service.extractFromUrl(URL);
+
+    // then — geocoding은 성공이지만 남는 후보가 없어 핀으로 저장되지 않는다
+    expect(result.matches).toHaveLength(1);
+    expect(result.matches[0].matches).toHaveLength(0);
+    expect(result.matches[0].geocoding.status).toBe("fulfilled");
+  });
+
   it("PlaceModule이 PlaceService를 해석한다", async () => {
     // given
     /*
