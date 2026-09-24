@@ -518,10 +518,16 @@ describe("PlaceService", () => {
   });
 
   it("지명성 후보는 완전도가 높아도 랭킹에서 제외한다", async () => {
-    // given — 운영 장애 재현: 지명 쿼리에 역·사거리 후보가 돌아온 케이스
+    /*
+     * given — 필터 동작 검증용 가상 입력. 실제 카카오 응답에서 이 후보 조합이
+     * 함께 반환됐는지와 당시 AI 추출값은 확인되지 않았다. 장소명은 운영 DB에
+     * 저장된 실제 사례에서 가져온 추정 입력이다.
+     */
     const { service, instagram, ai, geocoder } = createService();
     instagram.fetchPost.mockResolvedValue(makePost());
-    ai.extract.mockResolvedValue({ places: [QUERY] });
+    ai.extract.mockResolvedValue({
+      places: [{ ...QUERY, place_name: "구천구백닭강정 역곡점" }],
+    });
     geocoder.searchAll.mockResolvedValue([
       makeCandidate({
         // 전화번호·URL·거리를 다 가진 정보가 풍부한 역 후보 — 기존 랭킹으론 1위
@@ -550,11 +556,16 @@ describe("PlaceService", () => {
     ).toBe(false);
   });
 
-  it("후보가 지명성뿐이면 해당 장소는 빈 후보로 반환해 저장되지 않는다", async () => {
-    // given
+  it("후보가 지명성뿐이면 해당 장소는 빈 후보로 반환한다", async () => {
+    /*
+     * given — 가상 입력: 지명 추출값(대흥역, 당시 AI 출력이 확인된 게 아닌
+     * 추정 입력)에 교통 후보만 돌아온 조합.
+     */
     const { service, instagram, ai, geocoder } = createService();
     instagram.fetchPost.mockResolvedValue(makePost());
-    ai.extract.mockResolvedValue({ places: [QUERY] });
+    ai.extract.mockResolvedValue({
+      places: [{ ...QUERY, place_name: "대흥역" }],
+    });
     geocoder.searchAll.mockResolvedValue([
       makeCandidate({
         placeName: "대흥역 6호선",
@@ -565,7 +576,8 @@ describe("PlaceService", () => {
     // when
     const result = await service.extractFromUrl(URL);
 
-    // then — geocoding은 성공이지만 남는 후보가 없어 핀으로 저장되지 않는다
+    // then — geocoding은 성공하지만 필터 후 남는 후보가 빈 배열이다.
+    // 후보가 있을 때만 저장되는 것은 별도 저장 계층의 책임이라 여기서는 검증하지 않는다.
     expect(result.matches).toHaveLength(1);
     expect(result.matches[0].matches).toHaveLength(0);
     expect(result.matches[0].geocoding.status).toBe("fulfilled");
