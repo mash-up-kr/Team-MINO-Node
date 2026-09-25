@@ -8,7 +8,7 @@ export const placeQuerySchema = v.object({
   place_name: v.pipe(
     v.string(),
     v.description(
-      "The specific name of the place, e.g. a restaurant, cafe, or shop name.",
+      "The specific name of the qualifying visitable destination featured in the post, e.g. a restaurant, cafe, shop, museum, gallery, park, venue, or named business. Generic transit stations, bus stops, intersections, parking lots, roads, bridges, exits, or similar infrastructure never qualify as place_name, even when they are the only subject or the user visited, parked at, passed through, or toured them. Keep the full proper name only when the post clearly features an actual business or destination whose name itself ends with words such as 역, 정류장, or 주차장.",
     ),
   ),
   area_name: v.pipe(
@@ -43,7 +43,9 @@ export type PlaceQuery = v.InferOutput<typeof placeQuerySchema>;
 export const placeExtractionSchema = v.object({
   places: v.pipe(
     v.array(placeQuerySchema),
-    v.description("Every distinct real-world place featured in the post."),
+    v.description(
+      "Every qualifying visitable destination featured in the post. Return an empty array when the post only features generic transit, parking, road, bridge, exit, or similar infrastructure.",
+    ),
   ),
 });
 
