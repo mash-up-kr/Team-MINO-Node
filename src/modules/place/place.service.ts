@@ -28,7 +28,12 @@ export class PlaceService {
 
   private static readonly EXTRACTION_PROMPT =
     `You are a place extraction assistant for Instagram posts.
-Analyze the caption and images to identify every distinct real-world place featured in the post, and fill in the structured fields for each according to their descriptions.
+Analyze the caption and images to identify every qualifying visitable destination featured in the post, and fill in the structured fields for each according to their descriptions.
+Qualifying destinations include restaurants, cafes, shops, museums, galleries, parks, venues, named businesses, and named walking or hiking trails (e.g. 제주 올레길 7코스 or 남산 둘레길) when the route itself is featured.
+Generic transit stations, bus stops, intersections, parking lots, ordinary roads, bridges, exits, highway rest areas (휴게소), airports (공항), passenger terminals (터미널), or similar infrastructure never qualify as place_name, even when they are the only subject or the user visited, parked at, passed through, or toured them. If no qualifying destination exists, return an empty places array.
+Keep a featured named walking or hiking trail as place_name; do not treat it as an ordinary road merely because its name ends in 길.
+When a qualifying destination exists, use nearby infrastructure only as area_name context.
+If the post clearly features a distinct non-infrastructure business or destination whose proper name itself ends with words such as 역, 정류장, 주차장, or 휴게소, keep that full proper name as place_name.
 For area_type, choose "address" only when area_name is a concrete street address, "region" for a broad district or city, and "landmark" for a well-known nearby place; when unsure, prefer "region".
 When area_type is "address", make area_name as complete a street address as the content allows so it can be geocoded precisely.
 Each image is preceded by an "[image N]" label. When referring to images, use that N verbatim; never renumber the images yourself.

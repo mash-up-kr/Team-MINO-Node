@@ -306,13 +306,17 @@ describe("PlaceService", () => {
 
     // then
     const [schema, content] = ai.extract.mock.calls[0] as [
-      unknown,
+      typeof placeExtractionSchema,
       Array<{ type: string; text?: string; url?: string; mediaType?: string }>,
     ];
     const texts = content.flatMap((p) => (p.type === "text" ? [p.text] : []));
     const images = content.filter((p) => p.type === "image");
+    const prompt = texts[0] ?? "";
     expect(schema).toBe(placeExtractionSchema);
-    expect(texts[0]).toContain("place extraction assistant");
+    expect(prompt).toContain("place extraction assistant");
+    expect(prompt).toContain("qualifying visitable destination");
+    expect(prompt).toContain("infrastructure never qualify as place_name");
+    expect(prompt).toContain("return an empty places array");
     expect(texts.some((t) => t?.includes("성수동 카페"))).toBe(true);
     expect(texts.some((t) => t?.includes("어니언 성수"))).toBe(true);
     expect(images).toHaveLength(1);
