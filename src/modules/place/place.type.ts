@@ -8,7 +8,7 @@ export const placeQuerySchema = v.object({
   place_name: v.pipe(
     v.string(),
     v.description(
-      "The specific name of the qualifying visitable destination featured in the post, e.g. a restaurant, cafe, shop, museum, gallery, park, venue, or named business. Generic transit stations, bus stops, intersections, parking lots, roads, bridges, exits, or similar infrastructure never qualify as place_name, even when they are the only subject or the user visited, parked at, passed through, or toured them. Keep the full proper name only when the post clearly features an actual business or destination whose name itself ends with words such as 역, 정류장, or 주차장.",
+      "The specific name of the qualifying visitable destination featured in the post, e.g. a restaurant, cafe, shop, museum, gallery, park, venue, named business, or named walking or hiking trail such as 제주 올레길 7코스 or 남산 둘레길 when the route itself is featured. A named trail is not an ordinary road merely because its name ends in 길. Generic transit stations, bus stops, intersections, parking lots, ordinary roads, bridges, exits, highway rest areas (휴게소), airports (공항), passenger terminals (터미널), or similar infrastructure never qualify as place_name, even when they are the only subject or the user visited, parked at, passed through, or toured them. Keep the full proper name only when the post clearly features a distinct non-infrastructure business or destination whose name itself ends with words such as 역, 정류장, 주차장, or 휴게소.",
     ),
   ),
   area_name: v.pipe(
@@ -44,7 +44,7 @@ export const placeExtractionSchema = v.object({
   places: v.pipe(
     v.array(placeQuerySchema),
     v.description(
-      "Every qualifying visitable destination featured in the post. Return an empty array when the post only features generic transit, parking, road, bridge, exit, or similar infrastructure.",
+      "Every qualifying visitable destination featured in the post, including named walking or hiking trails when the route itself is featured. Return an empty array when the post only features generic transit, parking, ordinary road, bridge, exit, highway rest area (휴게소), airport (공항), passenger terminal (터미널), or similar infrastructure.",
     ),
   ),
 });
