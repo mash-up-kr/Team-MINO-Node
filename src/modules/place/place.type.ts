@@ -29,25 +29,69 @@ export const placeQuerySchema = v.object({
       "A short phrase describing how the place relates to the post content.",
     ),
   ),
-  image_indices: v.pipe(
-    v.array(v.number()),
-    v.description(
-      'Indices of the provided images that show THIS place, taken from the "[image N]" label that precedes each image. Assign each image to at most one place. Return an empty array when no image clearly shows this place.',
-    ),
-  ),
 });
 
 export type PlaceQuery = v.InferOutput<typeof placeQuerySchema>;
 
-/** Wrapped in an object so structured output uses the provider-friendly object mode. */
-export const placeExtractionSchema = v.object({
-  places: v.pipe(
-    v.array(placeQuerySchema),
-    v.description("Every distinct real-world place featured in the post."),
-  ),
-});
+/**
+ * Wrapped in an object so structured output uses the provider-friendly object mode.
+ *
+ * 장소가 "몇 번 사진"을 고르게 하는 대신, 이미지 한 장당 객체 하나를 순서대로 받는다.
+ * 장소 쪽에서 인덱스를 고르게 하면 캡션이 "1. … 2. …"처럼 번호를 매긴 글에서 통째로
+ * 한 칸 밀린 답이 돌아왔다(장소마다 바로 다음 사진이 붙었다).
+ *
+ * 각 객체는 자기 이미지의 라벨 번호(image_index)와 사진에 찍힌 글자(visible_text)를
+ * 함께 들고 온다. 번호를 스스로 적게 해 두면 어긋났을 때 서버가 그 칸만 걸러낼 수 있고,
+ * 상호를 옮겨 적게 해 두면 캡션 순서가 아니라 사진에 보이는 것을 근거로 고르게 된다.
+ */
+export function createPlaceExtractionSchema(imageCount: number) {
+  return v.object({
+    places: v.pipe(
+      v.array(placeQuerySchema),
+      v.description("Every distinct real-world place featured in the post."),
+    ),
+    image_places: v.pipe(
+      v.array(
+        v.object({
+          image_index: v.pipe(
+            v.number(),
+            v.description(
+              'The N from the "[image N]" label printed directly above this image.',
+            ),
+          ),
+          visible_text: v.pipe(
+            v.string(),
+            v.description(
+              "The place name or signage text printed on this image, transcribed verbatim. Empty string when the image has no such text.",
+            ),
+          ),
+          place_name: v.pipe(
+            v.string(),
+            v.description(
+              "Which place from the places array this image shows, copied verbatim. Empty string when the image shows no specific place (cover, outro, promo).",
+            ),
+          ),
+          area_name: v.pipe(
+            v.string(),
+            v.description(
+              "The area_name of that same place, copied verbatim from the places array. Required to tell apart places that share a name (for example two different Starbucks branches). Empty string when place_name is empty.",
+            ),
+          ),
+        }),
+      ),
+      v.description(
+        `One object per provided image, in the order the images were given (${imageCount} objects).`,
+      ),
+    ),
+  });
+}
 
-export type PlaceExtractionResult = v.InferOutput<typeof placeExtractionSchema>;
+export type PlaceExtractionResult = v.InferOutput<
+  ReturnType<typeof createPlaceExtractionSchema>
+>;
+
+/** 이미지 한 장에 대한 모델의 판단. */
+export type ImagePlace = PlaceExtractionResult["image_places"][number];
 
 /**
  * 영상(릴스) 추출에서 장소의 종류.
@@ -66,8 +110,7 @@ export const PLACE_KINDS = [
 export type PlaceKind = (typeof PLACE_KINDS)[number];
 
 export const reelPlaceSchema = v.object({
-  // 영상은 썸네일 1장이라 사진을 고를 게 없다.
-  ...v.omit(placeQuerySchema, ["image_indices"]).entries,
+  ...placeQuerySchema.entries,
   kind: v.pipe(
     v.picklist(PLACE_KINDS),
     v.description(
