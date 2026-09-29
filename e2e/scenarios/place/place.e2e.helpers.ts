@@ -30,6 +30,7 @@ export const POST: ScrapedPost = {
   typename: "image",
   caption: "성수동 카페 코스",
   imageUrls: ["https://cdn.example/1.jpg"],
+  videoUrl: null,
   owner: { id: "1", username: "tester", fullName: "테스터" },
   location: null,
 };
@@ -66,7 +67,10 @@ export class PlaceE2eHarness {
       this.capturedTask = task;
     },
   );
-  readonly placeImage = { storePostImages: jest.fn().mockResolvedValue([]) };
+  readonly placeImage = {
+    storePostImages: jest.fn().mockResolvedValue([]),
+    storePostVideo: jest.fn().mockResolvedValue(null),
+  };
 
   private app: INestApplication | undefined;
   private database: DatabaseService["db"] | undefined;
@@ -133,8 +137,10 @@ export class PlaceE2eHarness {
     this.ai.extract.mockReset();
     this.geocoder.search.mockReset();
     this.placeImage.storePostImages.mockReset();
-    // 기본은 이미지 없는 글. 이미지가 필요한 시나리오만 따로 지정한다.
+    this.placeImage.storePostVideo.mockReset();
+    // 기본은 이미지·영상 없는 글. 필요한 시나리오만 따로 지정한다.
     this.placeImage.storePostImages.mockResolvedValue([]);
+    this.placeImage.storePostVideo.mockResolvedValue(null);
     this.instagram.fetchPost.mockResolvedValue(POST);
     this.ai.extract.mockResolvedValue({
       places: [

@@ -72,6 +72,7 @@ describe("InstagramPolarisJsonProvider", () => {
       typename: "carousel",
       caption: "문래 맛집",
       imageUrls: ["https://cdn.test/1.jpg", "https://cdn.test/2.jpg"],
+      videoUrl: null,
       owner: { id: "18070596058", username: "mukgenie", fullName: "먹지니" },
       location: {
         id: "300097854",

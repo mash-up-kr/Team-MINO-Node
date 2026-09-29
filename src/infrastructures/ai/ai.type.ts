@@ -14,8 +14,25 @@ export interface ImagePart {
   mediaType: string;
 }
 
-export type ContentPart = TextPart | ImagePart;
+export interface VideoPart {
+  type: "video";
+  // GCS에 올린 영상의 gs:// URI. 이미지와 같은 이유로 gs://만 쓴다.
+  url: string;
+  // 예: "video/mp4". fileData로 넘길 때 필수.
+  mediaType: string;
+}
+
+export type ContentPart = TextPart | ImagePart | VideoPart;
+
+export interface ExtractOptions {
+  // 기본은 AiService의 상수(30초). 영상이 실리면 길어지므로 호출별로 늘릴 수 있다.
+  timeoutMs?: number;
+}
 
 export interface AiServiceInterface {
-  extract<T>(schema: GenericSchema<T>, content: ContentPart[]): Promise<T>;
+  extract<T>(
+    schema: GenericSchema<T>,
+    content: ContentPart[],
+    options?: ExtractOptions,
+  ): Promise<T>;
 }

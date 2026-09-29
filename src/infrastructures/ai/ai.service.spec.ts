@@ -66,6 +66,26 @@ describe("AiService", () => {
     expect(content[1].mediaType).toBe("image/png");
   });
 
+  it("video 파트는 SDK의 file 파트(gs:// + mediaType)로 변환한다", async () => {
+    // given
+    generateText.mockResolvedValue({ output: { name: "어니언" } });
+
+    // when
+    await makeService().extract(schema, [
+      {
+        type: "video",
+        url: "gs://bucket/abc123/video",
+        mediaType: "video/mp4",
+      },
+    ]);
+
+    // then
+    const content = generateText.mock.calls[0][0].messages[0].content;
+    expect(content[0].type).toBe("file");
+    expect(String(content[0].data)).toBe("gs://bucket/abc123/video");
+    expect(content[0].mediaType).toBe("video/mp4");
+  });
+
   it("NoObjectGeneratedError는 AI_SCHEMA_MISMATCH(422)로 변환한다", async () => {
     // given
     generateText.mockRejectedValue(new NoObjectGeneratedError("invalid"));

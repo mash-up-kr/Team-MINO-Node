@@ -45,6 +45,7 @@ describe("InstagramPolarisHtmlProvider", () => {
       typename: "image",
       caption: 'caption with } and " quote',
       imageUrls: ["https://cdn.test/full.jpg"],
+      videoUrl: null,
       owner: { id: "10013772027", username: "egg", fullName: "Just An Egg" },
       location: null,
     });

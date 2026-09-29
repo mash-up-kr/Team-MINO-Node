@@ -70,6 +70,40 @@ function createPlaceImagesBucket(appEnv: "local" | "prod") {
   return bucket;
 }
 
+/**
+ * 릴스 영상을 담는 버킷. 이미지 버킷과 분리한 이유는 두 가지다.
+ *
+ * 1) 비공개. 영상은 Vertex에 넘길 때만 필요하고 클라이언트에 내려주지 않는다. 이미지
+ *    버킷처럼 공개하면 경로를 짐작할 수 있는 mp4가 되어 릴스를 재호스팅하는 꼴이고,
+ *    저작권·egress 비용 모두 이미지보다 부담이 크다.
+ * 2) 수명. 추출이 끝나면 쓸 일이 없다. 재시도 동안은 재사용되도록 7일만 두고 지운다.
+ */
+function createPlaceVideosBucket(appEnv: "local" | "prod") {
+  const bucket = new gcp.storage.Bucket(
+    `team-mino-place-videos-${appEnv}`,
+    {
+      name: `team-mino-place-videos-${appEnv}`,
+      location: region,
+      uniformBucketLevelAccess: true,
+      publicAccessPrevention: "enforced",
+      lifecycleRules: [{ action: { type: "Delete" }, condition: { age: 7 } }],
+    },
+    { dependsOn: enabledServices },
+  );
+
+  // Vertex는 서비스 에이전트 신원으로 읽는다(이미지 버킷과 같다).
+  new gcp.storage.BucketIAMMember(
+    `team-mino-place-videos-${appEnv}-vertex-reader`,
+    {
+      bucket: bucket.name,
+      role: "roles/storage.objectViewer",
+      member: pulumi.interpolate`serviceAccount:${vertexServiceAgent.email}`,
+    },
+  );
+
+  return bucket;
+}
+
 const vertexServiceAgent = new gcp.projects.ServiceIdentity(
   "team-mino-aiplatform-agent",
   { project, service: "aiplatform.googleapis.com" },
@@ -89,6 +123,21 @@ new gcp.storage.BucketIAMMember("team-mino-place-images-prod-server-writer", {
 // 개발자는 로컬 버킷에만 쓴다. 운영 버킷은 프로젝트 viewer 권한으로 읽기만 가능하다.
 new gcp.storage.BucketIAMMember("team-mino-place-images-local-developers", {
   bucket: placeImagesLocalBucket.name,
+  role: "roles/storage.objectAdmin",
+  member: developersGroup,
+});
+
+export const placeVideosLocalBucket = createPlaceVideosBucket("local");
+export const placeVideosProdBucket = createPlaceVideosBucket("prod");
+
+new gcp.storage.BucketIAMMember("team-mino-place-videos-prod-server-writer", {
+  bucket: placeVideosProdBucket.name,
+  role: "roles/storage.objectAdmin",
+  member: pulumi.interpolate`serviceAccount:${serverServiceAccount.email}`,
+});
+
+new gcp.storage.BucketIAMMember("team-mino-place-videos-local-developers", {
+  bucket: placeVideosLocalBucket.name,
   role: "roles/storage.objectAdmin",
   member: developersGroup,
 });

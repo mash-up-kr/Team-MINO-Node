@@ -19,6 +19,8 @@ export interface ScrapedPost {
   typename: "image" | "video" | "carousel";
   caption: string | null;
   imageUrls: string[]; // 사진 + 영상 썸네일
+  // 영상 게시글(릴스)의 원본 mp4 URL. 사진 게시글은 null.
+  videoUrl: string | null;
   location: ScrapedLocation | null;
 }
 

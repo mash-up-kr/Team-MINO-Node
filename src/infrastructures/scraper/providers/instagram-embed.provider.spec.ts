@@ -152,6 +152,7 @@ describe("InstagramEmbedProvider", () => {
           contextMedia: makeContextMedia({
             __typename: "GraphVideo",
             display_url: "https://scontent.cdninstagram.com/thumb.jpg",
+            video_url: "https://scontent.cdninstagram.com/reel.mp4",
           }),
         }),
       );
@@ -164,6 +165,7 @@ describe("InstagramEmbedProvider", () => {
       expect(post?.imageUrls).toEqual([
         "https://scontent.cdninstagram.com/thumb.jpg",
       ]);
+      expect(post?.videoUrl).toBe("https://scontent.cdninstagram.com/reel.mp4");
     });
 
     it("캡션에 따옴표가 있어도 이스케이프된 JSON을 올바르게 파싱한다", async () => {

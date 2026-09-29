@@ -6,7 +6,11 @@ import { generateText, NoObjectGeneratedError, Output } from "ai";
 import type { GenericSchema } from "valibot";
 import { AppException } from "../../common/exceptions/app.exception";
 import type { Env } from "../../config/env.schema";
-import type { AiServiceInterface, ContentPart } from "./ai.type";
+import type {
+  AiServiceInterface,
+  ContentPart,
+  ExtractOptions,
+} from "./ai.type";
 
 // Gemini 3.1 Flash-Lite는 global/us/eu를 지원하며, 이 앱은 global을 기본 location으로 사용한다.
 const MODEL = "gemini-3.1-flash-lite";
@@ -21,6 +25,7 @@ export class AiService implements AiServiceInterface {
   async extract<T>(
     schema: GenericSchema<T>,
     content: ContentPart[],
+    options: ExtractOptions = {},
   ): Promise<T> {
     const model = this.vertex(MODEL);
     const messages = [
@@ -31,7 +36,7 @@ export class AiService implements AiServiceInterface {
       const { output } = await generateText({
         model,
         messages,
-        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+        abortSignal: AbortSignal.timeout(options.timeoutMs ?? AI_TIMEOUT_MS),
         output: Output.object({ schema: valibotSchema(schema) }),
       });
       return output;
@@ -79,17 +84,23 @@ export class AiService implements AiServiceInterface {
 
   private toModelContent(content: ContentPart[]) {
     return content.map((part) => {
-      return part.type === "text"
-        ? { type: "text" as const, text: part.text }
-        : {
-            type: "image" as const,
-            image: this.toImageUrl(part.url),
-            mediaType: part.mediaType,
-          };
+      if (part.type === "text") {
+        return { type: "text" as const, text: part.text };
+      }
+      const url = this.toMediaUrl(part.url);
+      if (part.type === "image") {
+        return {
+          type: "image" as const,
+          image: url,
+          mediaType: part.mediaType,
+        };
+      }
+      // 영상은 SDK의 file 파트다. gs://를 fileData로 읽는 경로는 이미지와 같다.
+      return { type: "file" as const, data: url, mediaType: part.mediaType };
     });
   }
 
-  private toImageUrl(url: string): URL {
+  private toMediaUrl(url: string): URL {
     try {
       return new URL(url);
     } catch {
