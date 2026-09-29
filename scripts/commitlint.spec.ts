@@ -17,7 +17,8 @@ const runCommitlint = (message: string) => {
       stdout: "pipe",
       stderr: "pipe",
     });
-    return proc.exitCode ?? 1;
+    const output = `${proc.stdout.toString()}\n${proc.stderr.toString()}`;
+    return { exitCode: proc.exitCode ?? 1, output };
   } finally {
     rmSync(messageFile, { force: true });
   }
@@ -25,26 +26,36 @@ const runCommitlint = (message: string) => {
 
 describe("commit-msg hook (commitlint)", () => {
   it("accepts conventional commit subjects with supported types", () => {
-    expect(runCommitlint("docs: 꾹(GGUK) 제품명 표기 통일")).toBe(0);
-    expect(runCommitlint("fix(api): handle missing place")).toBe(0);
-    expect(runCommitlint("feat!: remove deprecated endpoint")).toBe(0);
+    expect(runCommitlint("docs: 꾹(GGUK) 제품명 표기 통일").exitCode).toBe(0);
+    expect(runCommitlint("fix(api): handle missing place").exitCode).toBe(0);
+    expect(runCommitlint("feat!: remove deprecated endpoint").exitCode).toBe(0);
   });
 
   it("rejects subjects outside the agreed format", () => {
-    expect(runCommitlint("[mono] 꾹 제품명 표기 통일")).toBe(1);
-    expect(runCommitlint("fix:")).toBe(1);
-    expect(runCommitlint("update: change behavior")).toBe(1);
+    const missingType = runCommitlint("[mono] 꾹 제품명 표기 통일");
+    expect(missingType.exitCode).toBe(1);
+    expect(missingType.output).toContain("[type-empty]");
+
+    const emptySubject = runCommitlint("fix:");
+    expect(emptySubject.exitCode).toBe(1);
+    expect(emptySubject.output).toContain("[subject-empty]");
+
+    const unsupportedType = runCommitlint("update: change behavior");
+    expect(unsupportedType.exitCode).toBe(1);
+    expect(unsupportedType.output).toContain("[type-enum]");
   });
 
   it("accepts git-generated merge and revert subjects", () => {
     expect(
-      runCommitlint("Merge pull request #12 from mash-up-kr/feature"),
+      runCommitlint("Merge pull request #12 from mash-up-kr/feature").exitCode,
     ).toBe(0);
-    expect(runCommitlint("Merge branch 'main' into feature")).toBe(0);
-    expect(runCommitlint('Revert "feat: add feature"')).toBe(0);
+    expect(runCommitlint("Merge branch 'main' into feature").exitCode).toBe(0);
+    expect(runCommitlint('Revert "feat: add feature"').exitCode).toBe(0);
   });
 
   it("rejects subjects that only look like merge messages", () => {
-    expect(runCommitlint("Merge this feature")).toBe(1);
+    const fakeMerge = runCommitlint("Merge this feature");
+    expect(fakeMerge.exitCode).toBe(1);
+    expect(fakeMerge.output).toContain("[type-empty]");
   });
 });
