@@ -7,6 +7,7 @@
     "build": "bun run scripts/build.ts",
     "check": "biome check .",
     "check:staged": "nano-staged --bail",
+    "commitlint:msg": "commitlint --edit",
     "db:generate": "bun run scripts/with-env.ts -- drizzle-kit generate",
     "db:migrate": "bun run scripts/with-env.ts -- drizzle-kit migrate",
     "db:schema-init": "bun run scripts/with-env.ts -- bun run scripts/db-schema-init.ts",
@@ -18,7 +19,7 @@
     "start:prod": "./dist/server",
     "test": "bun run test:unit && bun run test:e2e",
     "test:e2e": "bun test --env-file=.env.test --preload ./e2e/setup.ts .e2e.spec",
-    "test:unit": "bun test --env-file=.env.test src/ --path-ignore-patterns '**/*.e2e.spec.ts'",
+    "test:unit": "bun test --env-file=.env.test src/ scripts/ --path-ignore-patterns '**/*.e2e.spec.ts'",
     "test:watch": "bun test --env-file=.env.test --watch src/ --path-ignore-patterns '**/*.e2e.spec.ts'",
     "typecheck": "tsgo --noEmit",
     "typecheck:tsc": "tsc --noEmit"
@@ -52,6 +53,11 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@commitlint/lint": "^21.2.3",
+    "@commitlint/load": "^21.2.3",
+    "@commitlint/types": "^21.2.3",
     "@google-cloud/secret-manager": "^6.3.0",
     "@nestjs/cli": "^11.0.21",
     "@nestjs/schematics": "^11.1.0",
@@ -68,6 +74,7 @@
   },
   "simple-git-hooks": {
     "pre-commit": "bun run check:staged",
+    "commit-msg": "bun run commitlint:msg \"$1\"",
     "pre-push": "bun run typecheck && bun run --no-env-file test"
   },
   "nano-staged": {
