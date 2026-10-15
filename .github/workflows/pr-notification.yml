@@ -2,7 +2,7 @@ name: PR Notification
 
 on:
   schedule:
-    - cron: "0 12 * * *" # 매일 오후 9시 KST (12:00 UTC)
+    - cron: "13 11 * * 0" # 매주 일요일 오후 8시 13분 KST (일요일 11:13 UTC)
   workflow_dispatch: # 수동 트리거
 
 permissions:
