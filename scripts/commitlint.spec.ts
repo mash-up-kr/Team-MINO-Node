@@ -29,6 +29,11 @@ describe("commit-msg hook (commitlint)", () => {
     expect(runCommitlint("docs: 꾹(GGUK) 제품명 표기 통일").exitCode).toBe(0);
     expect(runCommitlint("fix(api): handle missing place").exitCode).toBe(0);
     expect(runCommitlint("feat!: remove deprecated endpoint").exitCode).toBe(0);
+    expect(runCommitlint("infra: Cloud Tasks 큐 권한 추가").exitCode).toBe(0);
+    expect(runCommitlint("fix: Sentry에 cause 체인 연결").exitCode).toBe(0);
+    expect(runCommitlint(`feat: 긴 본문\n\n${"가".repeat(150)}`).exitCode).toBe(
+      0,
+    );
   });
 
   it("rejects subjects outside the agreed format", () => {
