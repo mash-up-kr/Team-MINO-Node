@@ -1,3 +1,4 @@
+import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import {
   DEFAULT_PAGE,
@@ -63,5 +64,54 @@ export const notificationListResponseApiSchema: SchemaObject = {
   properties: {
     data: { type: "array", items: notificationSchema },
     pagination: paginationApiSchema,
+  },
+};
+
+export const nearbyTriggersRequestSchema = v.object({
+  placeIds: v.pipe(
+    v.array(v.pipe(v.string(), v.uuid("placeId는 UUID여야 합니다."))),
+    v.minLength(1, "장소가 최소 하나 필요합니다."),
+    // Android 지오펜스 상한. iOS는 기기당 20개로 더 낮다.
+    v.maxLength(100, "장소는 최대 100개까지 보낼 수 있습니다."),
+    v.check(
+      (placeIds) => new Set(placeIds).size === placeIds.length,
+      "placeId가 중복되었습니다.",
+    ),
+  ),
+});
+
+export type NearbyTriggersRequest = v.InferOutput<
+  typeof nearbyTriggersRequestSchema
+>;
+
+export const nearbyTriggersRequestApiSchema = toJsonSchema(
+  nearbyTriggersRequestSchema,
+  { errorMode: "ignore" },
+) as SchemaObject;
+
+export const errorResponseApiSchema: SchemaObject = {
+  type: "object",
+  properties: {
+    errorCode: { type: "string", example: "PLACE_NOT_ACCESSIBLE" },
+    message: {
+      type: "string",
+      example: "접근할 수 없는 장소가 포함되어 있습니다.",
+    },
+  },
+};
+
+export const nearbyTriggersResponseApiSchema: SchemaObject = {
+  type: "object",
+  properties: {
+    data: {
+      type: "object",
+      properties: {
+        newPlaceCount: {
+          type: "integer",
+          description:
+            "이번 요청으로 새로 기록된(=이미 알린 적 없는) 장소 수. push 발송은 별개이며 실패해도 이 값에는 반영되지 않는다",
+        },
+      },
+    },
   },
 };

@@ -1,8 +1,10 @@
-import { Injectable } from "@nestjs/common";
+import { HttpStatus, Injectable } from "@nestjs/common";
+import { AppException } from "../../common/exceptions/app.exception";
 import type { PaginatedResponse } from "../../common/pagination/pagination.type";
 import { MessagingService } from "../../infrastructures/messaging/messaging.service";
 import { SentryErrorReporter } from "../../infrastructures/sentry/sentry-reporter";
 import {
+  type NearbyPlace,
   NotificationRepository,
   type RecordNotificationInput,
 } from "./notification.repository";
@@ -88,6 +90,66 @@ export class NotificationService {
     }
 
     return targets.length;
+  }
+
+  async recordNearbyTriggers(
+    userId: string,
+    placeIds: string[],
+  ): Promise<number> {
+    const accessible = await this.notificationRepository.findAccessiblePlaces(
+      userId,
+      placeIds,
+    );
+    if (accessible.length !== placeIds.length) {
+      throw new AppException(
+        "PLACE_NOT_ACCESSIBLE",
+        "접근할 수 없는 장소가 포함되어 있습니다.",
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const created: NearbyPlace[] = [];
+    for (const place of accessible) {
+      const recorded = await this.notificationRepository.record({
+        recipientId: userId,
+        type: "NEARBY_PLACE",
+        typeLabel: "근처에 저장한 장소가 있어요",
+        targetName: place.placeName,
+        thumbnailUrl: place.thumbnailUrl ?? undefined,
+        payload: { placeId: place.placeId, pinId: place.pinId },
+        key: `NEARBY_PLACE:${place.placeId}`,
+      });
+      if (recorded) created.push(place);
+    }
+
+    const [first, ...rest] = created;
+    if (!first) return 0;
+
+    const fcmToken = await this.findPushTokenSafely(userId);
+    if (!fcmToken) return created.length;
+
+    // 여러 건이면 앱 밖 알림만 대표 하나로 묶는다. 대표는 알림함 행이 없다(FR-019).
+    await this.messagingService.sendToTokens(
+      [fcmToken],
+      rest.length === 0
+        ? {
+            title: first.placeName,
+            body: "근처에 저장한 장소가 있어요",
+            imageUrl: first.thumbnailUrl ?? undefined,
+            data: {
+              type: "NEARBY_PLACE",
+              placeId: first.placeId,
+              pinId: first.pinId,
+            },
+          }
+        : {
+            title: `근처에 저장한 곳 ${created.length}개가 있어요`,
+            body: "반경 3km",
+            data: { type: "NEARBY_PLACE_SUMMARY" },
+          },
+    );
+
+    return created.length;
   }
 
   async listPage(
