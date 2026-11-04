@@ -40,7 +40,9 @@ const roomColorSchema = v.picklist(
 export const createRoomRequestSchema = v.object({
   name: roomNameSchema,
   description: v.optional(roomDescriptionSchema),
-  color: roomColorSchema,
+  // QA 스펙 FR-006/TS-007: 대표 색상 미선택 시 회색 적용. 생략 가능하며 생략 시
+  // SHARED_ROOM_DEFAULT_COLOR("gray")로 저장된다 (하위호환: "gray" 명시 전송도 그대로 허용).
+  color: v.optional(roomColorSchema),
 });
 
 export type CreateRoomRequest = v.InferOutput<typeof createRoomRequestSchema>;

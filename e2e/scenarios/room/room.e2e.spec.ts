@@ -167,6 +167,19 @@ describe("공동방 생성·조회", () => {
     expect(tooLong.status).toBe(400);
   });
 
+  it("색상을 생략하면 회색(gray)으로 저장된다 (QA 스펙 FR-006/TS-007)", async () => {
+    const response = await api("/api/v1/rooms", ownerAuthUid, {
+      method: "POST",
+      body: JSON.stringify({ name: "색상 미선택 방" }),
+    });
+
+    expect(response.status).toBe(201);
+    const { data } = (await response.json()) as {
+      data: { color: string };
+    };
+    expect(data.color).toBe("gray");
+  });
+
   it("방 이름에 허용 외 문자(이모지)는 400", async () => {
     const response = await api("/api/v1/rooms", ownerAuthUid, {
       method: "POST",
