@@ -10,6 +10,15 @@ export class BunHonoAdapter extends HonoAdapter {
   private bunServer?: BunServer<unknown>;
 
   override initHttpServer(options: NestApplicationOptions): void {
+    // 라이브러리 미들웨어보다 먼저 등록해야 한다. Hono 라우터는 경로에 `*`가 있으면
+    // 같은 미들웨어를 두 번 매칭하므로, 여기서 응답을 끝내 두 번째 실행을 막는다.
+    this.instance.use(async (ctx, next) => {
+      if (ctx.req.path.includes("*")) {
+        return ctx.json({ errorCode: "NOT_FOUND", message: "Not Found" }, 404);
+      }
+      await next();
+    });
+
     super.initHttpServer(options);
     this.httpServer = new BunHttpServerStub(() => this.bunServer) as never;
 
