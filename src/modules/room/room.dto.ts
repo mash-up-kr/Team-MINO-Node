@@ -42,7 +42,10 @@ export const createRoomRequestSchema = v.object({
   description: v.optional(roomDescriptionSchema),
   // QA 스펙 FR-006/TS-007: 대표 색상 미선택 시 회색 적용. 생략 가능하며 생략 시
   // SHARED_ROOM_DEFAULT_COLOR("gray")로 저장된다 (하위호환: "gray" 명시 전송도 그대로 허용).
-  color: v.optional(roomColorSchema),
+  // description은 생성 문서(/api-docs)에 기본값 안내를 노출하기 위한 것으로 검증을 바꾸지 않는다.
+  color: v.optional(
+    v.pipe(roomColorSchema, v.description("생략 시 회색(gray)이 적용된다.")),
+  ),
 });
 
 export type CreateRoomRequest = v.InferOutput<typeof createRoomRequestSchema>;
