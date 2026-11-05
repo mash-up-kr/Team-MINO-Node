@@ -22,12 +22,17 @@ const roomNameSchema = v.pipe(
   maxGraphemes(15, "방 이름은 15자 이하여야 합니다."),
 );
 
-/** 방 설명: 30자(grapheme) 이내 (기획 확정 — 클라이언트 카운터와 동일 단위) */
+/**
+ * 방 설명: 30자(grapheme) 이내 (기획 확정 — 클라이언트 카운터와 동일 단위).
+ * 앞뒤 공백 제거 후 빈 문자열은 null로 정규화한다 — ""와 null이 DB에 섞이지 않게 한다
+ * (안드가 공백 설명을 날것으로 보내면 서버 trim 뒤 ""로 남던 구멍).
+ */
 const roomDescriptionSchema = v.nullable(
   v.pipe(
     v.string(),
     v.trim(),
     maxGraphemes(30, "방 설명은 30자 이하여야 합니다."),
+    v.transform((value) => (value === "" ? null : value)),
   ),
 );
 
