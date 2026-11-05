@@ -167,6 +167,41 @@ describe("공동방 생성·조회", () => {
     expect(tooLong.status).toBe(400);
   });
 
+  it("공백 설명은 null로 정규화되어 저장된다", async () => {
+    const created = await api("/api/v1/rooms", ownerAuthUid, {
+      method: "POST",
+      body: JSON.stringify({ name: "공백 설명 방", description: "   " }),
+    });
+    expect(created.status).toBe(201);
+    const { data } = (await created.json()) as {
+      data: { id: string; description: string | null };
+    };
+    expect(data.description).toBeNull();
+
+    const patched = await api(`/api/v1/rooms/${data.id}`, ownerAuthUid, {
+      method: "PATCH",
+      body: JSON.stringify({ description: "" }),
+    });
+    expect(patched.status).toBe(200);
+    const { data: updated } = (await patched.json()) as {
+      data: { description: string | null };
+    };
+    expect(updated.description).toBeNull();
+  });
+
+  it("색상을 생략하면 회색(gray)으로 저장된다 (QA 스펙 FR-006/TS-007)", async () => {
+    const response = await api("/api/v1/rooms", ownerAuthUid, {
+      method: "POST",
+      body: JSON.stringify({ name: "색상 미선택 방" }),
+    });
+
+    expect(response.status).toBe(201);
+    const { data } = (await response.json()) as {
+      data: { color: string };
+    };
+    expect(data.color).toBe("gray");
+  });
+
   it("방 이름에 허용 외 문자(이모지)는 400", async () => {
     const response = await api("/api/v1/rooms", ownerAuthUid, {
       method: "POST",

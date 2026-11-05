@@ -160,7 +160,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, color]
+              required: [name]
               properties:
                 name:
                   $ref: "#/components/schemas/RoomName"
@@ -169,7 +169,10 @@ paths:
                   maxLength: 30 # grapheme 단위(클라이언트 카운터와 동일)
                   nullable: true
                 color:
-                  $ref: "#/components/schemas/ColorKey"
+                  allOf:
+                    - $ref: "#/components/schemas/ColorKey"
+                  default: gray
+                  description: 생략 시 gray로 저장된다 (QA 스펙 FR-006/TS-007). 명시 전송도 허용.
       responses:
         "201":
           description: 생성된 방

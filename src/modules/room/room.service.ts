@@ -1,6 +1,9 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { AppException } from "../../common/exceptions/app.exception";
-import { ROOM_THUMBNAIL_COUNT } from "./room.constant";
+import {
+  ROOM_THUMBNAIL_COUNT,
+  SHARED_ROOM_DEFAULT_COLOR,
+} from "./room.constant";
 import type {
   CreateRoomRequest,
   ListRoomsQuery,
@@ -30,7 +33,8 @@ export class RoomService {
     return await this.roomRepository.createSharedRoom(userId, {
       name: input.name,
       description: input.description ?? null,
-      color: input.color,
+      // QA 스펙 FR-006/TS-007: 색상 미선택 시 회색 적용.
+      color: input.color ?? SHARED_ROOM_DEFAULT_COLOR,
     });
   }
 
