@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm";
 import { BaseRepository } from "../../infrastructures/db/base.repository";
 import { pins } from "../pin/pin.schema";
+import { pinComments } from "../pin/pin-comment.schema";
 import { users } from "../user/user.schema";
 import { rooms } from "./room.schema";
 import type {
@@ -56,6 +57,49 @@ export class RoomRepository extends BaseRepository {
     return this.db.$count(
       roomMembers,
       and(eq(roomMembers.roomId, rooms.id), isNull(roomMembers.deletedAt)),
+    );
+  }
+
+  /**
+   * 방별 마지막 저장 시각 — 활성 핀 중 최신 createdAt. 핀이 없으면 NULL이다.
+   * 방 리스트 "최근 저장 순" 정렬의 원천 (QA 스펙 room-list FR-005/TS-007).
+   */
+  private get lastSavedAt() {
+    const latestPin = this.db
+      .select({ value: max(pins.createdAt) })
+      .from(pins)
+      .where(and(eq(pins.roomId, rooms.id), isNull(pins.deletedAt)));
+    // raw SQL 스칼라 서브쿼리라 드라이버가 timestamptz를 문자열("YYYY-MM-DD HH:mm:ss+TZ")로
+    // 돌려준다 — drizzle의 컬럼 타입 파싱을 타지 않으므로 여기서 Date로 변환한다.
+    return sql<Date | null>`${latestPin}`
+      .mapWith((value: string | Date | null) =>
+        value === null || value instanceof Date ? value : new Date(value),
+      )
+      .as("last_saved_at");
+  }
+
+  /**
+   * 방별 활성 코멘트 수 — 방에 속한 활성 핀들의 활성 코멘트 합산.
+   * 방 리스트 "코멘트 순" 정렬의 원천 (QA 스펙 room-list FR-005/TS-007).
+   */
+  private get commentCount() {
+    return this.db.$count(
+      pinComments,
+      and(
+        isNull(pinComments.deletedAt),
+        exists(
+          this.db
+            .select({ one: sql`1` })
+            .from(pins)
+            .where(
+              and(
+                eq(pins.id, pinComments.pinId),
+                eq(pins.roomId, rooms.id),
+                isNull(pins.deletedAt),
+              ),
+            ),
+        ),
+      ),
     );
   }
 
@@ -147,6 +191,8 @@ export class RoomRepository extends BaseRepository {
         ...ROOM_COLUMNS,
         pinCount: this.pinCount,
         memberCount: this.memberCount,
+        lastSavedAt: this.lastSavedAt,
+        commentCount: this.commentCount,
         isMember: this.isMemberOf(userId),
       })
       .from(rooms)
@@ -156,7 +202,7 @@ export class RoomRepository extends BaseRepository {
   }
 
   /**
-   * 유저가 속한 활성 방 목록 — 핀 수·멤버 수를 서브쿼리로 함께 조회한다.
+   * 유저가 속한 활성 방 목록 — 핀 수·멤버 수·정렬용 메타를 서브쿼리로 함께 조회한다.
    * 정렬은 기획 미확정이라 생성 역순 잠정.
    */
   async listJoinedRoomsWithCounts(
@@ -167,6 +213,8 @@ export class RoomRepository extends BaseRepository {
         ...ROOM_COLUMNS,
         pinCount: this.pinCount,
         memberCount: this.memberCount,
+        lastSavedAt: this.lastSavedAt,
+        commentCount: this.commentCount,
       })
       .from(roomMembers)
       .innerJoin(
