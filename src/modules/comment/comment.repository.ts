@@ -1,11 +1,11 @@
 import { Injectable } from "@nestjs/common";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { DatabaseService } from "../../infrastructures/db/database.service";
 import { pins } from "../pin/pin.schema";
 import { pinComments } from "../pin/pin-comment.schema";
 import { rooms } from "../room/room.schema";
 import { roomMembers } from "../room/room-member.schema";
-import { users } from "../user/user.schema";
+import { type UserAvatar, users } from "../user/user.schema";
 
 @Injectable()
 export class CommentRepository {
@@ -51,8 +51,15 @@ export class CommentRepository {
         content: pinComments.content,
         createdAt: pinComments.createdAt,
         authorId: users.id,
-        authorNickname: users.nickname,
-        authorAvatar: users.avatar,
+        // 작성 시점 스냅샷 우선, 없으면(마이그레이션 이전 행) 현재 프로필로 폴백.
+        authorNickname:
+          sql<string>`coalesce(${pinComments.authorNickname}, ${users.nickname})`.as(
+            "author_nickname",
+          ),
+        authorAvatar:
+          sql<UserAvatar | null>`coalesce(${pinComments.authorAvatar}, ${users.avatar})`.as(
+            "author_avatar",
+          ),
       })
       .from(pinComments)
       .innerJoin(users, eq(pinComments.createdBy, users.id))
@@ -62,7 +69,12 @@ export class CommentRepository {
       .limit(limit);
   }
 
-  async create(pinId: string, createdBy: string, content: string) {
+  async create(
+    pinId: string,
+    createdBy: string,
+    content: string,
+    author: { nickname: string; avatar: UserAvatar | null },
+  ) {
     return await this.db.transaction(async (tx) => {
       // 핀이 활성 상태인지 row lock(FOR SHARE)으로 확인하여 동시 삭제와의 경합을 직렬화한다.
       const [pin] = await tx
@@ -77,7 +89,13 @@ export class CommentRepository {
 
       const [comment] = await tx
         .insert(pinComments)
-        .values({ pinId, createdBy, content })
+        .values({
+          pinId,
+          createdBy,
+          content,
+          authorNickname: author.nickname,
+          authorAvatar: author.avatar,
+        })
         .returning({
           id: pinComments.id,
           content: pinComments.content,

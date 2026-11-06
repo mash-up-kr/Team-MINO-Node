@@ -238,6 +238,43 @@ describe("POST /api/v1/pins/:pinId/comments", () => {
     expect(response.status).toBe(201);
   });
 
+  it("닉네임을 바꾼 뒤에도 기존 코멘트는 작성 당시 닉네임으로 보인다 (EC-016)", async () => {
+    const snapshotAuthUid = `e2e-comment-snapshot-${randomUUID()}`;
+    const [snapshotUser] = await db
+      .insert(users)
+      .values({
+        authUid: snapshotAuthUid,
+        nickname: "도윤",
+        avatar: null,
+      })
+      .returning({ id: users.id });
+    if (!snapshotUser) throw new Error("유저 픽스처 생성 실패");
+    await db
+      .insert(roomMembers)
+      .values({ roomId: sharedRoomId, userId: snapshotUser.id });
+
+    const created = await createComment(
+      secondSharedPinId,
+      snapshotAuthUid,
+      "스냅샷 확인용",
+    );
+    expect(created.status).toBe(201);
+
+    const renamed = await api("/api/v1/users/me", snapshotAuthUid, {
+      method: "PATCH",
+      body: JSON.stringify({ nickname: "도윤상회" }),
+    });
+    expect(renamed.status).toBe(200);
+
+    const listed = await api(commentPath(secondSharedPinId), snapshotAuthUid);
+    expect(listed.status).toBe(200);
+    const { data } = (await listed.json()) as {
+      data: Array<{ content: string; author: { nickname: string } }>;
+    };
+    const mine = data.find((entry) => entry.content === "스냅샷 확인용");
+    expect(mine?.author.nickname).toBe("도윤");
+  });
+
   it("같은 내용의 코멘트를 각각 저장한다", async () => {
     const first = await createComment(
       sharedPinId,

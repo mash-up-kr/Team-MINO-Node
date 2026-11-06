@@ -57,6 +57,8 @@ export class CommentService {
       pinId,
       user.id,
       request.content,
+      // 작성 시점 프로필 스냅샷 (QA 스펙 EC-016).
+      { nickname: user.nickname, avatar: user.avatar },
     );
     if (!comment) {
       throw new AppException(
