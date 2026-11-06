@@ -151,10 +151,12 @@ jobs:
           cache-to: type=gha,mode=max
 
   server-migrate:
-    needs: [changes, server-build]
+    needs: [changes, infra-deploy, server-build]
     if: >-
       github.event_name == 'push'
       && needs.changes.outputs.server == 'true'
+      && !cancelled()
+      && needs.infra-deploy.result != 'failure'
       && needs.server-build.result == 'success'
     runs-on: ubuntu-latest
     environment: team-mino-prod
