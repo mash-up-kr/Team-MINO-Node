@@ -152,6 +152,20 @@ const roomMemberSchema: SchemaObject = {
 
 const roomSummarySchema: SchemaObject = {
   type: "object",
+  required: [
+    "id",
+    "type",
+    "name",
+    "description",
+    "color",
+    "ownerId",
+    "createdAt",
+    "pinCount",
+    "memberCount",
+    "lastSavedAt",
+    "commentCount",
+    "thumbnailList",
+  ],
   properties: {
     ...roomSchema.properties,
     pinCount: { type: "integer" },
@@ -208,6 +222,19 @@ export const roomDetailResponseApiSchema: SchemaObject = {
   properties: {
     data: {
       type: "object",
+      required: [
+        "id",
+        "type",
+        "name",
+        "description",
+        "color",
+        "ownerId",
+        "createdAt",
+        "pinCount",
+        "memberCount",
+        "lastSavedAt",
+        "commentCount",
+      ],
       properties: {
         ...roomSchema.properties,
         pinCount: { type: "integer" },

@@ -1251,6 +1251,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/Room"
         - type: object
+          required: [pinCount, memberCount, lastSavedAt, commentCount, thumbnailList]
           properties:
             pinCount:
               type: integer
@@ -1290,6 +1291,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/Room"
         - type: object
+          required: [pinCount, memberCount, lastSavedAt, commentCount]
           properties:
             pinCount:
               type: integer

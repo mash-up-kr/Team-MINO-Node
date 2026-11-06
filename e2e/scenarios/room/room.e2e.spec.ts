@@ -239,7 +239,7 @@ describe("공동방 생성·조회", () => {
       )
       .returning({ id: pins.id });
     const commentResponse = await api(
-      `/api/v1/pins/${seededPins[0]?.id}/comments`,
+      `/api/v1/pins/${seededPins[1]?.id}/comments`,
       ownerAuthUid,
       { method: "POST", body: JSON.stringify({ content: "정렬용 코멘트" }) },
     );
@@ -263,6 +263,46 @@ describe("공동방 생성·조회", () => {
     const personal = data.find((entry) => entry.type === "personal");
     expect(personal?.lastSavedAt).toBeNull();
     expect(personal?.commentCount).toBe(0);
+
+    // 최신 핀을 삭제하면 이전 핀의 시각으로 폴백되고, 삭제된 핀의 코멘트는 제외된다.
+    const laterPinId = seededPins[1]?.id as string;
+    const deletePin = await api(`/api/v1/pins/${laterPinId}`, ownerAuthUid, {
+      method: "DELETE",
+    });
+    expect(deletePin.status).toBe(200);
+
+    // 코멘트를 두 개 달았다가 하나 지우면 하나만 집계된다.
+    const earlierPinId = seededPins[0]?.id as string;
+    for (const content of ["첫 번째", "두 번째"]) {
+      const created = await api(
+        `/api/v1/pins/${earlierPinId}/comments`,
+        ownerAuthUid,
+        { method: "POST", body: JSON.stringify({ content }) },
+      );
+      expect(created.status).toBe(201);
+      if (content === "두 번째") {
+        const commentId = ((await created.json()) as { data: { id: string } })
+          .data.id;
+        const deleted = await api(
+          `/api/v1/pins/${earlierPinId}/comments/${commentId}`,
+          ownerAuthUid,
+          { method: "DELETE" },
+        );
+        expect(deleted.status).toBe(200);
+      }
+    }
+
+    const relisted = await api("/api/v1/rooms", ownerAuthUid);
+    const { data: relistedData } = (await relisted.json()) as {
+      data: Array<{
+        id: string;
+        lastSavedAt: string | null;
+        commentCount: number;
+      }>;
+    };
+    const relistedRoom = relistedData.find((entry) => entry.id === sortRoomId);
+    expect(relistedRoom?.lastSavedAt).toBe(earlier.toISOString());
+    expect(relistedRoom?.commentCount).toBe(1);
   });
 
   it("방 이름에 허용 외 문자(이모지)는 400", async () => {
