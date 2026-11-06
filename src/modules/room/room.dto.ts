@@ -152,10 +152,35 @@ const roomMemberSchema: SchemaObject = {
 
 const roomSummarySchema: SchemaObject = {
   type: "object",
+  required: [
+    "id",
+    "type",
+    "name",
+    "description",
+    "color",
+    "ownerId",
+    "createdAt",
+    "pinCount",
+    "memberCount",
+    "lastSavedAt",
+    "commentCount",
+    "thumbnailList",
+  ],
   properties: {
     ...roomSchema.properties,
     pinCount: { type: "integer" },
     memberCount: { type: "integer" },
+    lastSavedAt: {
+      type: "string",
+      format: "date-time",
+      nullable: true,
+      description:
+        "활성 핀 중 최신 저장 시각. 핀이 없으면 null (방 리스트 '최근 저장 순' 원천).",
+    },
+    commentCount: {
+      type: "integer",
+      description: "방 내 활성 코멘트 수 (방 리스트 '코멘트 순' 원천).",
+    },
     thumbnailList: {
       type: "array",
       items: { type: "string" },
@@ -197,10 +222,33 @@ export const roomDetailResponseApiSchema: SchemaObject = {
   properties: {
     data: {
       type: "object",
+      required: [
+        "id",
+        "type",
+        "name",
+        "description",
+        "color",
+        "ownerId",
+        "createdAt",
+        "pinCount",
+        "memberCount",
+        "lastSavedAt",
+        "commentCount",
+      ],
       properties: {
         ...roomSchema.properties,
         pinCount: { type: "integer" },
         memberCount: { type: "integer" },
+        lastSavedAt: {
+          type: "string",
+          format: "date-time",
+          nullable: true,
+          description: "활성 핀 중 최신 저장 시각. 핀이 없으면 null.",
+        },
+        commentCount: {
+          type: "integer",
+          description: "방 내 활성 코멘트 수.",
+        },
       },
     },
   },

@@ -202,6 +202,109 @@ describe("공동방 생성·조회", () => {
     expect(data.color).toBe("gray");
   });
 
+  it("방 목록에 마지막 저장 시각과 코멘트 수를 함께 내린다 (room-list FR-005)", async () => {
+    const seededPlaces = await db
+      .insert(places)
+      .values(
+        [1, 2].map((n) => ({
+          provider: "kakao" as const,
+          providerPlaceId: `e2e-sort-meta-${n}-${randomUUID()}`,
+          name: `정렬 재료 장소 ${n}`,
+          address: "서울 성동구 상원4길 10",
+          lat: 37.5445,
+          lng: 127.0559,
+        })),
+      )
+      .returning({ id: places.id });
+    const [sortRoom] = await db
+      .insert(rooms)
+      .values({ ownerId, type: "shared", name: "정렬 재료 방", color: "blue" })
+      .returning({ id: rooms.id });
+    const sortRoomId = sortRoom?.id as string;
+    await db
+      .insert(roomMembers)
+      .values({ roomId: sortRoomId, userId: ownerId });
+
+    const earlier = new Date("2026-03-01T00:00:00.000Z");
+    const later = new Date("2026-03-02T00:00:00.000Z");
+    const seededPins = await db
+      .insert(pins)
+      .values(
+        seededPlaces.map((place, index) => ({
+          roomId: sortRoomId,
+          placeId: place.id,
+          createdBy: ownerId,
+          createdAt: index === 0 ? earlier : later,
+        })),
+      )
+      .returning({ id: pins.id });
+    const commentResponse = await api(
+      `/api/v1/pins/${seededPins[1]?.id}/comments`,
+      ownerAuthUid,
+      { method: "POST", body: JSON.stringify({ content: "정렬용 코멘트" }) },
+    );
+    expect(commentResponse.status).toBe(201);
+
+    const response = await api("/api/v1/rooms", ownerAuthUid);
+    expect(response.status).toBe(200);
+    const { data } = (await response.json()) as {
+      data: Array<{
+        id: string;
+        type: string;
+        lastSavedAt: string | null;
+        commentCount: number;
+      }>;
+    };
+    const room = data.find((entry) => entry.id === sortRoomId);
+    expect(room?.lastSavedAt).toBe(later.toISOString());
+    expect(room?.commentCount).toBe(1);
+
+    // 핀이 없는 개인방은 null/0이다 (정렬 시 가장 뒤로 보내는 기준값).
+    const personal = data.find((entry) => entry.type === "personal");
+    expect(personal?.lastSavedAt).toBeNull();
+    expect(personal?.commentCount).toBe(0);
+
+    // 최신 핀을 삭제하면 이전 핀의 시각으로 폴백되고, 삭제된 핀의 코멘트는 제외된다.
+    const laterPinId = seededPins[1]?.id as string;
+    const deletePin = await api(`/api/v1/pins/${laterPinId}`, ownerAuthUid, {
+      method: "DELETE",
+    });
+    expect(deletePin.status).toBe(200);
+
+    // 코멘트를 두 개 달았다가 하나 지우면 하나만 집계된다.
+    const earlierPinId = seededPins[0]?.id as string;
+    for (const content of ["첫 번째", "두 번째"]) {
+      const created = await api(
+        `/api/v1/pins/${earlierPinId}/comments`,
+        ownerAuthUid,
+        { method: "POST", body: JSON.stringify({ content }) },
+      );
+      expect(created.status).toBe(201);
+      if (content === "두 번째") {
+        const commentId = ((await created.json()) as { data: { id: string } })
+          .data.id;
+        const deleted = await api(
+          `/api/v1/pins/${earlierPinId}/comments/${commentId}`,
+          ownerAuthUid,
+          { method: "DELETE" },
+        );
+        expect(deleted.status).toBe(200);
+      }
+    }
+
+    const relisted = await api("/api/v1/rooms", ownerAuthUid);
+    const { data: relistedData } = (await relisted.json()) as {
+      data: Array<{
+        id: string;
+        lastSavedAt: string | null;
+        commentCount: number;
+      }>;
+    };
+    const relistedRoom = relistedData.find((entry) => entry.id === sortRoomId);
+    expect(relistedRoom?.lastSavedAt).toBe(earlier.toISOString());
+    expect(relistedRoom?.commentCount).toBe(1);
+  });
+
   it("방 이름에 허용 외 문자(이모지)는 400", async () => {
     const response = await api("/api/v1/rooms", ownerAuthUid, {
       method: "POST",
