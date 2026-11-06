@@ -281,6 +281,31 @@ describe("POST /api/v1/pins/:pinId/comments", () => {
     expect(mine?.author.nickname).toBe("도윤");
     // 작성 당시 아바타 없음(NULL)도 스냅샷이라 이후 설정이 덮지 않는다.
     expect(mine?.author.avatar).toBeNull();
+
+    // 아바타가 있는 상태에서 쓴 코멘트도 변경 전 객체가 그대로 보인다.
+    const createdSecond = await createComment(
+      secondSharedPinId,
+      snapshotAuthUid,
+      "스냅샷 확인용 둘",
+    );
+    expect(createdSecond.status).toBe(201);
+    const recolored = await api("/api/v1/users/me", snapshotAuthUid, {
+      method: "PATCH",
+      body: JSON.stringify({ avatar: { color: "red" } }),
+    });
+    expect(recolored.status).toBe(200);
+
+    const relisted = await api(commentPath(secondSharedPinId), snapshotAuthUid);
+    const { data: relistedData } = (await relisted.json()) as {
+      data: Array<{
+        content: string;
+        author: { nickname: string; avatar: { color: string } | null };
+      }>;
+    };
+    const second = relistedData.find(
+      (entry) => entry.content === "스냅샷 확인용 둘",
+    );
+    expect(second?.author.avatar).toEqual({ color: "blue" });
   });
 
   it("같은 내용의 코멘트를 각각 저장한다", async () => {
