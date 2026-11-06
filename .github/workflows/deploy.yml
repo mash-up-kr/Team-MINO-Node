@@ -151,8 +151,11 @@ jobs:
           cache-to: type=gha,mode=max
 
   server-migrate:
-    needs: changes
-    if: github.event_name == 'push' && needs.changes.outputs.server == 'true'
+    needs: [changes, server-build]
+    if: >-
+      github.event_name == 'push'
+      && needs.changes.outputs.server == 'true'
+      && needs.server-build.result == 'success'
     runs-on: ubuntu-latest
     environment: team-mino-prod
 
@@ -180,6 +183,9 @@ jobs:
       - name: Apply DB migrations
         env:
           APP_ENV: prod
+          # 운영 스키마를 명시한다. 없으면 db.env 기본값 develop으로
+          # 마이그레이션이 "성공"하고 배포까지 진행되는 최악의 경우를 막는다.
+          DATABASE_SCHEMA: production
         run: bun run db:migrate
 
   server-deploy:
