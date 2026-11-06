@@ -1,6 +1,14 @@
 import { isNull } from "drizzle-orm";
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { users } from "../user/user.schema";
+import {
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
+import { type UserAvatar, users } from "../user/user.schema";
 import { pins } from "./pin.schema";
 
 export const pinComments = pgTable(
@@ -16,6 +24,10 @@ export const pinComments = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "no action" }),
     content: text().notNull(),
+    // 작성 시점의 작성자 프로필 스냅샷 (QA 스펙 EC-016: 작성 당시로 표시).
+    // 이후 닉네임·아바타가 바뀌어도 과거 코멘트는 이 값으로 보인다.
+    authorNickname: varchar({ length: 15 }),
+    authorAvatar: jsonb().$type<UserAvatar>(),
     createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp({ withTimezone: true })
       .defaultNow()
