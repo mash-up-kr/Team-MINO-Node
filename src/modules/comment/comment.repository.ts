@@ -52,12 +52,15 @@ export class CommentRepository {
         createdAt: pinComments.createdAt,
         authorId: users.id,
         // 작성 시점 스냅샷 우선, 없으면(마이그레이션 이전 행) 현재 프로필로 폴백.
+        // 스냅샷 존재 여부는 author_nickname으로 판정한다 — 아바타는 작성 당시
+        // "없음"일 수 있어 NULL 자체가 유효한 스냅샷이라 존재 표시로 쓸 수 없다.
+        // 닉네임은 users에서 NOT NULL이라 새 행의 스냅샷에 항상 값이 있다.
         authorNickname:
           sql<string>`coalesce(${pinComments.authorNickname}, ${users.nickname})`.as(
             "author_nickname",
           ),
         authorAvatar:
-          sql<UserAvatar | null>`coalesce(${pinComments.authorAvatar}, ${users.avatar})`.as(
+          sql<UserAvatar | null>`case when ${pinComments.authorNickname} is not null then ${pinComments.authorAvatar} else ${users.avatar} end`.as(
             "author_avatar",
           ),
       })

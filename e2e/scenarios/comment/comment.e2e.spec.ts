@@ -262,17 +262,25 @@ describe("POST /api/v1/pins/:pinId/comments", () => {
 
     const renamed = await api("/api/v1/users/me", snapshotAuthUid, {
       method: "PATCH",
-      body: JSON.stringify({ nickname: "도윤상회" }),
+      body: JSON.stringify({
+        nickname: "도윤상회",
+        avatar: { color: "blue" },
+      }),
     });
     expect(renamed.status).toBe(200);
 
     const listed = await api(commentPath(secondSharedPinId), snapshotAuthUid);
     expect(listed.status).toBe(200);
     const { data } = (await listed.json()) as {
-      data: Array<{ content: string; author: { nickname: string } }>;
+      data: Array<{
+        content: string;
+        author: { nickname: string; avatar: { color: string } | null };
+      }>;
     };
     const mine = data.find((entry) => entry.content === "스냅샷 확인용");
     expect(mine?.author.nickname).toBe("도윤");
+    // 작성 당시 아바타 없음(NULL)도 스냅샷이라 이후 설정이 덮지 않는다.
+    expect(mine?.author.avatar).toBeNull();
   });
 
   it("같은 내용의 코멘트를 각각 저장한다", async () => {
