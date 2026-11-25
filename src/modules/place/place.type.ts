@@ -36,13 +36,9 @@ export type PlaceQuery = v.InferOutput<typeof placeQuerySchema>;
 /**
  * Wrapped in an object so structured output uses the provider-friendly object mode.
  *
- * 장소가 "몇 번 사진"을 고르게 하는 대신, 이미지 한 장당 객체 하나를 순서대로 받는다.
- * 장소 쪽에서 인덱스를 고르게 하면 캡션이 "1. … 2. …"처럼 번호를 매긴 글에서 통째로
- * 한 칸 밀린 답이 돌아왔다(장소마다 바로 다음 사진이 붙었다).
- *
- * 각 객체는 자기 이미지의 라벨 번호(image_index)와 사진에 찍힌 글자(visible_text)를
- * 함께 들고 온다. 번호를 스스로 적게 해 두면 어긋났을 때 서버가 그 칸만 걸러낼 수 있고,
- * 상호를 옮겨 적게 해 두면 캡션 순서가 아니라 사진에 보이는 것을 근거로 고르게 된다.
+ * 장소가 사진 번호를 고르게 하면 캡션 번호("1. … 2. …")에 끌려 한 칸씩 밀렸다.
+ * 그래서 사진 한 장당 객체 하나를 받는다. visible_text는 캡션 순서가 아니라
+ * 사진에 보이는 글자를 근거로 고르게 하려는 필드다(저장하지 않는다).
  */
 export const placeExtractionSchema = v.object({
   places: v.pipe(

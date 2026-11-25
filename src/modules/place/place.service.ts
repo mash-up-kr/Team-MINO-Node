@@ -28,10 +28,7 @@ const PROVIDER_PRIORITY: Record<GeoCandidate["provider"], number> = {
   google: 1,
 };
 
-/**
- * 답과 정확히 같은 것만 남기고, 하나도 없으면 답이 품고 있는 것을 남긴다.
- * 모델이 place_name을 "광화문 아이갓에브리씽"처럼 지역을 덧붙여 적어 오는 경우를 받아낸다.
- */
+/** 정확히 같은 것, 없으면 답에 포함된 것을 남긴다("광화문 아이갓에브리씽" → "아이갓에브리씽"). */
 function narrow<T>(items: T[], pick: (item: T) => string, answer: string): T[] {
   const target = answer.trim();
   if (!target) return [];
@@ -43,7 +40,7 @@ function narrow<T>(items: T[], pick: (item: T) => string, answer: string): T[] {
   });
 }
 
-/** 추출 단계의 결과. imagePlaces는 사진 게시글에서만 채워진다(릴스는 썸네일 1장이라 빈 배열). */
+/** imagePlaces는 사진 게시글에서만 채워진다(릴스는 빈 배열). */
 interface ExtractedQueries {
   queries: PlaceQuery[];
   imagePlaces: ImagePlace[];
@@ -149,7 +146,7 @@ Respond in the same language as the source content (use Korean when the content 
     const imagesByPlace = this.groupImagesByPlace(imagePlaces, images, queries);
     const matches = queries.map((query, index) => {
       const result = settled[index];
-      // 짝이 없는 장소는 게시글 전체로 폴백한다(썸네일을 비우지 않는다).
+      // 짝이 없는 장소는 게시글 전체 사진으로 폴백한다.
       const placeImages = imagesByPlace.get(index) ?? images;
       if (result.status === "fulfilled") {
         return {
@@ -200,19 +197,15 @@ Respond in the same language as the source content (use Korean when the content 
   }
 
   /**
-   * 이미지별 응답을 장소 이름 → 이미지 URL 목록으로 뒤집는다.
-   *
-   * 짝짓기는 모델이 적어 낸 image_index로 한다. 배열 순서만 믿으면 한 칸이 밀렸을 때
-   * 뒤가 전부 어긋나지만, 칸마다 자기 번호를 들고 있으면 이상한 칸만 골라낼 수 있다.
-   * 범위 밖·중복·비정수는 그 칸만 버리고 나머지 짝짓기는 그대로 둔다.
+   * 사진별 응답을 장소 번호 → 사진 URL 목록으로 묶는다.
+   * 배열 순서가 아니라 image_index로 짝지어, 이상한 칸(범위 밖·중복·비정수)만 버린다.
    */
   private groupImagesByPlace(
     imagePlaces: ImagePlace[],
     images: string[],
     queries: PlaceQuery[],
   ): Map<number | undefined, string[]> {
-    // 사진 번호 → 장소. 같은 사진을 두 칸이 가져가면 어느 쪽이 맞는지 알 수 없다 — 먼저 온 답만 쓴다.
-    // 표지·아웃트로처럼 장소가 없는 컷(빈 문자열)은 undefined로 남는다.
+    // 사진 번호 → 장소 번호. 같은 사진에 답이 둘이면 먼저 온 답만 쓴다.
     const placeOf = new Map<number, number | undefined>();
     for (const entry of imagePlaces) {
       if (!placeOf.has(entry.image_index)) {
@@ -220,17 +213,15 @@ Respond in the same language as the source content (use Korean when the content 
       }
     }
 
-    // 실제 사진 순서로 묶는다 — 범위 밖·비정수 번호는 조회되지 않고, 장소 안의 사진은 번호순이 된다.
+    // 사진 순서대로 묶으므로 장소 안의 사진은 번호순이다.
     const byPlace = Map.groupBy(images, (_, index) => placeOf.get(index));
-    byPlace.delete(undefined); // 장소를 못 찾은 컷
+    byPlace.delete(undefined); // 표지·아웃트로 등 장소를 못 찾은 컷
     return byPlace;
   }
 
   /**
-   * 모델이 답한 장소를 queries의 몇 번째인지로 되돌린다. 못 되돌리면 undefined.
-   *
-   * 이름으로 좁히고, 같은 이름이 둘 이상이면(강남/홍대 스타벅스) 지역으로 한 번 더 좁힌다.
-   * 하나로 좁혀지지 않으면 사진을 섞느니 그 칸을 버린다.
+   * 답한 장소를 queries 번호로 되돌린다. 이름으로 좁히고, 이름이 같으면 지역으로 한 번 더 좁힌다.
+   * 하나로 좁혀지지 않으면 사진을 섞지 않도록 undefined.
    */
   private resolvePlaceIndex(
     entry: ImagePlace,
@@ -404,7 +395,7 @@ Respond in the same language as the source content (use Korean when the content 
       queries: places
         .filter((place) => !PlaceService.EXCLUDED_KINDS.has(place.kind))
         .map(({ kind: _kind, evidence: _evidence, ...query }) => query),
-      // 썸네일 1장이라 고를 사진이 없다. 비워 두면 모든 장소가 전체(=썸네일)로 폴백한다.
+      // 썸네일 1장뿐이라 모든 장소가 썸네일로 폴백한다.
       imagePlaces: [],
     };
   }
@@ -432,16 +423,13 @@ Respond in the same language as the source content (use Korean when the content 
       { type: "text", text: PlaceService.EXTRACTION_PROMPT },
       ...this.buildContext(post),
     ];
-    /*
-     * 장수를 못 박아 둔다. 칸 수가 이미지 수와 어긋나면 짝을 못 지어 전체 폴백으로
-     * 떨어지는데, 이 한 줄이 있고 없고로 어긋나는 빈도가 눈에 띄게 달랐다.
-     */
+    // 장수를 명시하면 image_places 개수가 어긋나는 일이 눈에 띄게 줄었다.
     parts.push({
       type: "text",
       text: `You are given ${images.length} images. image_places must have exactly ${images.length} objects.`,
     });
     images.forEach((image, index) => {
-      // 모델이 image_index에 그대로 옮겨 적을 번호다.
+      // 모델이 image_index에 옮겨 적을 번호
       parts.push({ type: "text", text: `[image ${index}]` });
       parts.push({
         type: "image",
