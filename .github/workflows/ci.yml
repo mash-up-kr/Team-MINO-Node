@@ -31,7 +31,7 @@ jobs:
       - name: Test
         run: bun run --no-env-file test
 
-      - name: Verify migration journal order
-        run: |
-          git fetch origin "${{ github.base_ref }}" --depth=1 || true
-          bun scripts/check-migration-journal.ts
+      - name: Check migrations
+        run: bunx drizzle-kit check
+        env:
+          DATABASE_URL: postgres://unused
