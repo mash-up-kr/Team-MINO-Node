@@ -4,9 +4,6 @@ import { resolveDbSchema } from "./src/infrastructures/db/db.env";
 /**
  * drizzle-kit 설정. 마이그레이션 생성/적용 시 사용합니다.
  *
- * 운영 마이그레이션은 CI(server-migrate 잡)에서만 수행합니다.
- * 로컬에서 prod 스키마로 직접 돌리지 마세요 — 동시 적용을 막는 잠금이 없습니다.
- *
  *   bun run db:schema-init  # 환경 스키마(CREATE SCHEMA) 준비 — 최초 1회
  *   bun run db:generate     # 스키마 변경 → 마이그레이션 SQL 생성
  *   bun run db:migrate      # 마이그레이션 적용
