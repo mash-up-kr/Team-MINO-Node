@@ -1,0 +1,13 @@
+diff --git a/bin.cjs b/bin.cjs
+index 07274ea6f53fd54a129b3d338892feda6e995cff..2dcad6f482dcb36c04e10c114069eef54ca2561f 100755
+--- a/bin.cjs
++++ b/bin.cjs
+@@ -78873,7 +78873,7 @@ var init_connections = __esm({
+         }
+         assertUnreachable(driver2);
+       }
+-      if (await checkPackage("pg")) {
++      if (!await checkPackage("postgres") && await checkPackage("pg")) {
+         console.log(withStyle.info(`Using 'pg' driver for database querying`));
+         const { default: pg } = await import("pg");
+         const { drizzle } = await import("drizzle-orm/node-postgres");
