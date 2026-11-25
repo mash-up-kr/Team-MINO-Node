@@ -162,6 +162,7 @@ export class PlaceE2eHarness {
           image_index: 0,
           visible_text: "어니언 성수",
           place_name: "어니언 성수",
+          area_name: "성수동",
         },
         {
           image_index: 1,

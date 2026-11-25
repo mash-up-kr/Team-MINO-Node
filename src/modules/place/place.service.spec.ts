@@ -12,7 +12,11 @@ import type { ScraperService } from "../../infrastructures/scraper/scraper.servi
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import { PlaceModule } from "./place.module";
 import { PlaceService } from "./place.service";
-import { type PlaceQuery, reelExtractionSchema } from "./place.type";
+import {
+  type PlaceQuery,
+  placeExtractionSchema,
+  reelExtractionSchema,
+} from "./place.type";
 
 describe("PlaceService", () => {
   const URL = "https://www.instagram.com/p/abc123/";
@@ -63,14 +67,6 @@ describe("PlaceService", () => {
       placeImage as unknown as PlaceImageService,
     );
     return { service, instagram, ai, geocoder, placeImage };
-  }
-
-  /** 사진 경로 스키마는 이미지 수마다 새로 만들어져 동일성 비교가 안 된다. 모양으로 본다. */
-  function expectImageSchema(schema: unknown) {
-    expect(schema).not.toBe(reelExtractionSchema);
-    expect(
-      Object.keys((schema as { entries: Record<string, unknown> }).entries),
-    ).toContain("image_places");
   }
 
   it("scrape → extract → geocode → rank 순서로 파이프라인을 실행한다", async () => {
@@ -579,7 +575,7 @@ describe("PlaceService", () => {
 
     // then — 릴스 → 사진 순으로 두 번 부르고, 사진 경로 결과로 이어진다
     expect(ai.extract).toHaveBeenCalledTimes(2);
-    expectImageSchema(ai.extract.mock.calls[1]?.[0]);
+    expect(ai.extract.mock.calls[1]?.[0]).toBe(placeExtractionSchema);
     expect(matches).toHaveLength(1);
   });
 
@@ -660,7 +656,7 @@ describe("PlaceService", () => {
 
     // then — 릴스 2회(원래 + 재시도) 뒤 사진 경로 1회
     expect(ai.extract).toHaveBeenCalledTimes(3);
-    expectImageSchema(ai.extract.mock.calls[2]?.[0]);
+    expect(ai.extract.mock.calls[2]?.[0]).toBe(placeExtractionSchema);
     expect(matches).toHaveLength(1);
   });
 
@@ -713,7 +709,7 @@ describe("PlaceService", () => {
       unknown,
       Array<{ type: string }>,
     ];
-    expectImageSchema(schema);
+    expect(schema).toBe(placeExtractionSchema);
     expect(content.some((part) => part.type === "video")).toBe(false);
   });
 

@@ -44,51 +44,47 @@ export type PlaceQuery = v.InferOutput<typeof placeQuerySchema>;
  * 함께 들고 온다. 번호를 스스로 적게 해 두면 어긋났을 때 서버가 그 칸만 걸러낼 수 있고,
  * 상호를 옮겨 적게 해 두면 캡션 순서가 아니라 사진에 보이는 것을 근거로 고르게 된다.
  */
-export function createPlaceExtractionSchema(imageCount: number) {
-  return v.object({
-    places: v.pipe(
-      v.array(placeQuerySchema),
-      v.description("Every distinct real-world place featured in the post."),
+export const placeExtractionSchema = v.object({
+  places: v.pipe(
+    v.array(placeQuerySchema),
+    v.description("Every distinct real-world place featured in the post."),
+  ),
+  image_places: v.pipe(
+    v.array(
+      v.object({
+        image_index: v.pipe(
+          v.number(),
+          v.description(
+            'The N from the "[image N]" label printed directly above this image.',
+          ),
+        ),
+        visible_text: v.pipe(
+          v.string(),
+          v.description(
+            "The place name or signage text printed on this image, transcribed verbatim. Empty string when the image has no such text.",
+          ),
+        ),
+        place_name: v.pipe(
+          v.string(),
+          v.description(
+            "Which place from the places array this image shows, copied verbatim. Empty string when the image shows no specific place (cover, outro, promo).",
+          ),
+        ),
+        area_name: v.pipe(
+          v.string(),
+          v.description(
+            "The area_name of that same place, copied verbatim from the places array. Required to tell apart places that share a name (for example two different Starbucks branches). Empty string when place_name is empty.",
+          ),
+        ),
+      }),
     ),
-    image_places: v.pipe(
-      v.array(
-        v.object({
-          image_index: v.pipe(
-            v.number(),
-            v.description(
-              'The N from the "[image N]" label printed directly above this image.',
-            ),
-          ),
-          visible_text: v.pipe(
-            v.string(),
-            v.description(
-              "The place name or signage text printed on this image, transcribed verbatim. Empty string when the image has no such text.",
-            ),
-          ),
-          place_name: v.pipe(
-            v.string(),
-            v.description(
-              "Which place from the places array this image shows, copied verbatim. Empty string when the image shows no specific place (cover, outro, promo).",
-            ),
-          ),
-          area_name: v.pipe(
-            v.string(),
-            v.description(
-              "The area_name of that same place, copied verbatim from the places array. Required to tell apart places that share a name (for example two different Starbucks branches). Empty string when place_name is empty.",
-            ),
-          ),
-        }),
-      ),
-      v.description(
-        `One object per provided image, in the order the images were given (${imageCount} objects).`,
-      ),
+    v.description(
+      "One object per provided image, in the order the images were given.",
     ),
-  });
-}
+  ),
+});
 
-export type PlaceExtractionResult = v.InferOutput<
-  ReturnType<typeof createPlaceExtractionSchema>
->;
+export type PlaceExtractionResult = v.InferOutput<typeof placeExtractionSchema>;
 
 /** 이미지 한 장에 대한 모델의 판단. */
 export type ImagePlace = PlaceExtractionResult["image_places"][number];

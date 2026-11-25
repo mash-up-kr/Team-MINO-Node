@@ -12,13 +12,13 @@ import type {
 import { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import {
-  createPlaceExtractionSchema,
   type ExtractedPlace,
   type ImagePlace,
   type PlaceCandidate,
   type PlaceExtraction,
   type PlaceKind,
   type PlaceQuery,
+  placeExtractionSchema,
   reelExtractionSchema,
 } from "./place.type";
 
@@ -193,27 +193,22 @@ Respond in the same language as the source content (use Korean when the content 
     images: string[],
     queries: PlaceQuery[],
   ): Map<number, string[]> {
-    const byPlace = new Map<number, string[]>();
-    const taken = new Set<number>();
-
+    // 사진 번호 → 장소. 같은 사진을 두 칸이 가져가면 어느 쪽이 맞는지 알 수 없다 — 먼저 온 답만 쓴다.
+    // 표지·아웃트로처럼 장소가 없는 컷(빈 문자열)은 undefined로 남는다.
+    const placeOf = new Map<number, number | undefined>();
     for (const entry of imagePlaces) {
-      const index = entry.image_index;
-      if (!Number.isInteger(index) || index < 0 || index >= images.length) {
-        continue;
+      if (!placeOf.has(entry.image_index)) {
+        placeOf.set(entry.image_index, this.resolvePlaceIndex(entry, queries));
       }
-      // 같은 사진을 두 칸이 가져가면 어느 쪽이 맞는지 알 수 없다 — 먼저 온 쪽만 남긴다.
-      if (taken.has(index)) continue;
-
-      const placeIndex = this.resolvePlaceIndex(entry, queries);
-      // 표지·아웃트로처럼 장소가 없는 컷은 빈 문자열로 온다.
-      if (placeIndex === undefined) continue;
-
-      taken.add(index);
-      const image = images[index] as string;
-      const collected = byPlace.get(placeIndex);
-      if (collected) collected.push(image);
-      else byPlace.set(placeIndex, [image]);
     }
+
+    // 실제 사진 순서로 돈다 — 범위 밖·비정수 번호는 조회되지 않고, 장소 안의 사진은 번호순이 된다.
+    const byPlace = new Map<number, string[]>();
+    images.forEach((image, index) => {
+      const placeIndex = placeOf.get(index);
+      if (placeIndex === undefined) return;
+      byPlace.set(placeIndex, [...(byPlace.get(placeIndex) ?? []), image]);
+    });
 
     return byPlace;
   }
@@ -323,7 +318,7 @@ Respond in the same language as the source content (use Korean when the content 
     images: StoredImage[],
   ): Promise<ExtractedQueries> {
     const { places, image_places } = await this.aiService.extract(
-      createPlaceExtractionSchema(images.length),
+      placeExtractionSchema,
       this.buildContent(post, images),
     );
     return { queries: places, imagePlaces: image_places ?? [] };
