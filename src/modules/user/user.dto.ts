@@ -2,6 +2,7 @@ import { toJsonSchema } from "@valibot/to-json-schema";
 import * as v from "valibot";
 import { COLOR_KEYS } from "../../common/colors/color.constant";
 import type { SchemaObject } from "../../common/swagger/schema";
+import { identityApiSchema } from "../account/account.dto";
 
 /** 닉네임 정책: 공백 포함 한글/영문 2~15자, 특수문자 불가 (PR 리뷰 확정) */
 export const nicknameSchema = v.pipe(
@@ -81,6 +82,13 @@ const userSchema: SchemaObject = {
       },
     },
     createdAt: { type: "string", format: "date-time" },
+    identities: {
+      type: "array",
+      maxItems: 3,
+      description:
+        "연결된 로그인 수단. 제공자별 최대 한 개이고, 구버전 앱의 익명 유저는 빈 배열이다.",
+      items: identityApiSchema,
+    },
   },
 };
 
