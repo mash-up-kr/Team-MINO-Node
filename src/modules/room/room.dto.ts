@@ -22,12 +22,17 @@ const roomNameSchema = v.pipe(
   maxGraphemes(15, "방 이름은 15자 이하여야 합니다."),
 );
 
-/** 방 설명: 30자(grapheme) 이내 (기획 확정 — 클라이언트 카운터와 동일 단위) */
+/**
+ * 방 설명: 30자(grapheme) 이내 (기획 확정 — 클라이언트 카운터와 동일 단위).
+ * 앞뒤 공백 제거 후 빈 문자열은 null로 정규화한다 — ""와 null이 DB에 섞이지 않게 한다
+ * (안드가 공백 설명을 날것으로 보내면 서버 trim 뒤 ""로 남던 구멍).
+ */
 const roomDescriptionSchema = v.nullable(
   v.pipe(
     v.string(),
     v.trim(),
     maxGraphemes(30, "방 설명은 30자 이하여야 합니다."),
+    v.transform((value) => (value === "" ? null : value)),
   ),
 );
 
@@ -40,7 +45,12 @@ const roomColorSchema = v.picklist(
 export const createRoomRequestSchema = v.object({
   name: roomNameSchema,
   description: v.optional(roomDescriptionSchema),
-  color: roomColorSchema,
+  // QA 스펙 FR-006/TS-007: 대표 색상 미선택 시 회색 적용. 생략 가능하며 생략 시
+  // SHARED_ROOM_DEFAULT_COLOR("gray")로 저장된다 (하위호환: "gray" 명시 전송도 그대로 허용).
+  // description은 생성 문서(/api-docs)에 기본값 안내를 노출하기 위한 것으로 검증을 바꾸지 않는다.
+  color: v.optional(
+    v.pipe(roomColorSchema, v.description("생략 시 회색(gray)이 적용된다.")),
+  ),
 });
 
 export type CreateRoomRequest = v.InferOutput<typeof createRoomRequestSchema>;
@@ -142,10 +152,35 @@ const roomMemberSchema: SchemaObject = {
 
 const roomSummarySchema: SchemaObject = {
   type: "object",
+  required: [
+    "id",
+    "type",
+    "name",
+    "description",
+    "color",
+    "ownerId",
+    "createdAt",
+    "pinCount",
+    "memberCount",
+    "lastSavedAt",
+    "commentCount",
+    "thumbnailList",
+  ],
   properties: {
     ...roomSchema.properties,
     pinCount: { type: "integer" },
     memberCount: { type: "integer" },
+    lastSavedAt: {
+      type: "string",
+      format: "date-time",
+      nullable: true,
+      description:
+        "활성 핀 중 최신 저장 시각. 핀이 없으면 null (방 리스트 '최근 저장 순' 원천).",
+    },
+    commentCount: {
+      type: "integer",
+      description: "방 내 활성 코멘트 수 (방 리스트 '코멘트 순' 원천).",
+    },
     thumbnailList: {
       type: "array",
       items: { type: "string" },
@@ -187,10 +222,33 @@ export const roomDetailResponseApiSchema: SchemaObject = {
   properties: {
     data: {
       type: "object",
+      required: [
+        "id",
+        "type",
+        "name",
+        "description",
+        "color",
+        "ownerId",
+        "createdAt",
+        "pinCount",
+        "memberCount",
+        "lastSavedAt",
+        "commentCount",
+      ],
       properties: {
         ...roomSchema.properties,
         pinCount: { type: "integer" },
         memberCount: { type: "integer" },
+        lastSavedAt: {
+          type: "string",
+          format: "date-time",
+          nullable: true,
+          description: "활성 핀 중 최신 저장 시각. 핀이 없으면 null.",
+        },
+        commentCount: {
+          type: "integer",
+          description: "방 내 활성 코멘트 수.",
+        },
       },
     },
   },

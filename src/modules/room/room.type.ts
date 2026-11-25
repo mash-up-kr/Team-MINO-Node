@@ -26,10 +26,14 @@ export type UpdateRoomInput = {
   color?: string;
 };
 
-/** 방 상세/목록 조회 행 — 핀 수·멤버 수는 SQL 서브쿼리로 함께 내려온다. */
+/** 방 상세/목록 조회 행 — 핀 수·멤버 수·정렬용 메타는 SQL 서브쿼리로 함께 내려온다. */
 export type RoomWithCountsRow = RoomRow & {
   pinCount: number;
   memberCount: number;
+  /** 활성 핀 중 최신 저장 시각. 핀이 없으면 null (방 리스트 "최근 저장 순" 원천). */
+  lastSavedAt: Date | null;
+  /** 방 내 활성 코멘트 수 (방 리스트 "코멘트 순" 원천). */
+  commentCount: number;
 };
 
 /** 방별 최근 핀의 장소 대표 이미지 행 — 방 목록 썸네일용. */
@@ -60,9 +64,7 @@ export type RoomMemberResponse = {
   joinedAt: Date;
 };
 
-export type RoomSummaryResponse = RoomResponse & {
-  pinCount: number;
-  memberCount: number;
+export type RoomSummaryResponse = RoomWithCountsRow & {
   /** 최근 핀 최대 4개의 장소 대표 이미지 URL. 저장된 핀이 없으면 방 대표 색상 키 1개. */
   thumbnailList: string[];
   /** `?showHasPlaceId=` 지정 시에만 포함 */
@@ -73,7 +75,4 @@ export type RoomSummaryResponse = RoomResponse & {
   users?: RoomMemberResponse[];
 };
 
-export type RoomDetailResponse = RoomResponse & {
-  pinCount: number;
-  memberCount: number;
-};
+export type RoomDetailResponse = RoomWithCountsRow;

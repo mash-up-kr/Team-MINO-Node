@@ -160,7 +160,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, color]
+              required: [name]
               properties:
                 name:
                   $ref: "#/components/schemas/RoomName"
@@ -169,7 +169,10 @@ paths:
                   maxLength: 30 # grapheme 단위(클라이언트 카운터와 동일)
                   nullable: true
                 color:
-                  $ref: "#/components/schemas/ColorKey"
+                  allOf:
+                    - $ref: "#/components/schemas/ColorKey"
+                  default: gray
+                  description: 생략 시 gray로 저장된다 (QA 스펙 FR-006/TS-007). 명시 전송도 허용.
       responses:
         "201":
           description: 생성된 방
@@ -1248,11 +1251,20 @@ components:
       allOf:
         - $ref: "#/components/schemas/Room"
         - type: object
+          required: [pinCount, memberCount, lastSavedAt, commentCount, thumbnailList]
           properties:
             pinCount:
               type: integer
             memberCount:
               type: integer
+            lastSavedAt:
+              type: string
+              format: date-time
+              nullable: true
+              description: 활성 핀 중 최신 저장 시각. 핀이 없으면 null (방 리스트 '최근 저장 순' 원천)
+            commentCount:
+              type: integer
+              description: 방 내 활성 코멘트 수 (방 리스트 '코멘트 순' 원천)
             thumbnailList:
               type: array
               description: 최근 핀 최대 4개의 장소 대표 이미지 URL(최신순). 저장된 핀이 없으면 방 대표 색상 키 1개(클라이언트는 색+캐릭터로 렌더링)
@@ -1279,11 +1291,20 @@ components:
       allOf:
         - $ref: "#/components/schemas/Room"
         - type: object
+          required: [pinCount, memberCount, lastSavedAt, commentCount]
           properties:
             pinCount:
               type: integer
             memberCount:
               type: integer
+            lastSavedAt:
+              type: string
+              format: date-time
+              nullable: true
+              description: 활성 핀 중 최신 저장 시각. 핀이 없으면 null
+            commentCount:
+              type: integer
+              description: 방 내 활성 코멘트 수
 
     RoomMember:
       type: object

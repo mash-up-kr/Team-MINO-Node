@@ -21,6 +21,7 @@ import {
   placeExtractionSchema,
   reelExtractionSchema,
 } from "./place.type";
+import { isNonPlaceCandidate } from "./place.util";
 
 const PROVIDER_PRIORITY: Record<GeoCandidate["provider"], number> = {
   kakao: 0,
@@ -39,7 +40,12 @@ export class PlaceService {
 
   private static readonly EXTRACTION_PROMPT =
     `You are a place extraction assistant for Instagram posts.
-Analyze the caption and images to identify every distinct real-world place featured in the post, and fill in the structured fields for each according to their descriptions.
+Analyze the caption and images to identify every qualifying visitable destination featured in the post, and fill in the structured fields for each according to their descriptions.
+Qualifying destinations include restaurants, cafes, shops, museums, galleries, parks, venues, named businesses, and named walking or hiking trails (e.g. 제주 올레길 7코스 or 남산 둘레길) when the route itself is featured.
+Generic transit stations, bus stops, intersections, parking lots, ordinary roads, bridges, exits, highway rest areas (휴게소), airports (공항), passenger terminals (터미널), or similar infrastructure never qualify as place_name, even when they are the only subject or the user visited, parked at, passed through, or toured them. If no qualifying destination exists, return an empty places array.
+Keep a featured named walking or hiking trail as place_name; do not treat it as an ordinary road merely because its name ends in 길.
+When a qualifying destination exists, use nearby infrastructure only as area_name context.
+If the post clearly features a distinct non-infrastructure business or destination whose proper name itself ends with words such as 역, 정류장, 주차장, or 휴게소, keep that full proper name as place_name.
 For area_type, choose "address" only when area_name is a concrete street address, "region" for a broad district or city, and "landmark" for a well-known nearby place; when unsure, prefer "region".
 When area_type is "address", make area_name as complete a street address as the content allows so it can be geocoded precisely.
 The images are given in order, each preceded by an "[image N]" label. Produce one image_places object per image, in that order: copy the label number into image_index, transcribe the text printed on the image into visible_text, then decide which place it shows and copy that place's place_name and area_name verbatim.
@@ -463,16 +469,30 @@ Respond in the same language as the source content (use Korean when the content 
 
   /** Orders by completeness → proximity → provider preference. */
   private rankCandidates(candidates: GeoCandidate[]): PlaceCandidate[] {
-    return candidates.sort((a, b) => {
-      const completenessDiff = this.completeness(b) - this.completeness(a);
-      if (completenessDiff !== 0) return completenessDiff;
+    // 지명성 후보(역·사거리·주차장)는 저장 대상이 아니므로 랭킹 전에 제외한다.
+    // 제거하지 않으면 정보가 풍부한 역 후보가 맛집을 누르고 최상위 후보가
+    // 무조건 핀이 되는 저장 파이프라인 구조상 그대로 핀으로 저장된다.
+    const dropped = candidates.filter((candidate) =>
+      isNonPlaceCandidate(candidate),
+    );
+    if (dropped.length > 0) {
+      this.logger.log(
+        { dropped: dropped.map((candidate) => candidate.placeName) },
+        "지명성 geocoder 후보 제외",
+      );
+    }
+    return candidates
+      .filter((candidate) => !isNonPlaceCandidate(candidate))
+      .sort((a, b) => {
+        const completenessDiff = this.completeness(b) - this.completeness(a);
+        if (completenessDiff !== 0) return completenessDiff;
 
-      const distanceA = a.distance ?? Number.POSITIVE_INFINITY;
-      const distanceB = b.distance ?? Number.POSITIVE_INFINITY;
-      if (distanceA !== distanceB) return distanceA - distanceB;
+        const distanceA = a.distance ?? Number.POSITIVE_INFINITY;
+        const distanceB = b.distance ?? Number.POSITIVE_INFINITY;
+        if (distanceA !== distanceB) return distanceA - distanceB;
 
-      return PROVIDER_PRIORITY[a.provider] - PROVIDER_PRIORITY[b.provider];
-    });
+        return PROVIDER_PRIORITY[a.provider] - PROVIDER_PRIORITY[b.provider];
+      });
   }
 
   /** Counts how many optional fields are present (higher = more complete). */
