@@ -19,14 +19,14 @@ import { resolveDbSchema } from "./src/infrastructures/db/db.env";
  * 둘 다 세션 단위 연결이라 락/멀티스테이트먼트 DDL이 안전합니다.
  * (트랜잭션 풀러 6543은 마이그레이션에 부적합하므로 사용하지 않습니다.)
  */
-const baseUrl = process.env.DATABASE_URL;
+const baseUrl = process.env.DATABASE_MIGRATE_URL ?? process.env.DATABASE_URL;
 if (!baseUrl) {
   throw new Error("DATABASE_URL is required for migrations.");
 }
 
 const schema = resolveDbSchema(process.env.DATABASE_SCHEMA);
 // 마이그레이션이 해당 스키마에 적용되도록, 접속 시 바라볼 스키마(search_path)를 지정.
-const url = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}options=-csearch_path%3D${schema}`;
+const url = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}search_path=${schema}`;
 
 export default defineConfig({
   dialect: "postgresql",
