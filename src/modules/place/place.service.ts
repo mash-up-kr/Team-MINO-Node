@@ -13,6 +13,7 @@ import { ScraperService } from "../../infrastructures/scraper/scraper.service";
 import type { ScrapedPost } from "../../infrastructures/scraper/scraper.type";
 import {
   type ExtractedPlace,
+  type ImagePlace,
   type PlaceCandidate,
   type PlaceExtraction,
   type PlaceKind,
@@ -26,6 +27,24 @@ const PROVIDER_PRIORITY: Record<GeoCandidate["provider"], number> = {
   kakao: 0,
   google: 1,
 };
+
+/** 정확히 같은 것, 없으면 답에 포함된 것을 남긴다("광화문 아이갓에브리씽" → "아이갓에브리씽"). */
+function narrow<T>(items: T[], pick: (item: T) => string, answer: string): T[] {
+  const target = answer.trim();
+  if (!target) return [];
+  const exact = items.filter((item) => pick(item) === target);
+  if (exact.length > 0) return exact;
+  return items.filter((item) => {
+    const value = pick(item);
+    return value !== "" && target.includes(value);
+  });
+}
+
+/** imagePlaces는 사진 게시글에서만 채워진다(릴스는 빈 배열). */
+interface ExtractedQueries {
+  queries: PlaceQuery[];
+  imagePlaces: ImagePlace[];
+}
 
 @Injectable()
 export class PlaceService {
@@ -41,7 +60,7 @@ When a qualifying destination exists, use nearby infrastructure only as area_nam
 If the post clearly features a distinct non-infrastructure business or destination whose proper name itself ends with words such as 역, 정류장, 주차장, or 휴게소, keep that full proper name as place_name.
 For area_type, choose "address" only when area_name is a concrete street address, "region" for a broad district or city, and "landmark" for a well-known nearby place; when unsure, prefer "region".
 When area_type is "address", make area_name as complete a street address as the content allows so it can be geocoded precisely.
-Each image is preceded by an "[image N]" label. When referring to images, use that N verbatim; never renumber the images yourself.
+The images are given in order, each preceded by an "[image N]" label. Produce one image_places object per image, in that order: copy the label number into image_index, transcribe the text printed on the image into visible_text, then decide which place it shows and copy that place's place_name and area_name verbatim.
 Respond in the same language as the source content (use Korean when the content is Korean).`;
 
   /*
@@ -87,7 +106,7 @@ Respond in the same language as the source content (use Korean when the content 
     const started = Date.now();
     const post = await this.scraperService.fetchPost(url);
     const scrapeMs = Date.now() - started;
-    const { queries, images, imageMs, videoMs, aiMs } =
+    const { queries, images, imagePlaces, imageMs, videoMs, aiMs } =
       await this.extractQueries(post);
 
     // 장소를 못 뽑아도 이미지는 이미 올라갔으므로 그대로 함께 돌려준다.
@@ -124,11 +143,11 @@ Respond in the same language as the source content (use Korean when the content 
       );
     }
 
+    const imagesByPlace = this.groupImagesByPlace(imagePlaces, images, queries);
     const matches = queries.map((query, index) => {
       const result = settled[index];
-      // 스키마상 필수지만 검증을 안 거친 입력(테스트 mock, 구버전 응답)도 죽지 않게
-      // 빈 배열로 받아 전체 폴백으로 강등한다.
-      const placeImages = this.selectImages(query.image_indices ?? [], images);
+      // 짝이 없는 장소는 게시글 전체 사진으로 폴백한다.
+      const placeImages = imagesByPlace.get(index) ?? images;
       if (result.status === "fulfilled") {
         return {
           extracted: this.toExtractedPlace(query),
@@ -178,25 +197,42 @@ Respond in the same language as the source content (use Korean when the content 
   }
 
   /**
-   * 모델이 고른 이미지 인덱스를 실제 URL로 바꾼다.
-   *
-   * 인덱스는 모델에게 넘긴 이미지 배열(= 업로드 성공분) 기준이다. 원본 게시글에서
-   * 거부·실패로 빠진 이미지가 있어도 같은 배열을 그대로 쓰므로 어긋나지 않는다.
-   *
-   * 모델 출력은 신뢰하지 않는다 — 범위 밖·소수·중복 인덱스를 걸러내고, 남는 게
-   * 없으면 게시글 전체로 폴백한다. 잘못된 한 장을 보여주기보다 덜 정확해도
-   * 썸네일이 비지 않는 쪽을 택한다.
+   * 사진별 응답을 장소 번호 → 사진 URL 목록으로 묶는다.
+   * 배열 순서가 아니라 image_index로 짝지어, 이상한 칸(범위 밖·중복·비정수)만 버린다.
    */
-  private selectImages(indices: number[], images: string[]): string[] {
-    const selected = [...new Set(indices)]
-      .filter(
-        (index) =>
-          Number.isInteger(index) && index >= 0 && index < images.length,
-      )
-      .sort((a, b) => a - b)
-      .map((index) => images[index] as string);
+  private groupImagesByPlace(
+    imagePlaces: ImagePlace[],
+    images: string[],
+    queries: PlaceQuery[],
+  ): Map<number | undefined, string[]> {
+    // 사진 번호 → 장소 번호. 같은 사진에 답이 둘이면 먼저 온 답만 쓴다.
+    const placeOf = new Map<number, number | undefined>();
+    for (const entry of imagePlaces) {
+      if (!placeOf.has(entry.image_index)) {
+        placeOf.set(entry.image_index, this.resolvePlaceIndex(entry, queries));
+      }
+    }
 
-    return selected.length > 0 ? selected : images;
+    // 사진 순서대로 묶으므로 장소 안의 사진은 번호순이다.
+    const byPlace = Map.groupBy(images, (_, index) => placeOf.get(index));
+    byPlace.delete(undefined); // 표지·아웃트로 등 장소를 못 찾은 컷
+    return byPlace;
+  }
+
+  /**
+   * 답한 장소를 queries 번호로 되돌린다. 이름으로 좁히고, 이름이 같으면 지역으로 한 번 더 좁힌다.
+   * 하나로 좁혀지지 않으면 사진을 섞지 않도록 undefined.
+   */
+  private resolvePlaceIndex(
+    entry: ImagePlace,
+    queries: PlaceQuery[],
+  ): number | undefined {
+    let hits = queries.map((query, index) => ({ query, index }));
+    hits = narrow(hits, (hit) => hit.query.place_name, entry.place_name);
+    if (hits.length > 1) {
+      hits = narrow(hits, (hit) => hit.query.area_name, entry.area_name);
+    }
+    return hits.length === 1 ? hits[0]?.index : undefined;
   }
 
   private toExtractedPlace(query: PlaceQuery): ExtractedPlace {
@@ -215,6 +251,7 @@ Respond in the same language as the source content (use Korean when the content 
   private async extractQueries(post: ScrapedPost): Promise<{
     queries: PlaceQuery[];
     images: string[];
+    imagePlaces: ImagePlace[];
     imageMs: number;
     videoMs: number;
     aiMs: number;
@@ -244,13 +281,14 @@ Respond in the same language as the source content (use Korean when the content 
     const uploaded = Date.now();
 
     // 영상을 못 올렸으면 사진 경로로 내려간다 — 캡션·썸네일만으로도 추출은 된다.
-    const queries = video
+    const { queries, imagePlaces } = video
       ? await this.extractFromReelOrFallback(post, images, video)
       : await this.extractFromImages(post, images);
 
     return {
       queries,
       images: images.map((image) => image.publicUrl),
+      imagePlaces,
       imageMs,
       videoMs,
       aiMs: Date.now() - uploaded,
@@ -261,12 +299,12 @@ Respond in the same language as the source content (use Korean when the content 
   private async extractFromImages(
     post: ScrapedPost,
     images: StoredImage[],
-  ): Promise<PlaceQuery[]> {
-    const { places } = await this.aiService.extract(
+  ): Promise<ExtractedQueries> {
+    const { places, image_places } = await this.aiService.extract(
       placeExtractionSchema,
       this.buildContent(post, images),
     );
-    return places;
+    return { queries: places, imagePlaces: image_places ?? [] };
   }
 
   /**
@@ -284,7 +322,7 @@ Respond in the same language as the source content (use Korean when the content 
     post: ScrapedPost,
     images: StoredImage[],
     video: StoredVideo,
-  ): Promise<PlaceQuery[]> {
+  ): Promise<ExtractedQueries> {
     for (let attempt = 0; ; attempt++) {
       try {
         return await this.extractFromReel(post, images, video);
@@ -316,7 +354,7 @@ Respond in the same language as the source content (use Korean when the content 
     post: ScrapedPost,
     images: StoredImage[],
     video: StoredVideo,
-  ): Promise<PlaceQuery[]> {
+  ): Promise<ExtractedQueries> {
     const parts: ContentPart[] = [
       { type: "text", text: PlaceService.REEL_EXTRACTION_PROMPT },
       ...this.buildContext(post),
@@ -353,15 +391,13 @@ Respond in the same language as the source content (use Korean when the content 
       );
     }
 
-    return (
-      places
+    return {
+      queries: places
         .filter((place) => !PlaceService.EXCLUDED_KINDS.has(place.kind))
-        // 썸네일 1장이라 고를 사진이 없다. 빈 인덱스면 전체(=썸네일) 폴백을 탄다.
-        .map(({ kind: _kind, evidence: _evidence, ...query }) => ({
-          ...query,
-          image_indices: [],
-        }))
-    );
+        .map(({ kind: _kind, evidence: _evidence, ...query }) => query),
+      // 썸네일 1장뿐이라 모든 장소가 썸네일로 폴백한다.
+      imagePlaces: [],
+    };
   }
 
   /** 프롬프트 뒤에 붙는 게시글 텍스트 맥락(캡션·태그 위치). 사진·영상 경로가 공유한다. */
@@ -387,13 +423,13 @@ Respond in the same language as the source content (use Korean when the content 
       { type: "text", text: PlaceService.EXTRACTION_PROMPT },
       ...this.buildContext(post),
     ];
+    // 장수를 명시하면 image_places 개수가 어긋나는 일이 눈에 띄게 줄었다.
+    parts.push({
+      type: "text",
+      text: `You are given ${images.length} images. image_places must have exactly ${images.length} objects.`,
+    });
     images.forEach((image, index) => {
-      /*
-       * 이미지마다 인덱스를 붙여 넘긴다. 번호가 없으면 모델이 직접 세야 하는데,
-       * 캡션이 "➊➋➌"처럼 1부터 번호를 매긴 글에서는 1-based로 세어
-       * image_indices가 통째로 한 칸 밀린다(장소마다 다음 사진이 붙는다).
-       * 세지 않고 읽게 하면 이 흔들림이 사라진다.
-       */
+      // 모델이 image_index에 옮겨 적을 번호
       parts.push({ type: "text", text: `[image ${index}]` });
       parts.push({
         type: "image",

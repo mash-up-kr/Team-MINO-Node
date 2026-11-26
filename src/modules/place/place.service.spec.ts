@@ -26,7 +26,6 @@ describe("PlaceService", () => {
     area_name: "성수동",
     area_type: "landmark",
     relation: "카페 방문 후기",
-    image_indices: [],
   };
 
   function makePost(overrides: Partial<ScrapedPost> = {}): ScrapedPost {
@@ -142,7 +141,6 @@ describe("PlaceService", () => {
       area_name: "성수동",
       area_type: "landmark",
       relation: "코스",
-      image_indices: [],
     }));
     instagram.fetchPost.mockResolvedValue(makePost());
     ai.extract.mockResolvedValue({ places });
@@ -237,9 +235,25 @@ describe("PlaceService", () => {
       },
     ]);
     ai.extract.mockResolvedValue({
-      places: [
-        { ...QUERY, image_indices: [2, 0] },
-        { ...QUERY, place_name: "대림창고", image_indices: [1] },
+      places: [{ ...QUERY }, { ...QUERY, place_name: "대림창고" }],
+      image_places: [
+        {
+          image_index: 0,
+          visible_text: "어니언 성수",
+          place_name: "어니언 성수",
+        },
+        {
+          image_index: 1,
+          visible_text: "대림창고",
+          place_name: "대림창고",
+          area_name: "성수동",
+        },
+        {
+          image_index: 2,
+          visible_text: "",
+          place_name: "어니언 성수",
+          area_name: "성수동",
+        },
       ],
     });
     geocoder.searchAll.mockResolvedValue([makeCandidate()]);
@@ -247,12 +261,139 @@ describe("PlaceService", () => {
     // when
     const { matches } = await service.extractFromUrl(URL);
 
-    // then — 인덱스순 정렬, 장소별 부분집합
+    // then — 이미지 순서대로 장소별 부분집합
     expect(matches[0].images).toEqual(["https://img/0", "https://img/2"]);
     expect(matches[1].images).toEqual(["https://img/1"]);
   });
 
-  it("인덱스가 전부 무효(범위 밖·중복·누락)면 게시물 전체 이미지로 폴백한다", async () => {
+  it("범위 밖·중복 인덱스는 그 칸만 버리고 나머지 짝짓기는 유지한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://b/0",
+        publicUrl: "https://img/0",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://b/1",
+        publicUrl: "https://img/1",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    ai.extract.mockResolvedValue({
+      places: [{ ...QUERY }, { ...QUERY, place_name: "대림창고" }],
+      image_places: [
+        // 범위 밖 / 비정수 — 버린다
+        {
+          image_index: 9,
+          visible_text: "",
+          place_name: "어니언 성수",
+          area_name: "성수동",
+        },
+        {
+          image_index: 1.5,
+          visible_text: "",
+          place_name: "어니언 성수",
+          area_name: "성수동",
+        },
+        // 정상
+        {
+          image_index: 1,
+          visible_text: "대림창고",
+          place_name: "대림창고",
+          area_name: "성수동",
+        },
+        // 이미 가져간 사진 — 뒤에 온 쪽을 버린다
+        {
+          image_index: 1,
+          visible_text: "",
+          place_name: "어니언 성수",
+          area_name: "성수동",
+        },
+      ],
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then — 대림창고만 짝이 잡히고, 어니언 성수는 전체 폴백
+    expect(matches[0].images).toEqual(["https://img/0", "https://img/1"]);
+    expect(matches[1].images).toEqual(["https://img/1"]);
+  });
+
+  it("지역을 덧붙인 이름도 포함 관계로 되돌려 짝짓는다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://b/0",
+        publicUrl: "https://img/0",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    ai.extract.mockResolvedValue({
+      places: [{ ...QUERY }],
+      image_places: [
+        {
+          image_index: 0,
+          visible_text: "어니언 성수",
+          place_name: "성수동 어니언 성수",
+          area_name: "성수동",
+        },
+      ],
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then
+    expect(matches[0].images).toEqual(["https://img/0"]);
+  });
+
+  it("어느 칸에도 안 잡힌 장소는 게시물 전체 이미지로 폴백한다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://b/0",
+        publicUrl: "https://img/0",
+        mediaType: "image/jpeg",
+      },
+      {
+        gsUri: "gs://b/1",
+        publicUrl: "https://img/1",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    ai.extract.mockResolvedValue({
+      places: [{ ...QUERY }, { ...QUERY, place_name: "대림창고" }],
+      // 0번은 표지(빈 문자열), 대림창고는 어느 컷에도 안 나온다
+      image_places: [
+        { image_index: 0, visible_text: "", place_name: "", area_name: "" },
+        {
+          image_index: 1,
+          visible_text: "어니언 성수",
+          place_name: "어니언 성수",
+        },
+      ],
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then
+    expect(matches[0].images).toEqual(["https://img/1"]);
+    expect(matches[1].images).toEqual(["https://img/0", "https://img/1"]);
+  });
+
+  it("이름이 같은 가게가 둘이면 지역으로 갈라 사진을 섞지 않는다", async () => {
     // given
     const { service, instagram, ai, geocoder, placeImage } = createService();
     instagram.fetchPost.mockResolvedValue(makePost());
@@ -270,9 +411,22 @@ describe("PlaceService", () => {
     ]);
     ai.extract.mockResolvedValue({
       places: [
-        { ...QUERY, image_indices: [9, -1, 1.5] },
-        // 검증을 안 거친 입력(테스트 mock 등)은 필드 자체가 없을 수 있다
-        { ...QUERY, place_name: "대림창고", image_indices: undefined },
+        { ...QUERY, place_name: "스타벅스", area_name: "강남" },
+        { ...QUERY, place_name: "스타벅스", area_name: "홍대" },
+      ],
+      image_places: [
+        {
+          image_index: 0,
+          visible_text: "스타벅스 강남점",
+          place_name: "스타벅스",
+          area_name: "강남",
+        },
+        {
+          image_index: 1,
+          visible_text: "스타벅스 홍대점",
+          place_name: "스타벅스",
+          area_name: "홍대",
+        },
       ],
     });
     geocoder.searchAll.mockResolvedValue([makeCandidate()]);
@@ -280,9 +434,44 @@ describe("PlaceService", () => {
     // when
     const { matches } = await service.extractFromUrl(URL);
 
-    // then
-    expect(matches[0].images).toEqual(["https://img/0", "https://img/1"]);
-    expect(matches[1].images).toEqual(["https://img/0", "https://img/1"]);
+    // then — 이름이 같아도 서로의 사진을 가져가지 않는다
+    expect(matches[0].images).toEqual(["https://img/0"]);
+    expect(matches[1].images).toEqual(["https://img/1"]);
+  });
+
+  it("이름이 같은데 지역으로도 못 가르면 그 사진을 버린다", async () => {
+    // given
+    const { service, instagram, ai, geocoder, placeImage } = createService();
+    instagram.fetchPost.mockResolvedValue(makePost());
+    placeImage.storePostImages.mockResolvedValue([
+      {
+        gsUri: "gs://b/0",
+        publicUrl: "https://img/0",
+        mediaType: "image/jpeg",
+      },
+    ]);
+    ai.extract.mockResolvedValue({
+      places: [
+        { ...QUERY, place_name: "스타벅스", area_name: "강남" },
+        { ...QUERY, place_name: "스타벅스", area_name: "홍대" },
+      ],
+      image_places: [
+        {
+          image_index: 0,
+          visible_text: "스타벅스",
+          place_name: "스타벅스",
+          area_name: "",
+        },
+      ],
+    });
+    geocoder.searchAll.mockResolvedValue([makeCandidate()]);
+
+    // when
+    const { matches } = await service.extractFromUrl(URL);
+
+    // then — 엉뚱한 쪽에 붙이느니 둘 다 전체 폴백
+    expect(matches[0].images).toEqual(["https://img/0"]);
+    expect(matches[1].images).toEqual(["https://img/0"]);
   });
 
   it("영상 게시글은 영상을 올려 릴스 프롬프트로 추출하고, 저장할 수 없는 종류를 걸러낸다", async () => {
