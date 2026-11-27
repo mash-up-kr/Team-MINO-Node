@@ -78,7 +78,7 @@ export class AuthController {
     ),
   })
   @ApiResponse({
-    status: 503,
+    status: 502,
     description: "소셜 제공자 일시 장애 (PROVIDER_UNAVAILABLE)",
     schema: errorApiSchema("PROVIDER_UNAVAILABLE"),
   })

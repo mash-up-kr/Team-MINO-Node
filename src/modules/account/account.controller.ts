@@ -37,6 +37,19 @@ import {
 @Controller("api/v1/users/me")
 export class AccountController {
   @Post("identities")
+  // RequireCurrentUser의 401 문서를 덮어써야 하므로 그 위에 둔다.
+  @ApiResponse({
+    status: 401,
+    description:
+      "인증 실패 (UNAUTHORIZED / TOKEN_EXPIRED), 미등록 유저 (USER_NOT_REGISTERED) " +
+      "또는 소셜 토큰 검증 실패 (INVALID_SOCIAL_TOKEN)",
+    schema: errorApiSchema(
+      "UNAUTHORIZED",
+      "TOKEN_EXPIRED",
+      "USER_NOT_REGISTERED",
+      "INVALID_SOCIAL_TOKEN",
+    ),
+  })
   @RequireCurrentUser()
   @ApiOperation({
     summary: "로그인 수단 추가",
@@ -69,7 +82,7 @@ export class AccountController {
     ),
   })
   @ApiResponse({
-    status: 503,
+    status: 502,
     description: "소셜 제공자 일시 장애 (PROVIDER_UNAVAILABLE)",
     schema: errorApiSchema("PROVIDER_UNAVAILABLE"),
   })
@@ -105,6 +118,12 @@ export class AccountController {
     description: "남은 로그인 수단이 하나뿐 (LAST_IDENTITY)",
     schema: errorApiSchema("LAST_IDENTITY"),
   })
+  @ApiResponse({
+    status: 502,
+    description:
+      "Apple 토큰 폐기 실패 (PROVIDER_UNAVAILABLE). 연결은 그대로 남아 있으므로 다시 시도한다.",
+    schema: errorApiSchema("PROVIDER_UNAVAILABLE"),
+  })
   unlinkIdentity(
     @CurrentUser() _user: RequestUser,
     @Param("provider", new ValibotPipe(providerParamSchema))
@@ -124,6 +143,13 @@ export class AccountController {
       "같은 소셜 계정으로 다시 로그인하면 새 계정이 된다.",
   })
   @ApiResponse({ status: 200, schema: okResponseApiSchema })
+  @ApiResponse({
+    status: 502,
+    description:
+      "Apple 토큰 폐기 실패 (PROVIDER_UNAVAILABLE). Apple을 연결한 계정에서만 발생한다. " +
+      "탈퇴는 처리되지 않았으므로 다시 시도한다.",
+    schema: errorApiSchema("PROVIDER_UNAVAILABLE"),
+  })
   withdraw(@AuthUid() _authUid: string): never {
     throw new NotImplementedException();
   }
