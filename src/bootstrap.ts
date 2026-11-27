@@ -40,7 +40,8 @@ export async function bootstrap(): Promise<void> {
       type: "http",
       scheme: "bearer",
       bearerFormat: "JWT",
-      description: "Firebase Authentication ID 토큰",
+      description:
+        "꾹 access 토큰. 구버전 앱은 Firebase Authentication ID 토큰을 보낸다.",
     })
     .build();
 

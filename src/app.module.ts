@@ -15,6 +15,7 @@ import { DrizzleHealthIndicator } from "./health/drizzle.health-indicator";
 import { HealthController } from "./health/health.controller";
 import { DatabaseModule } from "./infrastructures/db/database.module";
 import { SentryModule } from "./infrastructures/sentry/sentry.module";
+import { AccountModule } from "./modules/account/account.module";
 import { AppLinkModule } from "./modules/app-link/app-link.module";
 import { CardModule } from "./modules/card/card.module";
 import { CommentModule } from "./modules/comment/comment.module";
@@ -54,6 +55,7 @@ import { UserModule } from "./modules/user/user.module";
     PinModule,
     RoomModule,
     UserModule,
+    AccountModule,
     CardModule,
     NotificationModule,
     AppLinkModule,

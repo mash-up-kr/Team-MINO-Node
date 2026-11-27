@@ -53,7 +53,12 @@ export class UserController {
 
   @Get("me")
   @RequireCurrentUser()
-  @ApiOperation({ summary: "내 프로필 조회" })
+  @ApiOperation({
+    summary: "내 프로필 조회",
+    description:
+      "프로필과 연결된 로그인 수단(identities)을 반환한다. 로그인 직후 프로필이 " +
+      "아직 없으면 401 USER_NOT_REGISTERED다.",
+  })
   @ApiResponse({ status: 200, schema: userResponseApiSchema })
   getMe(@CurrentUser() user: RequestUser): Promise<UserProfileResponse> {
     return this.userService.getProfile(user.id);
